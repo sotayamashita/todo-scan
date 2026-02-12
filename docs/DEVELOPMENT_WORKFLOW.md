@@ -39,18 +39,22 @@ sequenceDiagram
         CI-->>Dev: PASS
     end
 
-    Note over Dev,CI: 5. Commit
-    Dev->>Repo: git add <files>
-    Dev->>Repo: git commit -m "type(scope): desc (#N)"
+    Note over Dev,CI: 5. Update README (if features changed)
+    Dev->>Dev: Run feature-writing skill on Features section
+    Dev->>Repo: Update README.md
 
-    Note over Dev,CI: 6. Create a Pull Request
+    Note over Dev,CI: 6. Commit
+    Dev->>Dev: /commit
+    Dev->>Repo: Committed via commit skill
+
+    Note over Dev,CI: 7. Create a Pull Request
     Dev->>Repo: git push -u origin HEAD
     Dev->>GH: gh pr create --body "Closes #N"
     GH-->>Dev: PR URL
     GH->>CI: Trigger CI checks
     CI-->>GH: CI status
 
-    Note over Dev,CI: 7. Merge
+    Note over Dev,CI: 8. Merge
     Dev->>GH: gh pr merge --rebase --delete-branch
     GH->>GH: Auto-close linked issue
     GH-->>Dev: Merged & issue closed
@@ -63,6 +67,8 @@ sequenceDiagram
 - **Follow TDD** — write failing tests first, then implement, then refactor
 - **Post the plan to the issue** — share the implementation plan as a comment before coding
 - **Link PRs to issues** with `Closes #<number>` for auto-closing
+- **Update README** when adding or changing user-facing features — use the `feature-writing` skill for the Features section
+- **Use `/commit`** for all commits — the commit skill handles staging, message formatting, and validation
 
 ## Workflow Steps
 
@@ -154,25 +160,29 @@ cargo fmt --check
 cargo check
 ```
 
-### 5. Commit
+### 5. Update README (if features changed)
 
-Use conventional commit format and reference the issue number.
+When a change adds or modifies user-facing features, update the Features section of `README.md` before committing. Use the `feature-writing` skill to draft the update.
 
-```bash
-# Stage changes
-git add <files>
+- **When to update**: new commands, new flags, changed behavior, new integrations
+- **When to skip**: internal optimizations, refactoring, test-only changes, docs-only changes
+- Use the `feature-writing` skill (`/feature-writing`) to ensure consistent messaging
 
-# Commit with conventional format and issue reference
-git commit -m "type(scope): description (#<issue-number>)"
+### 6. Commit
+
+Use the `/commit` skill for all commits. It handles staging, conventional commit message formatting, and validation automatically.
+
+```
+/commit
 ```
 
-Commit message examples:
+The commit skill produces messages in conventional format with issue references:
 - `feat(scanner): add support for custom tag patterns (#12)`
 - `fix(diff): handle binary files gracefully (#8)`
 - `test(check): add threshold validation tests (#15)`
 - `docs(readme): update installation instructions (#3)`
 
-### 6. Create a Pull Request
+### 7. Create a Pull Request
 
 Push the branch and create a PR that links to the issue.
 
@@ -203,7 +213,7 @@ EOF
 - Ensure the PR title follows conventional commit format
 - Include a test plan in the PR description
 
-### 7. Merge
+### 8. Merge
 
 After review and CI passes, merge the PR.
 
