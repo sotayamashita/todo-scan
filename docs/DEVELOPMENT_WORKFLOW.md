@@ -21,7 +21,12 @@ sequenceDiagram
     Dev->>Repo: git switch main && git pull --rebase
     Dev->>Repo: git switch -c <type>/<description>
 
-    Note over Dev,CI: 3. Implement with TDD
+    Note over Dev,CI: 3. Post Implementation Plan
+    Dev->>Dev: Create plan (Plan mode)
+    Dev->>GH: gh issue comment <number> --body "plan"
+    GH-->>Dev: Plan posted to issue
+
+    Note over Dev,CI: 4. Implement with TDD
     loop Red-Green-Refactor
         Dev->>Repo: Write failing test
         Dev->>CI: cargo test (Red)
@@ -34,18 +39,18 @@ sequenceDiagram
         CI-->>Dev: PASS
     end
 
-    Note over Dev,CI: 4. Commit
+    Note over Dev,CI: 5. Commit
     Dev->>Repo: git add <files>
     Dev->>Repo: git commit -m "type(scope): desc (#N)"
 
-    Note over Dev,CI: 5. Create a Pull Request
+    Note over Dev,CI: 6. Create a Pull Request
     Dev->>Repo: git push -u origin HEAD
     Dev->>GH: gh pr create --body "Closes #N"
     GH-->>Dev: PR URL
     GH->>CI: Trigger CI checks
     CI-->>GH: CI status
 
-    Note over Dev,CI: 6. Merge
+    Note over Dev,CI: 7. Merge
     Dev->>GH: gh pr merge --rebase --delete-branch
     GH->>GH: Auto-close linked issue
     GH-->>Dev: Merged & issue closed
@@ -56,6 +61,7 @@ sequenceDiagram
 - **No work without an issue** — every change must be linked to a GitHub issue
 - **Use `gh` CLI** for all GitHub operations (issues, PRs, project board)
 - **Follow TDD** — write failing tests first, then implement, then refactor
+- **Post the plan to the issue** — share the implementation plan as a comment before coding
 - **Link PRs to issues** with `Closes #<number>` for auto-closing
 
 ## Workflow Steps
@@ -99,7 +105,34 @@ Branch naming conventions:
 - `docs/<description>` — documentation changes
 - `chore/<description>` — maintenance tasks
 
-### 3. Implement with TDD
+### 3. Post Implementation Plan
+
+After creating a branch, use Plan mode to design the implementation approach. Then post the plan as a comment on the issue using `gh` CLI. The plan must be written in English.
+
+```bash
+# Post the implementation plan to the issue
+gh issue comment <number> --body "$(cat <<'EOF'
+## Implementation Plan
+
+### Overview
+Brief description of the approach.
+
+### Changes
+- **file_or_module** — what will be changed and why
+- **file_or_module** — what will be changed and why
+
+### Testing Strategy
+- What tests will be added or updated
+EOF
+)"
+```
+
+- Use Plan mode to explore the codebase and design the approach before writing code
+- Write the plan in English for consistency across the project
+- Wait for feedback on the plan if working with a team before proceeding to implementation
+- The plan serves as documentation for the rationale behind implementation decisions
+
+### 4. Implement with TDD
 
 Follow the Red-Green-Refactor cycle:
 
@@ -121,7 +154,7 @@ cargo fmt --check
 cargo check
 ```
 
-### 4. Commit
+### 5. Commit
 
 Use conventional commit format and reference the issue number.
 
@@ -139,7 +172,7 @@ Commit message examples:
 - `test(check): add threshold validation tests (#15)`
 - `docs(readme): update installation instructions (#3)`
 
-### 5. Create a Pull Request
+### 6. Create a Pull Request
 
 Push the branch and create a PR that links to the issue.
 
@@ -170,7 +203,7 @@ EOF
 - Ensure the PR title follows conventional commit format
 - Include a test plan in the PR description
 
-### 6. Merge
+### 7. Merge
 
 After review and CI passes, merge the PR.
 
