@@ -9,8 +9,8 @@
 > This project used the prompt from the **"Start your first agent team"** section of the [Claude Code Agent Teams documentation](https://code.claude.com/docs/en/agent-teams) as-is:
 >
 > ```
-> I implmented a CLI tool MVP that helps developers track TODO comments across
-> their codebase. I want a team to think of a new killer features. Create an agent team to explore this from different angles: one
+> I'm designing a CLI tool that helps developers track TODO comments across
+> their codebase. Create an agent team to explore this from different angles: one
 > teammate on UX, one on technical architecture, one playing devil's advocate.
 > ```
 
