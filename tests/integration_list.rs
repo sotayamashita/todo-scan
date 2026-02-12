@@ -120,3 +120,15 @@ fn test_list_with_author_and_issue() {
         .stdout(predicate::str::contains("\"author\": \"alice\""))
         .stdout(predicate::str::contains("\"issue_ref\": \"#123\""));
 }
+
+#[test]
+fn test_list_text_issue_ref_no_double_hash() {
+    let dir = setup_project(&[("main.rs", "// TODO(alice): fix issue #123\n")]);
+
+    todox()
+        .args(["list", "--root", dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("(#123)"))
+        .stdout(predicate::str::contains("(##123)").not());
+}

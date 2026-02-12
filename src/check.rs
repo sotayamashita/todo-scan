@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::config::Config;
 use crate::model::*;
 
@@ -16,17 +18,16 @@ pub fn run_check(
     let mut violations: Vec<CheckViolation> = Vec::new();
 
     // Step 1: block_tags check
-    let mut blocked: Vec<String> = overrides.block_tags.clone();
-    for tag in &config.check.block_tags {
-        let upper = tag.to_uppercase();
-        if !blocked.iter().any(|b| b.to_uppercase() == upper) {
-            blocked.push(tag.clone());
-        }
-    }
+    let blocked: HashSet<String> = overrides
+        .block_tags
+        .iter()
+        .chain(config.check.block_tags.iter())
+        .map(|t| t.to_uppercase())
+        .collect();
 
     for item in &scan.items {
         let item_tag = item.tag.as_str().to_uppercase();
-        if blocked.iter().any(|b| b.to_uppercase() == item_tag) {
+        if blocked.contains(&item_tag) {
             violations.push(CheckViolation {
                 rule: "block_tags".to_string(),
                 message: format!(

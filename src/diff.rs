@@ -32,7 +32,7 @@ pub fn compute_diff(
     root: &Path,
     config: &Config,
 ) -> Result<DiffResult> {
-    let file_list = git_command(&["ls-tree", "-r", "--name-only", base_ref], root)
+    let file_list = git_command(&["ls-tree", "-r", "--name-only", "--", base_ref], root)
         .with_context(|| format!("Failed to list files at ref {}", base_ref))?;
 
     let pattern = config.tags_pattern();

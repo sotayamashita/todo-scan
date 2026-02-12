@@ -35,7 +35,7 @@ pub fn print_list(result: &ScanResult, format: &Format) {
                         line.push_str(&format!(" (@{})", author));
                     }
                     if let Some(ref issue) = item.issue_ref {
-                        line.push_str(&format!(" (#{})", issue));
+                        line.push_str(&format!(" ({})", issue));
                     }
 
                     println!("{}", line);

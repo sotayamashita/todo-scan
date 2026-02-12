@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "todox", about = "Track TODO/FIXME/HACK comments in your codebase")]
+#[command(name = "todox", version, about = "Track TODO/FIXME/HACK comments in your codebase")]
 pub struct Cli {
     #[arg(long, global = true, value_enum, default_value = "text")]
     pub format: Format,

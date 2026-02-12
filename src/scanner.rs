@@ -2,15 +2,18 @@ use anyhow::Result;
 use ignore::WalkBuilder;
 use regex::Regex;
 use std::path::Path;
+use std::sync::LazyLock;
 
 use crate::config::Config;
 use crate::model::{Priority, ScanResult, Tag, TodoItem};
 
+static ISSUE_REF_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:([A-Z]+-\d+)|#(\d+))").unwrap());
+
 /// Extract an issue reference from the message text.
 /// Matches patterns like #123 or JIRA-456.
 fn extract_issue_ref(message: &str) -> Option<String> {
-    let re = Regex::new(r"(?:([A-Z]+-\d+)|#(\d+))").unwrap();
-    re.captures(message).map(|caps| {
+    ISSUE_REF_RE.captures(message).map(|caps| {
         caps.get(1)
             .or_else(|| caps.get(2).map(|m| m))
             .map(|m| {
@@ -34,9 +37,9 @@ pub fn scan_content(content: &str, file_path: &str, pattern: &Regex) -> Vec<Todo
     for (line_idx, line) in content.lines().enumerate() {
         if let Some(caps) = pattern.captures(line) {
             let tag_str = caps.get(1).map(|m| m.as_str()).unwrap_or("");
-            let tag = match Tag::from_str(tag_str) {
-                Some(t) => t,
-                None => continue,
+            let tag = match tag_str.parse::<Tag>() {
+                Ok(t) => t,
+                Err(_) => continue,
             };
 
             let author = caps.get(2).map(|m| m.as_str().to_string());

@@ -1,5 +1,6 @@
 use serde::Serialize;
 use std::fmt;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
@@ -24,18 +25,6 @@ impl Tag {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s.to_uppercase().as_str() {
-            "TODO" => Some(Tag::Todo),
-            "FIXME" => Some(Tag::Fixme),
-            "HACK" => Some(Tag::Hack),
-            "XXX" => Some(Tag::Xxx),
-            "BUG" => Some(Tag::Bug),
-            "NOTE" => Some(Tag::Note),
-            _ => None,
-        }
-    }
-
     pub fn severity(&self) -> u8 {
         match self {
             Tag::Note => 0,
@@ -44,6 +33,22 @@ impl Tag {
             Tag::Xxx => 3,
             Tag::Fixme => 4,
             Tag::Bug => 5,
+        }
+    }
+}
+
+impl FromStr for Tag {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "TODO" => Ok(Tag::Todo),
+            "FIXME" => Ok(Tag::Fixme),
+            "HACK" => Ok(Tag::Hack),
+            "XXX" => Ok(Tag::Xxx),
+            "BUG" => Ok(Tag::Bug),
+            "NOTE" => Ok(Tag::Note),
+            _ => Err(()),
         }
     }
 }

@@ -8,7 +8,7 @@ mod scanner;
 
 use std::process;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 
 use check::{CheckOverrides, run_check};
@@ -29,9 +29,10 @@ fn main() {
 fn run() -> Result<()> {
     let cli = Cli::parse();
 
-    let root = cli
-        .root
-        .unwrap_or_else(|| std::env::current_dir().expect("cannot determine current directory"));
+    let root = match cli.root {
+        Some(p) => p,
+        None => std::env::current_dir().context("cannot determine current directory")?,
+    };
 
     let config = if let Some(ref config_path) = cli.config {
         let content = std::fs::read_to_string(config_path)?;
@@ -63,7 +64,7 @@ fn cmd_list(
 
     // Apply tag filter
     if !tag_filter.is_empty() {
-        let filter_tags: Vec<Tag> = tag_filter.iter().filter_map(|s| Tag::from_str(s)).collect();
+        let filter_tags: Vec<Tag> = tag_filter.iter().filter_map(|s| s.parse::<Tag>().ok()).collect();
         result.items.retain(|item| filter_tags.contains(&item.tag));
     }
 
@@ -113,7 +114,7 @@ fn cmd_diff(
 
     // Apply tag filter
     if !tag_filter.is_empty() {
-        let filter_tags: Vec<Tag> = tag_filter.iter().filter_map(|s| Tag::from_str(s)).collect();
+        let filter_tags: Vec<Tag> = tag_filter.iter().filter_map(|s| s.parse::<Tag>().ok()).collect();
         diff_result
             .entries
             .retain(|entry| filter_tags.contains(&entry.item.tag));
