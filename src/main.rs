@@ -11,7 +11,7 @@ use std::process;
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use check::{CheckOverrides, run_check};
+use check::{run_check, CheckOverrides};
 use cli::{Cli, Command, Format, SortBy};
 use config::Config;
 use diff::compute_diff;
@@ -64,15 +64,18 @@ fn cmd_list(
 
     // Apply tag filter
     if !tag_filter.is_empty() {
-        let filter_tags: Vec<Tag> = tag_filter.iter().filter_map(|s| s.parse::<Tag>().ok()).collect();
+        let filter_tags: Vec<Tag> = tag_filter
+            .iter()
+            .filter_map(|s| s.parse::<Tag>().ok())
+            .collect();
         result.items.retain(|item| filter_tags.contains(&item.tag));
     }
 
     // Apply sort
     match sort {
-        SortBy::File => result.items.sort_by(|a, b| {
-            a.file.cmp(&b.file).then(a.line.cmp(&b.line))
-        }),
+        SortBy::File => result
+            .items
+            .sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line))),
         SortBy::Tag => result.items.sort_by(|a, b| {
             a.tag
                 .severity()
@@ -114,7 +117,10 @@ fn cmd_diff(
 
     // Apply tag filter
     if !tag_filter.is_empty() {
-        let filter_tags: Vec<Tag> = tag_filter.iter().filter_map(|s| s.parse::<Tag>().ok()).collect();
+        let filter_tags: Vec<Tag> = tag_filter
+            .iter()
+            .filter_map(|s| s.parse::<Tag>().ok())
+            .collect();
         diff_result
             .entries
             .retain(|entry| filter_tags.contains(&entry.item.tag));

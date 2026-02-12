@@ -93,11 +93,7 @@ fn test_diff_json_format() {
     let dir = setup_git_repo(&[("main.rs", "fn main() {}\n")]);
     let cwd = dir.path();
 
-    fs::write(
-        cwd.join("main.rs"),
-        "// FIXME: urgent fix\nfn main() {}\n",
-    )
-    .unwrap();
+    fs::write(cwd.join("main.rs"), "// FIXME: urgent fix\nfn main() {}\n").unwrap();
 
     todox()
         .args([

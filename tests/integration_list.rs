@@ -102,10 +102,7 @@ fn test_list_empty_project() {
 
 #[test]
 fn test_list_with_author_and_issue() {
-    let dir = setup_project(&[(
-        "main.rs",
-        "// TODO(alice): fix issue #123\n",
-    )]);
+    let dir = setup_project(&[("main.rs", "// TODO(alice): fix issue #123\n")]);
 
     todox()
         .args([

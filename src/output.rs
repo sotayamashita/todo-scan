@@ -42,11 +42,7 @@ pub fn print_list(result: &ScanResult, format: &Format) {
                 }
             }
 
-            println!(
-                "\n{} items in {} files",
-                result.items.len(),
-                file_count
-            );
+            println!("\n{} items in {} files", result.items.len(), file_count);
         }
         Format::Json => {
             let json = serde_json::to_string_pretty(result).expect("failed to serialize");

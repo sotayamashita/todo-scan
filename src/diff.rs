@@ -20,8 +20,8 @@ fn git_command(args: &[&str], cwd: &Path) -> Result<String> {
         anyhow::bail!("git {} failed: {}", args.join(" "), stderr.trim());
     }
 
-    let stdout = String::from_utf8(output.stdout)
-        .with_context(|| "git output is not valid UTF-8")?;
+    let stdout =
+        String::from_utf8(output.stdout).with_context(|| "git output is not valid UTF-8")?;
 
     Ok(stdout)
 }
@@ -36,8 +36,7 @@ pub fn compute_diff(
         .with_context(|| format!("Failed to list files at ref {}", base_ref))?;
 
     let pattern = config.tags_pattern();
-    let re = Regex::new(&pattern)
-        .with_context(|| format!("Invalid tags pattern: {}", pattern))?;
+    let re = Regex::new(&pattern).with_context(|| format!("Invalid tags pattern: {}", pattern))?;
 
     let mut base_items: Vec<TodoItem> = Vec::new();
     for path in file_list.lines() {

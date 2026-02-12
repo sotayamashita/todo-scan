@@ -51,9 +51,7 @@ impl Config {
     /// Build regex pattern from configured tags
     pub fn tags_pattern(&self) -> String {
         let tags = self.tags.join("|");
-        format!(
-            r"(?i)\b({tags})(?:\(([\w@.\-]+)\))?:?\s*(!{{1,2}})?\s*(.+)$"
-        )
+        format!(r"(?i)\b({tags})(?:\(([\w@.\-]+)\))?:?\s*(!{{1,2}})?\s*(.+)$")
     }
 
     /// Load config from .todox.toml, searching up from the given directory
