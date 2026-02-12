@@ -1,8 +1,9 @@
 use anyhow::Result;
-use ignore::WalkBuilder;
+use ignore::{WalkBuilder, WalkState};
 use regex::Regex;
 use std::path::Path;
-use std::sync::LazyLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, LazyLock, Mutex};
 
 use crate::config::Config;
 use crate::model::{Priority, ScanResult, Tag, TodoItem};
@@ -108,55 +109,77 @@ pub fn scan_directory(root: &Path, config: &Config) -> Result<ScanResult> {
         .filter_map(|p| Regex::new(p).ok())
         .collect();
 
-    let mut items = Vec::new();
-    let mut files_scanned: usize = 0;
+    let items = Arc::new(Mutex::new(Vec::new()));
+    let files_scanned = Arc::new(AtomicUsize::new(0));
+    let exclude_dirs = Arc::new(config.exclude_dirs.clone());
+    let exclude_regexes = Arc::new(exclude_regexes);
+    let root = root.to_path_buf();
 
-    let walker = WalkBuilder::new(root).build();
+    let walker = WalkBuilder::new(&root).build_parallel();
 
-    for entry in walker {
-        let entry = match entry {
-            Ok(e) => e,
-            Err(_) => continue,
-        };
+    walker.run(|| {
+        let items = Arc::clone(&items);
+        let files_scanned = Arc::clone(&files_scanned);
+        let exclude_dirs = Arc::clone(&exclude_dirs);
+        let exclude_regexes = Arc::clone(&exclude_regexes);
+        let pattern = pattern.clone();
+        let root = root.clone();
 
-        let path = entry.path();
+        Box::new(move |entry| {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(_) => return WalkState::Continue,
+            };
 
-        if !path.is_file() {
-            continue;
-        }
+            let path = entry.path();
 
-        // Check exclude_dirs
-        let should_exclude_dir = config.exclude_dirs.iter().any(|dir| {
-            path.components()
-                .any(|c| c.as_os_str().to_str().map(|s| s == dir).unwrap_or(false))
-        });
-        if should_exclude_dir {
-            continue;
-        }
+            if !path.is_file() {
+                return WalkState::Continue;
+            }
 
-        // Check exclude_patterns against the path string
-        let path_str = path.to_string_lossy();
-        let should_exclude_pattern = exclude_regexes.iter().any(|re| re.is_match(&path_str));
-        if should_exclude_pattern {
-            continue;
-        }
+            // Check exclude_dirs
+            let should_exclude_dir = exclude_dirs.iter().any(|dir| {
+                path.components()
+                    .any(|c| c.as_os_str().to_str().map(|s| s == dir).unwrap_or(false))
+            });
+            if should_exclude_dir {
+                return WalkState::Continue;
+            }
 
-        // Read the file; skip binary or unreadable files
-        let content = match std::fs::read_to_string(path) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
+            // Check exclude_patterns against the path string
+            let path_str = path.to_string_lossy();
+            let should_exclude_pattern = exclude_regexes.iter().any(|re| re.is_match(&path_str));
+            if should_exclude_pattern {
+                return WalkState::Continue;
+            }
 
-        let relative_path = path
-            .strip_prefix(root)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .to_string();
+            // Read the file; skip binary or unreadable files
+            let content = match std::fs::read_to_string(path) {
+                Ok(c) => c,
+                Err(_) => return WalkState::Continue,
+            };
 
-        let found = scan_content(&content, &relative_path, &pattern);
-        items.extend(found);
-        files_scanned += 1;
-    }
+            let relative_path = path
+                .strip_prefix(&root)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .to_string();
+
+            let found = scan_content(&content, &relative_path, &pattern);
+            if !found.is_empty() {
+                items.lock().unwrap().extend(found);
+            }
+            files_scanned.fetch_add(1, Ordering::Relaxed);
+
+            WalkState::Continue
+        })
+    });
+
+    let items = Arc::try_unwrap(items)
+        .expect("all walker threads should have finished")
+        .into_inner()
+        .unwrap();
+    let files_scanned = files_scanned.load(Ordering::Relaxed);
 
     Ok(ScanResult {
         items,
@@ -526,5 +549,70 @@ line four
     #[test]
     fn test_is_in_comment_false_for_identifier() {
         assert!(!is_in_comment("TodoService::new()", 0));
+    }
+
+    // --- scan_directory() tests ---
+
+    #[test]
+    fn test_scan_directory_basic() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("hello.rs"), "// TODO: basic test\n").unwrap();
+
+        let config = Config::default();
+        let result = scan_directory(dir.path(), &config).unwrap();
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].tag, Tag::Todo);
+        assert_eq!(result.items[0].message, "basic test");
+        assert_eq!(result.files_scanned, 1);
+    }
+
+    #[test]
+    fn test_scan_directory_multiple_files() {
+        let dir = tempfile::tempdir().unwrap();
+        for i in 0..10 {
+            std::fs::write(
+                dir.path().join(format!("file_{i}.rs")),
+                format!("// TODO: task {i}\n"),
+            )
+            .unwrap();
+        }
+
+        let config = Config::default();
+        let result = scan_directory(dir.path(), &config).unwrap();
+
+        assert_eq!(result.items.len(), 10);
+        assert_eq!(result.files_scanned, 10);
+    }
+
+    #[test]
+    fn test_scan_directory_exclude_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("keep.rs"), "// TODO: keep this\n").unwrap();
+        let vendor = dir.path().join("vendor");
+        std::fs::create_dir(&vendor).unwrap();
+        std::fs::write(vendor.join("skip.rs"), "// TODO: skip this\n").unwrap();
+
+        let config = Config {
+            exclude_dirs: vec!["vendor".to_string()],
+            ..Config::default()
+        };
+        let result = scan_directory(dir.path(), &config).unwrap();
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].message, "keep this");
+    }
+
+    #[test]
+    fn test_scan_directory_files_scanned_count() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("with_todo.rs"), "// TODO: has todo\n").unwrap();
+        std::fs::write(dir.path().join("no_todo.rs"), "fn main() {}\n").unwrap();
+
+        let config = Config::default();
+        let result = scan_directory(dir.path(), &config).unwrap();
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.files_scanned, 2);
     }
 }
