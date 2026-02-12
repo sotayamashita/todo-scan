@@ -27,6 +27,22 @@ fn extract_issue_ref(message: &str) -> Option<String> {
     })
 }
 
+/// Comment prefixes that can appear anywhere before the tag on the line.
+const COMMENT_PREFIXES: &[&str] = &["//", "#", "/*", "--", "<!--", ";", "(*", "{-", "%"];
+
+/// Prefixes that only match at line start (after trimming whitespace).
+const LINE_START_PREFIXES: &[&str] = &["*"];
+
+/// Heuristic: does the tag at `tag_start` appear to be inside a comment?
+fn is_in_comment(line: &str, tag_start: usize) -> bool {
+    let before_tag = &line[..tag_start];
+    if COMMENT_PREFIXES.iter().any(|p| before_tag.contains(p)) {
+        return true;
+    }
+    let trimmed = before_tag.trim_start();
+    LINE_START_PREFIXES.iter().any(|p| trimmed.starts_with(p))
+}
+
 /// Scan text content line by line for TODO-style comments.
 ///
 /// Pure function: takes content, a file path label, and a compiled regex.
@@ -36,6 +52,11 @@ pub fn scan_content(content: &str, file_path: &str, pattern: &Regex) -> Vec<Todo
 
     for (line_idx, line) in content.lines().enumerate() {
         if let Some(caps) = pattern.captures(line) {
+            let tag_match = caps.get(1).unwrap();
+            if !is_in_comment(line, tag_match.start()) {
+                continue;
+            }
+
             let tag_str = caps.get(1).map(|m| m.as_str()).unwrap_or("");
             let tag = match tag_str.parse::<Tag>() {
                 Ok(t) => t,
@@ -306,5 +327,204 @@ line four
             Some("PROJ-100".to_string())
         );
         assert_eq!(extract_issue_ref("no reference here"), None);
+    }
+
+    // --- False-positive rejection tests ---
+
+    #[test]
+    fn test_no_match_in_identifier() {
+        let pattern = default_pattern();
+        let content = "let service = TodoService::new();\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert!(items.is_empty(), "should not match TODO inside identifier");
+    }
+
+    #[test]
+    fn test_no_match_in_camel_case() {
+        let pattern = default_pattern();
+        let content = "if isTodoCompleted() { return; }\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert!(items.is_empty(), "should not match Todo in camelCase");
+    }
+
+    #[test]
+    fn test_no_match_in_string_literal() {
+        let pattern = default_pattern();
+        let content = "let msg = \"TODO: not a real comment\";\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert!(
+            items.is_empty(),
+            "should not match TODO inside string literal"
+        );
+    }
+
+    #[test]
+    fn test_no_match_in_plain_code() {
+        let pattern = default_pattern();
+        let content = "let todo_count = get_todos().len();\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert!(items.is_empty(), "should not match todo in variable name");
+    }
+
+    #[test]
+    fn test_no_match_enum_variant() {
+        let pattern = default_pattern();
+        let content = "enum State { Todo, InProgress, Done }\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert!(items.is_empty(), "should not match Todo enum variant");
+    }
+
+    #[test]
+    fn test_no_match_struct_name() {
+        let pattern = default_pattern();
+        let content = "struct TodoItem { title: String }\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert!(items.is_empty(), "should not match Todo in struct name");
+    }
+
+    // --- Comment detection tests (various languages) ---
+
+    #[test]
+    fn test_comment_double_slash() {
+        let pattern = default_pattern();
+        let content = "// TODO: rust/js/c++ style comment\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_comment_hash() {
+        let pattern = default_pattern();
+        let content = "# TODO: python/ruby/shell style comment\n";
+        let items = scan_content(content, "test.py", &pattern);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_comment_block_start() {
+        let pattern = default_pattern();
+        let content = "/* TODO: c-style block comment */\n";
+        let items = scan_content(content, "test.c", &pattern);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_comment_block_middle_star() {
+        let pattern = default_pattern();
+        let content = " * TODO: middle of block comment\n";
+        let items = scan_content(content, "test.java", &pattern);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_comment_double_dash() {
+        let pattern = default_pattern();
+        let content = "-- TODO: sql/haskell style comment\n";
+        let items = scan_content(content, "test.sql", &pattern);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_comment_percent() {
+        let pattern = default_pattern();
+        let content = "% TODO: latex/erlang style comment\n";
+        let items = scan_content(content, "test.erl", &pattern);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_comment_html() {
+        let pattern = default_pattern();
+        let content = "<!-- TODO: html comment -->\n";
+        let items = scan_content(content, "test.html", &pattern);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_comment_semicolon() {
+        let pattern = default_pattern();
+        let content = "; TODO: lisp/asm style comment\n";
+        let items = scan_content(content, "test.lisp", &pattern);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_comment_ocaml_paren_star() {
+        let pattern = default_pattern();
+        let content = "(* TODO: ocaml/pascal style comment *)\n";
+        let items = scan_content(content, "test.ml", &pattern);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_comment_haskell_brace_dash() {
+        let pattern = default_pattern();
+        let content = "{- TODO: haskell block comment -}\n";
+        let items = scan_content(content, "test.hs", &pattern);
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn test_indented_comment() {
+        let pattern = default_pattern();
+        let content = "    // TODO: indented with spaces\n\t# FIXME: indented with tab\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert_eq!(items.len(), 2);
+    }
+
+    #[test]
+    fn test_inline_comment() {
+        let pattern = default_pattern();
+        let content = "let x = 42; // TODO: fix this value\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].message, "fix this value");
+    }
+
+    // --- is_in_comment() direct tests ---
+
+    #[test]
+    fn test_is_in_comment_double_slash() {
+        assert!(is_in_comment("// TODO: test", 3));
+    }
+
+    #[test]
+    fn test_is_in_comment_hash() {
+        assert!(is_in_comment("# TODO: test", 2));
+    }
+
+    #[test]
+    fn test_is_in_comment_block_start() {
+        assert!(is_in_comment("/* TODO: test */", 3));
+    }
+
+    #[test]
+    fn test_is_in_comment_star_line_start() {
+        assert!(is_in_comment(" * TODO: test", 3));
+    }
+
+    #[test]
+    fn test_is_in_comment_html() {
+        assert!(is_in_comment("<!-- TODO: test -->", 5));
+    }
+
+    #[test]
+    fn test_is_in_comment_inline() {
+        assert!(is_in_comment("let x = 1; // TODO: fix", 15));
+    }
+
+    #[test]
+    fn test_is_in_comment_false_for_code() {
+        assert!(!is_in_comment("let todo_count = 0;", 4));
+    }
+
+    #[test]
+    fn test_is_in_comment_false_for_string() {
+        assert!(!is_in_comment("let s = \"TODO: test\";", 9));
+    }
+
+    #[test]
+    fn test_is_in_comment_false_for_identifier() {
+        assert!(!is_in_comment("TodoService::new()", 0));
     }
 }

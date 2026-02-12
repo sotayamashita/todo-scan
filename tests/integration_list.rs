@@ -129,3 +129,57 @@ fn test_list_text_issue_ref_no_double_hash() {
         .stdout(predicate::str::contains("(#123)"))
         .stdout(predicate::str::contains("(##123)").not());
 }
+
+#[test]
+fn test_list_filters_false_positives() {
+    let dir = setup_project(&[(
+        "main.rs",
+        r#"// TODO: real comment
+let service = TodoService::new();
+if isTodoCompleted() { return; }
+let msg = "TODO: not real";
+let todo_count = 42;
+// FIXME(bob): another real comment
+struct TodoItem { done: bool }
+"#,
+    )]);
+
+    // Verify only 2 real comment items found (text output)
+    todox()
+        .args(["list", "--root", dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("2 items"));
+
+    // Verify correct messages via JSON output
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"message\": \"real comment\""))
+        .stdout(predicate::str::contains(
+            "\"message\": \"another real comment\"",
+        ));
+}
+
+#[test]
+fn test_list_multi_language_comments() {
+    let dir = setup_project(&[
+        ("app.py", "# TODO: python todo\nx = 1\n"),
+        ("style.css", "/* FIXME: css fixme */\n"),
+        ("query.sql", "-- HACK: sql hack\n"),
+        ("page.html", "<!-- NOTE: html note -->\n"),
+    ]);
+
+    todox()
+        .args(["list", "--root", dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("4 items"));
+}
