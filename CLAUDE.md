@@ -45,3 +45,13 @@ The scanner regex matches: `TAG[(author)][!{1,2}]: message` where `!` = high pri
 ## Integration Tests
 
 Tests in `tests/` use `assert_cmd` + `tempfile` to create temporary directories with fixture files and run the binary as a subprocess. Each test file corresponds to a subcommand.
+
+## Development Workflow
+
+**IMPORTANT: Before starting any development task, read and follow the workflow defined in `docs/DEVELOPMENT_WORKFLOW.md`.**
+
+Key rules:
+- All development is issue-driven — no work without a corresponding issue
+- Use `gh` CLI for all GitHub operations (issues, PRs, project board)
+- Follow TDD: write failing tests first, then implement
+- Link PRs to issues with `Closes #<number>` for auto-closing
