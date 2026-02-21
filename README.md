@@ -21,6 +21,7 @@ Track TODO/FIXME/HACK comments in your codebase with git-aware diff and CI gate.
 - **`todox list`** — Scan and display all TODO-style comments, grouped by file with color-coded tags
 - **`todox diff <ref>`** — Show added/removed TODOs compared to a git ref (branch, tag, or commit)
 - **`todox check`** — CI gate that fails when TODO counts exceed thresholds or blocked tags are found
+- **CI-ready output formats** — Get inline PR annotations with `--format github-actions`, surface findings in GitHub's Security tab with `--format sarif`, or generate tables for PR comment bots with `--format markdown`
 
 ### What it detects
 
@@ -102,8 +103,22 @@ Exit codes: `0` = pass, `1` = fail, `2` = error.
 | Flag | Description |
 |---|---|
 | `--root <path>` | Set the project root directory (default: current directory) |
-| `--format <text\|json>` | Output format (default: text) |
+| `--format <format>` | Output format: `text`, `json`, `github-actions`, `sarif`, `markdown` (default: text) |
 | `--config <path>` | Path to config file (default: auto-discover `.todox.toml`) |
+
+### Output formats
+
+```bash
+# GitHub Actions annotations — inline warnings/errors in PR diffs
+todox list --format github-actions
+todox check --max 100 --format github-actions
+
+# SARIF — upload to GitHub Code Scanning / Security tab
+todox list --format sarif > results.sarif
+
+# Markdown — tables for PR comment bots
+todox diff main --format markdown
+```
 
 ## Configuration
 
@@ -156,6 +171,25 @@ cp -r .claude/skills/todox ~/.claude/skills/
 - name: Check TODOs
   run: |
     todox check --max 100 --block-tags BUG,FIXME
+```
+
+### GitHub Actions with inline annotations
+
+```yaml
+- name: Check TODOs with annotations
+  run: |
+    todox check --max 100 --format github-actions
+```
+
+### SARIF upload to Code Scanning
+
+```yaml
+- name: Scan TODOs
+  run: todox list --format sarif > todox.sarif
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: todox.sarif
 ```
 
 ### PR review with diff

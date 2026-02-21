@@ -125,3 +125,39 @@ pub struct CheckViolation {
     pub rule: String,
     pub message: String,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Severity {
+    Error,
+    Warning,
+    Notice,
+}
+
+impl Severity {
+    pub fn from_item(item: &TodoItem) -> Self {
+        if item.priority == Priority::Urgent {
+            return Severity::Error;
+        }
+        match item.tag {
+            Tag::Bug | Tag::Fixme => Severity::Error,
+            Tag::Todo | Tag::Hack | Tag::Xxx => Severity::Warning,
+            Tag::Note => Severity::Notice,
+        }
+    }
+
+    pub fn as_github_actions_str(&self) -> &'static str {
+        match self {
+            Severity::Error => "error",
+            Severity::Warning => "warning",
+            Severity::Notice => "notice",
+        }
+    }
+
+    pub fn as_sarif_level(&self) -> &'static str {
+        match self {
+            Severity::Error => "error",
+            Severity::Warning => "warning",
+            Severity::Notice => "note",
+        }
+    }
+}

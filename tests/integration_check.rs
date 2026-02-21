@@ -124,3 +124,102 @@ fn test_check_fail_json_format() {
         .stdout(predicate::str::contains("\"passed\": false"))
         .stdout(predicate::str::contains("\"rule\": \"max\""));
 }
+
+#[test]
+fn test_check_github_actions_format_pass() {
+    let dir = setup_project(&[("main.rs", "// TODO: task\n")]);
+
+    todox()
+        .args([
+            "check",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "github-actions",
+            "--max",
+            "10",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("::notice::todox check: PASS"));
+}
+
+#[test]
+fn test_check_github_actions_format_fail() {
+    let dir = setup_project(&[("main.rs", "// TODO: one\n// TODO: two\n")]);
+
+    todox()
+        .args([
+            "check",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "github-actions",
+            "--max",
+            "1",
+        ])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("::error title=max::"))
+        .stdout(predicate::str::contains("::error::todox check: FAIL"));
+}
+
+#[test]
+fn test_check_sarif_format() {
+    let dir = setup_project(&[("main.rs", "// TODO: task\n")]);
+
+    todox()
+        .args([
+            "check",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "sarif",
+            "--max",
+            "10",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"version\": \"2.1.0\""))
+        .stdout(predicate::str::contains("\"level\": \"note\""));
+}
+
+#[test]
+fn test_check_markdown_format_pass() {
+    let dir = setup_project(&[("main.rs", "// TODO: task\n")]);
+
+    todox()
+        .args([
+            "check",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "markdown",
+            "--max",
+            "10",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("## PASS"))
+        .stdout(predicate::str::contains("All checks passed"));
+}
+
+#[test]
+fn test_check_markdown_format_fail() {
+    let dir = setup_project(&[("main.rs", "// TODO: one\n// TODO: two\n")]);
+
+    todox()
+        .args([
+            "check",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "markdown",
+            "--max",
+            "1",
+        ])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("## FAIL"))
+        .stdout(predicate::str::contains("- **max**:"));
+}

@@ -283,3 +283,75 @@ fn test_diff_mixed_changes() {
         // keep.rs: should NOT appear in diff
         .stdout(predicate::str::contains("keep this").not());
 }
+
+#[test]
+fn test_diff_github_actions_format() {
+    let dir = setup_git_repo(&[("main.rs", "fn main() {}\n")]);
+    let cwd = dir.path();
+
+    fs::write(cwd.join("main.rs"), "// TODO: new feature\nfn main() {}\n").unwrap();
+
+    todox()
+        .args([
+            "diff",
+            "HEAD",
+            "--root",
+            cwd.to_str().unwrap(),
+            "--format",
+            "github-actions",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "::warning file=main.rs,line=1,title=TODO::[TODO] new feature",
+        ))
+        .stdout(predicate::str::contains("::notice::todox diff: +1 -0"));
+}
+
+#[test]
+fn test_diff_sarif_format() {
+    let dir = setup_git_repo(&[("main.rs", "fn main() {}\n")]);
+    let cwd = dir.path();
+
+    fs::write(cwd.join("main.rs"), "// FIXME: urgent fix\nfn main() {}\n").unwrap();
+
+    todox()
+        .args([
+            "diff",
+            "HEAD",
+            "--root",
+            cwd.to_str().unwrap(),
+            "--format",
+            "sarif",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"version\": \"2.1.0\""))
+        .stdout(predicate::str::contains("\"diffStatus\": \"added\""))
+        .stdout(predicate::str::contains("\"ruleId\": \"todox/FIXME\""));
+}
+
+#[test]
+fn test_diff_markdown_format() {
+    let dir = setup_git_repo(&[("main.rs", "fn main() {}\n")]);
+    let cwd = dir.path();
+
+    fs::write(cwd.join("main.rs"), "// TODO: new task\nfn main() {}\n").unwrap();
+
+    todox()
+        .args([
+            "diff",
+            "HEAD",
+            "--root",
+            cwd.to_str().unwrap(),
+            "--format",
+            "markdown",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "| Status | File | Line | Tag | Message |",
+        ))
+        .stdout(predicate::str::contains("| + |"))
+        .stdout(predicate::str::contains("new task"));
+}

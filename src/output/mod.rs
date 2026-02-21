@@ -1,3 +1,7 @@
+mod github_actions;
+mod markdown;
+mod sarif;
+
 use colored::*;
 
 use crate::cli::Format;
@@ -48,6 +52,9 @@ pub fn print_list(result: &ScanResult, format: &Format) {
             let json = serde_json::to_string_pretty(result).expect("failed to serialize");
             println!("{}", json);
         }
+        Format::GithubActions => print!("{}", github_actions::format_list(result)),
+        Format::Sarif => print!("{}", sarif::format_list(result)),
+        Format::Markdown => print!("{}", markdown::format_list(result)),
     }
 }
 
@@ -77,6 +84,9 @@ pub fn print_diff(result: &DiffResult, format: &Format) {
             let json = serde_json::to_string_pretty(result).expect("failed to serialize");
             println!("{}", json);
         }
+        Format::GithubActions => print!("{}", github_actions::format_diff(result)),
+        Format::Sarif => print!("{}", sarif::format_diff(result)),
+        Format::Markdown => print!("{}", markdown::format_diff(result)),
     }
 }
 
@@ -96,5 +106,8 @@ pub fn print_check(result: &CheckResult, format: &Format) {
             let json = serde_json::to_string_pretty(result).expect("failed to serialize");
             println!("{}", json);
         }
+        Format::GithubActions => print!("{}", github_actions::format_check(result)),
+        Format::Sarif => print!("{}", sarif::format_check(result)),
+        Format::Markdown => print!("{}", markdown::format_check(result)),
     }
 }

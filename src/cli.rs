@@ -25,6 +25,9 @@ pub struct Cli {
 pub enum Format {
     Text,
     Json,
+    GithubActions,
+    Sarif,
+    Markdown,
 }
 
 #[derive(Subcommand)]

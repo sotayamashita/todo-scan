@@ -183,3 +183,70 @@ fn test_list_multi_language_comments() {
         .success()
         .stdout(predicate::str::contains("4 items"));
 }
+
+#[test]
+fn test_list_github_actions_format() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO: implement feature\n// BUG: critical issue\n",
+    )]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "github-actions",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "::warning file=main.rs,line=1,title=TODO::[TODO] implement feature",
+        ))
+        .stdout(predicate::str::contains(
+            "::error file=main.rs,line=2,title=BUG::[BUG] critical issue",
+        ))
+        .stdout(predicate::str::contains("::notice::todox: 2 items found"));
+}
+
+#[test]
+fn test_list_sarif_format() {
+    let dir = setup_project(&[("main.rs", "// TODO: sarif test\n")]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "sarif",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"version\": \"2.1.0\""))
+        .stdout(predicate::str::contains("\"ruleId\": \"todox/TODO\""))
+        .stdout(predicate::str::contains("\"text\": \"sarif test\""));
+}
+
+#[test]
+fn test_list_markdown_format() {
+    let dir = setup_project(&[("main.rs", "// TODO(alice): implement feature #42\n")]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "markdown",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "| File | Line | Tag | Priority | Message | Author | Issue |",
+        ))
+        .stdout(predicate::str::contains("TODO"))
+        .stdout(predicate::str::contains("alice"))
+        .stdout(predicate::str::contains("**1 items found**"));
+}
