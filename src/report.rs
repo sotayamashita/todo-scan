@@ -67,7 +67,7 @@ pub fn compute_report(
     })
 }
 
-/// Sample N commits from git history and count TODOs at each.
+/// Sample N commits from git history and count tagged items at each.
 pub fn compute_history(
     root: &Path,
     config: &Config,
