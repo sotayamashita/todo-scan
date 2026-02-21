@@ -242,6 +242,43 @@ pub struct CleanResult {
     pub violations: Vec<CleanViolation>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ReportResult {
+    pub generated_at: String,
+    pub summary: ReportSummary,
+    pub tag_counts: Vec<(Tag, usize)>,
+    pub priority_counts: PriorityCounts,
+    pub author_counts: Vec<(String, usize)>,
+    pub hotspot_files: Vec<(String, usize)>,
+    pub history: Vec<HistoryPoint>,
+    pub age_histogram: Vec<AgeBucket>,
+    pub items: Vec<TodoItem>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ReportSummary {
+    pub total_items: usize,
+    pub total_files: usize,
+    pub files_scanned: usize,
+    pub urgent_count: usize,
+    pub high_count: usize,
+    pub stale_count: usize,
+    pub avg_age_days: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct HistoryPoint {
+    pub commit: String,
+    pub date: String,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgeBucket {
+    pub label: String,
+    pub count: usize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
     Error,

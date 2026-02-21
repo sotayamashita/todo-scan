@@ -12,6 +12,7 @@ mod init;
 mod lint;
 mod model;
 mod output;
+mod report;
 mod scanner;
 mod search;
 mod stats;
@@ -32,7 +33,7 @@ use lint::{run_lint, LintOverrides};
 use model::Tag;
 use output::{
     print_blame, print_check, print_clean, print_context, print_diff, print_lint, print_list,
-    print_search, print_stats,
+    print_report, print_search, print_stats,
 };
 use scanner::scan_directory;
 use search::search_items;
@@ -176,6 +177,11 @@ fn run() -> Result<()> {
                     };
                     cmd_lint(&root, &config, &cli.format, overrides)
                 }
+                Command::Report {
+                    output,
+                    history,
+                    stale_threshold,
+                } => cmd_report(&root, &config, &output, history, stale_threshold),
                 Command::Watch { tag, max, debounce } => {
                     watch::cmd_watch(&root, &config, &cli.format, &tag, max, debounce)
                 }
@@ -533,6 +539,25 @@ fn cmd_stats(
 
     let result = compute_stats(&scan, diff.as_ref());
     print_stats(&result, format);
+    Ok(())
+}
+
+fn cmd_report(
+    root: &std::path::Path,
+    config: &Config,
+    output_path: &str,
+    history_count: usize,
+    stale_threshold_cli: Option<String>,
+) -> Result<()> {
+    let scan = scan_directory(root, config)?;
+
+    let threshold_str = stale_threshold_cli
+        .or_else(|| config.blame.stale_threshold.clone())
+        .unwrap_or_else(|| "365d".to_string());
+    let stale_threshold = blame::parse_duration_days(&threshold_str)?;
+
+    let result = report::compute_report(&scan, root, config, history_count, stale_threshold)?;
+    print_report(&result, output_path)?;
     Ok(())
 }
 

@@ -1,4 +1,5 @@
 mod github_actions;
+pub mod html;
 mod markdown;
 mod sarif;
 
@@ -819,4 +820,11 @@ pub fn print_watch_event(event: &WatchEvent, format: &Format, max: Option<usize>
             println!("{}", json);
         }
     }
+}
+
+pub fn print_report(report: &ReportResult, output_path: &str) -> std::io::Result<()> {
+    let content = html::render_html(report);
+    std::fs::write(output_path, content)?;
+    println!("Report written to {}", output_path);
+    Ok(())
 }

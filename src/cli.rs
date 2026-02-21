@@ -197,6 +197,21 @@ pub enum Command {
         since: Option<String>,
     },
 
+    /// Generate an HTML technical debt dashboard report
+    Report {
+        /// Output file path (default: todox-report.html)
+        #[arg(long, default_value = "todox-report.html")]
+        output: String,
+
+        /// Number of historical commits to sample for trend chart
+        #[arg(long, default_value = "10")]
+        history: usize,
+
+        /// Days threshold for marking TODOs as stale (default: 365)
+        #[arg(long)]
+        stale_threshold: Option<String>,
+    },
+
     /// Lint TODO comment formatting against configurable rules
     Lint {
         /// Reject TODOs with empty message

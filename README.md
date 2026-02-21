@@ -66,6 +66,10 @@ Shell completions are table stakes for CLI tools but require manual setup. `todo
 
 Re-running `todox list` after every edit breaks flow when actively cleaning up TODO debt. `todox watch` monitors the filesystem and shows real-time TODO additions and removals as files change, with optional `--max` threshold warnings. Run `todox watch` in your project root to start monitoring.
 
+**`todox report`**
+
+Presenting TODO metrics to stakeholders requires manual data collection and slide preparation. `todox report` generates a self-contained HTML dashboard with summary cards, trend charts from git history, tag/priority/age distribution, author breakdowns, and a sortable items table — zero external dependencies, droppable into any CI pipeline as an artifact. Run `todox report` to generate `todox-report.html`, or `todox report --output debt.html --history 20` to customize.
+
 **CI-ready output formats**
 
 Plain text output requires extra tooling to integrate with CI dashboards and PR workflows. todox supports `--format github-actions` for inline PR annotations, `--format sarif` for GitHub's [Code Scanning](https://docs.github.com/en/code-security/code-scanning) tab via SARIF (Static Analysis Results Interchange Format), and `--format markdown` for PR comment bot tables. Add `--format github-actions` to any command to get started.
@@ -271,6 +275,25 @@ todox clean --format json
 ```
 
 Exit codes (with `--check`): `0` = pass, `1` = fail, `2` = error. Without `--check`, always exits `0`.
+
+### HTML report
+
+```bash
+# Generate report with default settings (todox-report.html)
+todox report
+
+# Custom output path
+todox report --output debt-report.html
+
+# Sample more commits for trend chart
+todox report --history 20
+
+# Skip history analysis (faster)
+todox report --history 0
+
+# Set stale threshold
+todox report --stale-threshold 180d
+```
 
 ### CI gate
 
@@ -490,6 +513,19 @@ cp -r .claude/skills/todox ~/.claude/skills/
   uses: github/codeql-action/upload-sarif@v3
   with:
     sarif_file: todox.sarif
+```
+
+### HTML report artifact
+
+```yaml
+- name: Generate TODO report
+  run: todox report --output todox-report.html
+- name: Upload TODO report
+  uses: actions/upload-artifact@v4
+  with:
+    name: todox-report
+    path: todox-report.html
+    retention-days: 1
 ```
 
 ### PR review with diff
