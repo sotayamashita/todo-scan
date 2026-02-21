@@ -135,6 +135,43 @@ pub fn format_blame(result: &BlameResult) -> String {
     lines.join("\n")
 }
 
+pub fn format_lint(result: &LintResult) -> String {
+    let mut lines: Vec<String> = Vec::new();
+
+    if result.passed {
+        lines.push("## PASS".to_string());
+        lines.push(String::new());
+        lines.push(format!(
+            "All lint checks passed ({} items total).",
+            result.total_items
+        ));
+    } else {
+        lines.push("## FAIL".to_string());
+        lines.push(String::new());
+        lines.push("| File | Line | Rule | Message | Suggestion |".to_string());
+        lines.push("|------|------|------|---------|------------|".to_string());
+
+        for v in &result.violations {
+            let file = escape_cell(&v.file);
+            let message = escape_cell(&v.message);
+            let suggestion = v.suggestion.as_deref().map(escape_cell).unwrap_or_default();
+            lines.push(format!(
+                "| {} | {} | {} | {} | {} |",
+                file, v.line, v.rule, message, suggestion
+            ));
+        }
+
+        lines.push(String::new());
+        lines.push(format!(
+            "**{} violations in {} items**",
+            result.violation_count, result.total_items
+        ));
+    }
+
+    lines.push(String::new());
+    lines.join("\n")
+}
+
 pub fn format_check(result: &CheckResult) -> String {
     let mut lines: Vec<String> = Vec::new();
 

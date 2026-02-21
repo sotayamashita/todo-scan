@@ -36,6 +36,14 @@
         "type": "string"
       }
     },
+    "lint": {
+      "description": "Lint rule settings",
+      "allOf": [
+        {
+          "$ref": "#/definitions/LintConfig"
+        }
+      ]
+    },
     "tags": {
       "description": "Tags to scan for (e.g., TODO, FIXME, HACK)",
       "default": [
@@ -108,6 +116,69 @@
           ],
           "format": "uint",
           "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "LintConfig": {
+      "description": "Lint rule settings for TODO comment formatting",
+      "type": "object",
+      "properties": {
+        "max_message_length": {
+          "description": "Enforce max message character count",
+          "default": null,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "no_bare_tags": {
+          "description": "Reject TODOs with empty message (default: true)",
+          "default": null,
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "require_author": {
+          "description": "Require (author) for specified tags",
+          "default": null,
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "require_colon": {
+          "description": "Enforce colon after tag (default: true)",
+          "default": null,
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "require_issue_ref": {
+          "description": "Require issue ref (#N) for specified tags",
+          "default": null,
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "uppercase_tag": {
+          "description": "Enforce uppercase tag names (default: true)",
+          "default": null,
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
       },
       "additionalProperties": false

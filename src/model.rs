@@ -189,6 +189,23 @@ pub struct SearchResult {
     pub file_count: usize,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct LintViolation {
+    pub rule: String,
+    pub message: String,
+    pub file: String,
+    pub line: usize,
+    pub suggestion: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LintResult {
+    pub passed: bool,
+    pub total_items: usize,
+    pub violation_count: usize,
+    pub violations: Vec<LintViolation>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
     Error,

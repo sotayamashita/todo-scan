@@ -86,7 +86,7 @@ fn parse_paren_content(s: &str) -> (Option<String>, Option<Deadline>) {
 }
 
 /// Heuristic: does the tag at `tag_start` appear to be inside a comment?
-fn is_in_comment(line: &str, tag_start: usize) -> bool {
+pub(crate) fn is_in_comment(line: &str, tag_start: usize) -> bool {
     let before_tag = &line[..tag_start];
     if COMMENT_PREFIXES.iter().any(|p| before_tag.contains(p)) {
         return true;
