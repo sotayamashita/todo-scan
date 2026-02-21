@@ -1,0 +1,21 @@
+# Tags to scan for (default: all supported tags)
+tags = ["TODO", "FIXME", "HACK", "XXX", "BUG", "NOTE"]
+
+# Directories to exclude from scanning
+# - tests/ contains TODO strings as test fixture data, not actionable TODOs
+# - docs/ contains workflow docs referencing TODO patterns
+exclude_dirs = ["target", "tests", "docs"]
+
+# Regex patterns to exclude files
+# - README.md contains TODO examples in documentation
+# - CLAUDE.md contains project instructions referencing TODO patterns
+exclude_patterns = [
+    "README\\.md$",
+    "CLAUDE\\.md$",
+]
+
+[check]
+max = 100
+
+[blame]
+stale_threshold = "365d"
