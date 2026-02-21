@@ -2,9 +2,12 @@ mod github_actions;
 mod markdown;
 mod sarif;
 
+use std::collections::HashMap;
+
 use colored::*;
 
 use crate::cli::{Format, GroupBy};
+use crate::context::{ContextInfo, RichContext};
 use crate::model::*;
 use std::path::Path;
 
@@ -88,7 +91,14 @@ fn group_items<'a>(items: &'a [TodoItem], group_by: &GroupBy) -> Vec<(String, Ve
     groups
 }
 
-pub fn print_list(result: &ScanResult, format: &Format, group_by: &GroupBy) {
+pub fn print_list(
+    result: &ScanResult,
+    format: &Format,
+    group_by: &GroupBy,
+    context_map: &HashMap<String, ContextInfo>,
+) {
+    let has_context = !context_map.is_empty();
+
     match format {
         Format::Text => {
             let groups = group_items(&result.items, group_by);
@@ -108,6 +118,19 @@ pub fn print_list(result: &ScanResult, format: &Format, group_by: &GroupBy) {
                 }
                 for item in items {
                     let tag_str = colorize_tag(&item.tag);
+
+                    // Print before-context lines
+                    let ctx_key = format!("{}:{}", item.file, item.line);
+                    if let Some(ctx) = context_map.get(&ctx_key) {
+                        for cl in &ctx.before {
+                            println!(
+                                "    {} {}",
+                                format!("{:>4}", cl.line_number).dimmed(),
+                                cl.content.dimmed()
+                            );
+                        }
+                    }
+
                     let mut line = if is_file_group {
                         format!("  L{}: [{}] {}", item.line, tag_str, item.message)
                     } else {
@@ -135,19 +158,57 @@ pub fn print_list(result: &ScanResult, format: &Format, group_by: &GroupBy) {
                         }
                     }
 
-                    println!("{}", line);
+                    if has_context {
+                        println!("{} {}", "  →".cyan(), line.trim_start());
+                    } else {
+                        println!("{}", line);
+                    }
+
+                    // Print after-context lines
+                    if let Some(ctx) = context_map.get(&ctx_key) {
+                        for cl in &ctx.after {
+                            println!(
+                                "    {} {}",
+                                format!("{:>4}", cl.line_number).dimmed(),
+                                cl.content.dimmed()
+                            );
+                        }
+                        println!();
+                    }
                 }
             }
 
             if is_file_group {
-                println!("\n{} items in {} files", result.items.len(), group_count);
+                println!("{} items in {} files", result.items.len(), group_count);
             } else {
-                println!("\n{} items in {} groups", result.items.len(), group_count);
+                println!("{} items in {} groups", result.items.len(), group_count);
             }
         }
         Format::Json => {
-            let json = serde_json::to_string_pretty(result).expect("failed to serialize");
-            println!("{}", json);
+            if has_context {
+                let mut value: serde_json::Value =
+                    serde_json::to_value(result).expect("failed to serialize");
+                if let Some(items) = value.get_mut("items").and_then(|v| v.as_array_mut()) {
+                    for item_val in items.iter_mut() {
+                        let file = item_val.get("file").and_then(|v| v.as_str()).unwrap_or("");
+                        let line = item_val.get("line").and_then(|v| v.as_u64()).unwrap_or(0);
+                        let key = format!("{}:{}", file, line);
+                        if let Some(ctx) = context_map.get(&key) {
+                            let ctx_value =
+                                serde_json::to_value(ctx).expect("failed to serialize context");
+                            item_val
+                                .as_object_mut()
+                                .unwrap()
+                                .insert("context".to_string(), ctx_value);
+                        }
+                    }
+                }
+                let json = serde_json::to_string_pretty(&value).expect("failed to serialize");
+                println!("{}", json);
+            } else {
+                let json = serde_json::to_string_pretty(result).expect("failed to serialize");
+                println!("{}", json);
+            }
         }
         Format::GithubActions => print!("{}", github_actions::format_list(result)),
         Format::Sarif => print!("{}", sarif::format_list(result)),
@@ -155,7 +216,13 @@ pub fn print_list(result: &ScanResult, format: &Format, group_by: &GroupBy) {
     }
 }
 
-pub fn print_diff(result: &DiffResult, format: &Format) {
+pub fn print_diff(
+    result: &DiffResult,
+    format: &Format,
+    context_map: &HashMap<String, ContextInfo>,
+) {
+    let has_context = !context_map.is_empty();
+
     match format {
         Format::Text => {
             for entry in &result.entries {
@@ -164,12 +231,36 @@ pub fn print_diff(result: &DiffResult, format: &Format) {
                     DiffStatus::Removed => ("-", |s: &str| s.red()),
                 };
 
+                // Print before-context
+                let ctx_key = format!("{}:{}", entry.item.file, entry.item.line);
+                if let Some(ctx) = context_map.get(&ctx_key) {
+                    for cl in &ctx.before {
+                        println!(
+                            "    {} {}",
+                            format!("{:>4}", cl.line_number).dimmed(),
+                            cl.content.dimmed()
+                        );
+                    }
+                }
+
                 let tag_str = colorize_tag(&entry.item.tag);
                 let line = format!(
                     "{} {}:{} [{}] {}",
                     prefix, entry.item.file, entry.item.line, tag_str, entry.item.message
                 );
                 println!("{}", color(&line));
+
+                // Print after-context
+                if let Some(ctx) = context_map.get(&ctx_key) {
+                    for cl in &ctx.after {
+                        println!(
+                            "    {} {}",
+                            format!("{:>4}", cl.line_number).dimmed(),
+                            cl.content.dimmed()
+                        );
+                    }
+                    println!();
+                }
             }
 
             println!(
@@ -178,8 +269,32 @@ pub fn print_diff(result: &DiffResult, format: &Format) {
             );
         }
         Format::Json => {
-            let json = serde_json::to_string_pretty(result).expect("failed to serialize");
-            println!("{}", json);
+            if has_context {
+                let mut value: serde_json::Value =
+                    serde_json::to_value(result).expect("failed to serialize");
+                if let Some(entries) = value.get_mut("entries").and_then(|v| v.as_array_mut()) {
+                    for entry_val in entries.iter_mut() {
+                        if let Some(item_val) = entry_val.get("item") {
+                            let file = item_val.get("file").and_then(|v| v.as_str()).unwrap_or("");
+                            let line = item_val.get("line").and_then(|v| v.as_u64()).unwrap_or(0);
+                            let key = format!("{}:{}", file, line);
+                            if let Some(ctx) = context_map.get(&key) {
+                                let ctx_value =
+                                    serde_json::to_value(ctx).expect("failed to serialize context");
+                                entry_val
+                                    .as_object_mut()
+                                    .unwrap()
+                                    .insert("context".to_string(), ctx_value);
+                            }
+                        }
+                    }
+                }
+                let json = serde_json::to_string_pretty(&value).expect("failed to serialize");
+                println!("{}", json);
+            } else {
+                let json = serde_json::to_string_pretty(result).expect("failed to serialize");
+                println!("{}", json);
+            }
         }
         Format::GithubActions => print!("{}", github_actions::format_diff(result)),
         Format::Sarif => print!("{}", sarif::format_diff(result)),
@@ -284,5 +399,51 @@ pub fn print_check(result: &CheckResult, format: &Format) {
         Format::GithubActions => print!("{}", github_actions::format_check(result)),
         Format::Sarif => print!("{}", sarif::format_check(result)),
         Format::Markdown => print!("{}", markdown::format_check(result)),
+    }
+}
+
+pub fn print_context(rich: &RichContext, format: &Format) {
+    match format {
+        Format::Text => {
+            println!(
+                "{}",
+                format!("{}:{}", rich.file, rich.line).bold().underline()
+            );
+            println!();
+
+            for cl in &rich.before {
+                println!(
+                    "  {} {}",
+                    format!("{:>4}", cl.line_number).dimmed(),
+                    cl.content.dimmed()
+                );
+            }
+
+            println!(
+                "  {} {}",
+                format!("{:>4}", rich.line).cyan(),
+                rich.todo_line
+            );
+
+            for cl in &rich.after {
+                println!(
+                    "  {} {}",
+                    format!("{:>4}", cl.line_number).dimmed(),
+                    cl.content.dimmed()
+                );
+            }
+
+            if !rich.related_todos.is_empty() {
+                println!();
+                println!("{}", "Related TODOs:".bold());
+                for rt in &rich.related_todos {
+                    println!("  L{}: [{}] {}", rt.line, rt.tag, rt.message);
+                }
+            }
+        }
+        _ => {
+            let json = serde_json::to_string_pretty(rich).expect("failed to serialize");
+            println!("{}", json);
+        }
     }
 }

@@ -556,3 +556,66 @@ fn test_list_filter_composition() {
         .stdout(predicate::str::contains("urgent alice in tests").not())
         .stdout(predicate::str::contains("1 items"));
 }
+
+// --- Context display ---
+
+#[test]
+fn test_list_context_shows_surrounding_lines() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "fn main() {\n    let x = 1;\n    // TODO: fix this\n    let y = 2;\n    let z = 3;\n}\n",
+    )]);
+
+    todox()
+        .args(["list", "--root", dir.path().to_str().unwrap(), "-C", "2"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("let x = 1"))
+        .stdout(predicate::str::contains("TODO"))
+        .stdout(predicate::str::contains("let y = 2"));
+}
+
+#[test]
+fn test_list_context_json_includes_context_field() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "fn main() {\n    let x = 1;\n    // TODO: fix this\n    let y = 2;\n}\n",
+    )]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "-C",
+            "2",
+            "--format",
+            "json",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"context\""))
+        .stdout(predicate::str::contains("\"before\""))
+        .stdout(predicate::str::contains("\"after\""));
+}
+
+#[test]
+fn test_list_without_context_no_context_lines() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "fn main() {\n    let x = 1;\n    // TODO: fix this\n    let y = 2;\n}\n",
+    )]);
+
+    // Without -C flag, no surrounding code should appear
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"context\"").not());
+}

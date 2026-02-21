@@ -56,6 +56,10 @@ pub enum Command {
 
         #[arg(long)]
         limit: Option<usize>,
+
+        /// Number of context lines to show around each TODO
+        #[arg(short = 'C', long)]
+        context: Option<usize>,
     },
 
     Diff {
@@ -63,6 +67,20 @@ pub enum Command {
 
         #[arg(long)]
         tag: Vec<String>,
+
+        /// Number of context lines to show around each TODO
+        #[arg(short = 'C', long)]
+        context: Option<usize>,
+    },
+
+    /// Show code context around a TODO at FILE:LINE
+    Context {
+        /// Location in FILE:LINE format
+        location: String,
+
+        /// Number of context lines (default: 5)
+        #[arg(short = 'C', long, default_value = "5")]
+        context: usize,
     },
 
     Stats {

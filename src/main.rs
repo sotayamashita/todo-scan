@@ -1,6 +1,7 @@
 mod check;
 mod cli;
 mod config;
+mod context;
 mod deadline;
 mod diff;
 mod model;
@@ -16,9 +17,10 @@ use clap::Parser;
 use check::{run_check, CheckOverrides};
 use cli::{Cli, Command, Format, GroupBy, PriorityFilter, SortBy};
 use config::Config;
+use context::{build_rich_context, collect_context_map, parse_location};
 use diff::compute_diff;
 use model::Tag;
-use output::{print_check, print_diff, print_list, print_stats};
+use output::{print_check, print_context, print_diff, print_list, print_stats};
 use scanner::scan_directory;
 use stats::compute_stats;
 
@@ -53,6 +55,7 @@ fn run() -> Result<()> {
             author,
             path,
             limit,
+            context,
         } => {
             let opts = ListOptions {
                 tag,
@@ -62,11 +65,16 @@ fn run() -> Result<()> {
                 author,
                 path,
                 limit,
+                context,
             };
             cmd_list(&root, &config, &cli.format, opts)
         }
         Command::Stats { since } => cmd_stats(&root, &config, &cli.format, since),
-        Command::Diff { git_ref, tag } => cmd_diff(&root, &config, &cli.format, &git_ref, &tag),
+        Command::Diff {
+            git_ref,
+            tag,
+            context,
+        } => cmd_diff(&root, &config, &cli.format, &git_ref, &tag, context),
         Command::Check {
             max,
             block_tags,
@@ -82,6 +90,9 @@ fn run() -> Result<()> {
             };
             cmd_check(&root, &config, &cli.format, overrides, since)
         }
+        Command::Context { location, context } => {
+            cmd_context(&root, &config, &cli.format, &location, context)
+        }
     }
 }
 
@@ -93,6 +104,7 @@ struct ListOptions {
     author: Option<String>,
     path: Option<String>,
     limit: Option<usize>,
+    context: Option<usize>,
 }
 
 fn cmd_list(
@@ -172,7 +184,13 @@ fn cmd_list(
         result.items.truncate(n);
     }
 
-    print_list(&result, format, &opts.group_by);
+    let context_map = if let Some(n) = opts.context {
+        collect_context_map(root, &result.items, n)
+    } else {
+        std::collections::HashMap::new()
+    };
+
+    print_list(&result, format, &opts.group_by, &context_map);
     Ok(())
 }
 
@@ -182,6 +200,7 @@ fn cmd_diff(
     format: &Format,
     git_ref: &str,
     tag_filter: &[String],
+    context_lines: Option<usize>,
 ) -> Result<()> {
     let current = scan_directory(root, config)?;
     let mut diff_result = compute_diff(&current, git_ref, root, config)?;
@@ -207,7 +226,33 @@ fn cmd_diff(
             .count();
     }
 
-    print_diff(&diff_result, format);
+    let items: Vec<_> = diff_result.entries.iter().map(|e| e.item.clone()).collect();
+    let context_map = if let Some(n) = context_lines {
+        collect_context_map(root, &items, n)
+    } else {
+        std::collections::HashMap::new()
+    };
+
+    print_diff(&diff_result, format, &context_map);
+    Ok(())
+}
+
+fn cmd_context(
+    root: &std::path::Path,
+    config: &Config,
+    format: &Format,
+    location: &str,
+    n: usize,
+) -> Result<()> {
+    let (file, line) = parse_location(location)?;
+
+    // Scan to find related TODOs in the same file
+    let scan = scan_directory(root, config)?;
+    let todos_in_file: Vec<&model::TodoItem> =
+        scan.items.iter().filter(|i| i.file == file).collect();
+
+    let rich = build_rich_context(root, &file, line, n, &todos_in_file)?;
+    print_context(&rich, format);
     Ok(())
 }
 

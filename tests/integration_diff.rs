@@ -355,3 +355,23 @@ fn test_diff_markdown_format() {
         .stdout(predicate::str::contains("| + |"))
         .stdout(predicate::str::contains("new task"));
 }
+
+#[test]
+fn test_diff_with_context() {
+    let dir = setup_git_repo(&[("main.rs", "fn main() {\n    let x = 1;\n}\n")]);
+    let cwd = dir.path();
+
+    fs::write(
+        cwd.join("main.rs"),
+        "fn main() {\n    let x = 1;\n    // TODO: new feature\n    let y = 2;\n}\n",
+    )
+    .unwrap();
+
+    todox()
+        .args(["diff", "HEAD", "--root", cwd.to_str().unwrap(), "-C", "1"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("TODO"))
+        .stdout(predicate::str::contains("new feature"))
+        .stdout(predicate::str::contains("let x = 1"));
+}

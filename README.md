@@ -34,6 +34,10 @@ A flat list of TODOs makes it hard to see the big picture — whether tech debt 
 
 Without enforcement, TODO debt grows silently until it becomes unmanageable. `todox check` acts as a CI gate that fails the build when TODO counts exceed a threshold, forbidden tags appear, too many new TODOs are introduced, or deadlines have expired. Run `todox check --max 100 --block-tags BUG` in your CI pipeline, or `todox check --expired` to catch overdue TODOs.
 
+**`todox context <file>:<line>`**
+
+TODO lists show file:line references but lack surrounding code, forcing you to open files to understand what each TODO refers to. `todox context` displays the code around a specific line with related TODOs in the same file, and the `-C N` flag on `list` and `diff` adds inline context to every item. Run `todox context src/main.rs:25` or `todox list -C 3` to see code in context.
+
 **CI-ready output formats**
 
 Plain text output requires extra tooling to integrate with CI dashboards and PR workflows. todox supports `--format github-actions` for inline PR annotations, `--format sarif` for GitHub's [Code Scanning](https://docs.github.com/en/code-security/code-scanning) tab via SARIF (Static Analysis Results Interchange Format), and `--format markdown` for PR comment bot tables. Add `--format github-actions` to any command to get started.
@@ -96,6 +100,26 @@ todox list --sort tag
 
 # JSON output
 todox list --format json
+```
+
+### Show context around TODOs
+
+```bash
+# Show code context around a specific line (default: 5 lines)
+todox context src/main.rs:25
+
+# Custom context window
+todox context src/main.rs:25 -C 3
+
+# JSON output with related TODOs
+todox context src/main.rs:25 --format json
+
+# Add context lines to list output
+todox list -C 3
+todox list -C 2 --format json
+
+# Add context lines to diff output
+todox diff main -C 2
 ```
 
 ### Diff against a git ref
