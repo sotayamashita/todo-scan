@@ -10,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "file_path=$(jq -r '.tool_input.file_path') && if echo \"$file_path\" | grep -qE '\\.rs$'; then cargo fmt 2>&1; fi"
+            "command": "file_path=$(jq -r '.tool_input.file_path') && if echo \"$file_path\" | grep -qE '\\.(rs)$'; then rustfmt \"$file_path\"; fi"
           }
         ]
       },
