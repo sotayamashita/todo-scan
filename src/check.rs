@@ -1,12 +1,14 @@
 use std::collections::HashSet;
 
 use crate::config::Config;
+use crate::deadline::Deadline;
 use crate::model::*;
 
 pub struct CheckOverrides {
     pub max: Option<usize>,
     pub block_tags: Vec<String>,
     pub max_new: Option<usize>,
+    pub expired: bool,
 }
 
 pub fn run_check(
@@ -14,6 +16,7 @@ pub fn run_check(
     diff: Option<&DiffResult>,
     config: &Config,
     overrides: &CheckOverrides,
+    today: &Deadline,
 ) -> CheckResult {
     let mut violations: Vec<CheckViolation> = Vec::new();
 
@@ -66,6 +69,24 @@ pub fn run_check(
         }
     }
 
+    // Step 4: expired deadline check
+    let check_expired = overrides.expired || config.check.expired.unwrap_or(false);
+    if check_expired {
+        for item in &scan.items {
+            if let Some(ref deadline) = item.deadline {
+                if deadline.is_expired(today) {
+                    violations.push(CheckViolation {
+                        rule: "expired".to_string(),
+                        message: format!(
+                            "Expired deadline {} in {}:{}",
+                            deadline, item.file, item.line
+                        ),
+                    });
+                }
+            }
+        }
+    }
+
     let passed = violations.is_empty();
     let total = scan.items.len();
 
@@ -90,6 +111,7 @@ mod tests {
             author: None,
             issue_ref: None,
             priority: Priority::Normal,
+            deadline: None,
         }
     }
 
@@ -98,6 +120,15 @@ mod tests {
             max: None,
             block_tags: vec![],
             max_new: None,
+            expired: false,
+        }
+    }
+
+    fn test_today() -> Deadline {
+        Deadline {
+            year: 2025,
+            month: 6,
+            day: 15,
         }
     }
 
@@ -113,7 +144,7 @@ mod tests {
             ..default_overrides()
         };
 
-        let result = run_check(&scan, None, &config, &overrides);
+        let result = run_check(&scan, None, &config, &overrides, &test_today());
         assert!(result.passed);
         assert!(result.violations.is_empty());
         assert_eq!(result.total, 1);
@@ -134,7 +165,7 @@ mod tests {
             ..default_overrides()
         };
 
-        let result = run_check(&scan, None, &config, &overrides);
+        let result = run_check(&scan, None, &config, &overrides, &test_today());
         assert!(!result.passed);
         assert_eq!(result.violations.len(), 1);
         assert_eq!(result.violations[0].rule, "max");
@@ -157,7 +188,7 @@ mod tests {
             ..default_overrides()
         };
 
-        let result = run_check(&scan, None, &config, &overrides);
+        let result = run_check(&scan, None, &config, &overrides, &test_today());
         assert!(!result.passed);
         assert_eq!(result.violations.len(), 1);
         assert_eq!(result.violations[0].rule, "block_tags");
@@ -186,7 +217,7 @@ mod tests {
             ..default_overrides()
         };
 
-        let result = run_check(&scan, Some(&diff), &config, &overrides);
+        let result = run_check(&scan, Some(&diff), &config, &overrides, &test_today());
         assert!(!result.passed);
         assert_eq!(result.violations.len(), 1);
         assert_eq!(result.violations[0].rule, "max_new");
@@ -206,9 +237,77 @@ mod tests {
         let config = Config::default();
         let overrides = default_overrides();
 
-        let result = run_check(&scan, None, &config, &overrides);
+        let result = run_check(&scan, None, &config, &overrides, &test_today());
         assert!(result.passed);
         assert!(result.violations.is_empty());
         assert_eq!(result.total, 2);
+    }
+
+    #[test]
+    fn test_expired_deadline_detected() {
+        let mut item = make_item("a.rs", 1, Tag::Todo, "overdue task");
+        item.deadline = Some(Deadline {
+            year: 2025,
+            month: 1,
+            day: 1,
+        });
+        let scan = ScanResult {
+            items: vec![item],
+            files_scanned: 1,
+        };
+        let config = Config::default();
+        let overrides = CheckOverrides {
+            expired: true,
+            ..default_overrides()
+        };
+
+        let result = run_check(&scan, None, &config, &overrides, &test_today());
+        assert!(!result.passed);
+        assert_eq!(result.violations.len(), 1);
+        assert_eq!(result.violations[0].rule, "expired");
+        assert!(result.violations[0].message.contains("2025-01-01"));
+    }
+
+    #[test]
+    fn test_future_deadline_passes() {
+        let mut item = make_item("a.rs", 1, Tag::Todo, "future task");
+        item.deadline = Some(Deadline {
+            year: 2025,
+            month: 12,
+            day: 31,
+        });
+        let scan = ScanResult {
+            items: vec![item],
+            files_scanned: 1,
+        };
+        let config = Config::default();
+        let overrides = CheckOverrides {
+            expired: true,
+            ..default_overrides()
+        };
+
+        let result = run_check(&scan, None, &config, &overrides, &test_today());
+        assert!(result.passed);
+        assert!(result.violations.is_empty());
+    }
+
+    #[test]
+    fn test_expired_flag_not_set_ignores_deadline() {
+        let mut item = make_item("a.rs", 1, Tag::Todo, "overdue but ignored");
+        item.deadline = Some(Deadline {
+            year: 2024,
+            month: 1,
+            day: 1,
+        });
+        let scan = ScanResult {
+            items: vec![item],
+            files_scanned: 1,
+        };
+        let config = Config::default();
+        let overrides = default_overrides(); // expired: false
+
+        let result = run_check(&scan, None, &config, &overrides, &test_today());
+        assert!(result.passed);
+        assert!(result.violations.is_empty());
     }
 }

@@ -41,7 +41,7 @@ fn collect_rules(items: &[&TodoItem]) -> Vec<serde_json::Value> {
 
 fn item_to_result(item: &TodoItem) -> serde_json::Value {
     let severity = Severity::from_item(item);
-    serde_json::json!({
+    let mut result = serde_json::json!({
         "ruleId": rule_id(&item.tag),
         "level": severity.as_sarif_level(),
         "message": {
@@ -57,7 +57,14 @@ fn item_to_result(item: &TodoItem) -> serde_json::Value {
                 }
             }
         }]
-    })
+    });
+    if let Some(ref deadline) = item.deadline {
+        result.as_object_mut().unwrap().insert(
+            "properties".to_string(),
+            serde_json::json!({ "deadline": deadline.to_string() }),
+        );
+    }
+    result
 }
 
 pub fn format_list(result: &ScanResult) -> String {
@@ -164,6 +171,7 @@ mod tests {
             author: None,
             issue_ref: None,
             priority: Priority::Normal,
+            deadline: None,
         }
     }
 

@@ -250,3 +250,74 @@ fn test_list_markdown_format() {
         .stdout(predicate::str::contains("alice"))
         .stdout(predicate::str::contains("**1 items found**"));
 }
+
+// --- Deadline in output ---
+
+#[test]
+fn test_list_deadline_in_json() {
+    let dir = setup_project(&[("main.rs", "// TODO(2025-06-01): deadline task\n")]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"deadline\": \"2025-06-01\""));
+}
+
+#[test]
+fn test_list_author_and_deadline_in_json() {
+    let dir = setup_project(&[("main.rs", "// TODO(alice, 2025-06-01): task with both\n")]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"author\": \"alice\""))
+        .stdout(predicate::str::contains("\"deadline\": \"2025-06-01\""));
+}
+
+#[test]
+fn test_list_no_deadline_null_in_json() {
+    let dir = setup_project(&[("main.rs", "// TODO: no deadline\n")]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"deadline\": null"));
+}
+
+#[test]
+fn test_list_quarter_deadline_in_json() {
+    let dir = setup_project(&[("main.rs", "// TODO(2025-Q2): quarter deadline\n")]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"deadline\": \"2025-06-30\""));
+}

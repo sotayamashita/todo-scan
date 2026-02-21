@@ -41,6 +41,17 @@ pub fn print_list(result: &ScanResult, format: &Format) {
                     if let Some(ref issue) = item.issue_ref {
                         line.push_str(&format!(" ({})", issue));
                     }
+                    if let Some(ref deadline) = item.deadline {
+                        let today = crate::deadline::today();
+                        if deadline.is_expired(&today) {
+                            line.push_str(&format!(
+                                " {}",
+                                format!("[expired: {}]", deadline).red()
+                            ));
+                        } else {
+                            line.push_str(&format!(" [deadline: {}]", deadline));
+                        }
+                    }
 
                     println!("{}", line);
                 }

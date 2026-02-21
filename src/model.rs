@@ -2,6 +2,8 @@ use serde::Serialize;
 use std::fmt;
 use std::str::FromStr;
 
+use crate::deadline::Deadline;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum Tag {
@@ -76,6 +78,7 @@ pub struct TodoItem {
     pub author: Option<String>,
     pub issue_ref: Option<String>,
     pub priority: Priority,
+    pub deadline: Option<Deadline>,
 }
 
 impl TodoItem {

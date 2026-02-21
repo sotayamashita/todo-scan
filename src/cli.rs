@@ -60,6 +60,9 @@ pub enum Command {
 
         #[arg(long)]
         since: Option<String>,
+
+        #[arg(long)]
+        expired: bool,
     },
 }
 

@@ -16,8 +16,10 @@ fn priority_str(priority: &Priority) -> &'static str {
 pub fn format_list(result: &ScanResult) -> String {
     let mut lines: Vec<String> = Vec::new();
 
-    lines.push("| File | Line | Tag | Priority | Message | Author | Issue |".to_string());
-    lines.push("|------|------|-----|----------|---------|--------|-------|".to_string());
+    lines
+        .push("| File | Line | Tag | Priority | Message | Author | Issue | Deadline |".to_string());
+    lines
+        .push("|------|------|-----|----------|---------|--------|-------|----------|".to_string());
 
     for item in &result.items {
         let file = escape_cell(&item.file);
@@ -26,8 +28,13 @@ pub fn format_list(result: &ScanResult) -> String {
         let message = escape_cell(&item.message);
         let author = item.author.as_deref().unwrap_or("");
         let issue = item.issue_ref.as_deref().unwrap_or("");
+        let deadline = item
+            .deadline
+            .as_ref()
+            .map(|d| d.to_string())
+            .unwrap_or_default();
         lines.push(format!(
-            "| {file} | {} | {tag} | {priority} | {message} | {author} | {issue} |",
+            "| {file} | {} | {tag} | {priority} | {message} | {author} | {issue} | {deadline} |",
             item.line
         ));
     }
@@ -98,6 +105,7 @@ mod tests {
             author: None,
             issue_ref: None,
             priority: Priority::Normal,
+            deadline: None,
         }
     }
 
@@ -108,7 +116,8 @@ mod tests {
             files_scanned: 0,
         };
         let output = format_list(&result);
-        assert!(output.contains("| File | Line | Tag | Priority | Message | Author | Issue |"));
+        assert!(output
+            .contains("| File | Line | Tag | Priority | Message | Author | Issue | Deadline |"));
         assert!(output.contains("**0 items found**"));
     }
 
@@ -123,11 +132,12 @@ mod tests {
                 author: Some("alice".to_string()),
                 issue_ref: Some("#123".to_string()),
                 priority: Priority::High,
+                deadline: None,
             }],
             files_scanned: 1,
         };
         let output = format_list(&result);
-        assert!(output.contains("| lib.rs | 42 | TODO | ! | add tests | alice | #123 |"));
+        assert!(output.contains("| lib.rs | 42 | TODO | ! | add tests | alice | #123 |  |"));
         assert!(output.contains("**1 items found**"));
     }
 

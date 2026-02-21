@@ -17,7 +17,10 @@ fn format_item_annotation(item: &TodoItem) -> String {
     let level = severity.as_github_actions_str();
     let file = escape_property(&item.file);
     let title = item.tag.as_str();
-    let msg = escape_message(&item.message);
+    let mut msg = escape_message(&item.message);
+    if let Some(ref deadline) = item.deadline {
+        msg.push_str(&format!(" (deadline: {})", deadline));
+    }
     format!(
         "::{level} file={file},line={},title={title}::[{title}] {msg}",
         item.line
@@ -88,6 +91,7 @@ mod tests {
             author: None,
             issue_ref: None,
             priority: Priority::Normal,
+            deadline: None,
         }
     }
 
@@ -128,6 +132,7 @@ mod tests {
                 author: None,
                 issue_ref: None,
                 priority: Priority::Urgent,
+                deadline: None,
             }],
             files_scanned: 1,
         };

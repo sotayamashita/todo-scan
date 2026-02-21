@@ -1,6 +1,7 @@
 mod check;
 mod cli;
 mod config;
+mod deadline;
 mod diff;
 mod model;
 mod output;
@@ -49,7 +50,17 @@ fn run() -> Result<()> {
             block_tags,
             max_new,
             since,
-        } => cmd_check(&root, &config, &cli.format, max, block_tags, max_new, since),
+            expired,
+        } => cmd_check(
+            &root,
+            &config,
+            &cli.format,
+            max,
+            block_tags,
+            max_new,
+            since,
+            expired,
+        ),
     }
 }
 
@@ -148,6 +159,7 @@ fn cmd_check(
     block_tags: Vec<String>,
     max_new: Option<usize>,
     since: Option<String>,
+    expired: bool,
 ) -> Result<()> {
     let scan = scan_directory(root, config)?;
 
@@ -161,9 +173,11 @@ fn cmd_check(
         max,
         block_tags,
         max_new,
+        expired,
     };
 
-    let result = run_check(&scan, diff.as_ref(), config, &overrides);
+    let today = deadline::today();
+    let result = run_check(&scan, diff.as_ref(), config, &overrides, &today);
     let passed = result.passed;
 
     print_check(&result, format);

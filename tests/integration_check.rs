@@ -223,3 +223,65 @@ fn test_check_markdown_format_fail() {
         .stdout(predicate::str::contains("## FAIL"))
         .stdout(predicate::str::contains("- **max**:"));
 }
+
+// --- Expired deadline tests ---
+
+#[test]
+fn test_check_expired_deadline_fails() {
+    let dir = setup_project(&[("main.rs", "// TODO(2020-01-01): this is overdue\n")]);
+
+    todox()
+        .args(["check", "--root", dir.path().to_str().unwrap(), "--expired"])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("FAIL"))
+        .stdout(predicate::str::contains("expired"))
+        .stdout(predicate::str::contains("2020-01-01"));
+}
+
+#[test]
+fn test_check_future_deadline_passes() {
+    let dir = setup_project(&[("main.rs", "// TODO(2099-12-31): far future task\n")]);
+
+    todox()
+        .args(["check", "--root", dir.path().to_str().unwrap(), "--expired"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("PASS"));
+}
+
+#[test]
+fn test_check_no_expired_flag_ignores_deadline() {
+    let dir = setup_project(&[("main.rs", "// TODO(2020-01-01): this is overdue\n")]);
+
+    // Without --expired flag, even old deadlines should pass
+    todox()
+        .args(["check", "--root", dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("PASS"));
+}
+
+#[test]
+fn test_check_expired_author_and_date() {
+    let dir = setup_project(&[("main.rs", "// TODO(alice, 2020-06-01): overdue task\n")]);
+
+    todox()
+        .args(["check", "--root", dir.path().to_str().unwrap(), "--expired"])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("FAIL"))
+        .stdout(predicate::str::contains("expired"));
+}
+
+#[test]
+fn test_check_expired_quarter_format() {
+    let dir = setup_project(&[("main.rs", "// TODO(2020-Q1): overdue quarter task\n")]);
+
+    todox()
+        .args(["check", "--root", dir.path().to_str().unwrap(), "--expired"])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("FAIL"))
+        .stdout(predicate::str::contains("expired"));
+}

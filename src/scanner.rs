@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 
 use crate::config::Config;
+use crate::deadline::{parse_deadline, Deadline};
 use crate::model::{Priority, ScanResult, Tag, TodoItem};
 
 static ISSUE_REF_RE: LazyLock<Regex> =
@@ -33,6 +34,56 @@ const COMMENT_PREFIXES: &[&str] = &["//", "#", "/*", "--", "<!--", ";", "(*", "{
 
 /// Prefixes that only match at line start (after trimming whitespace).
 const LINE_START_PREFIXES: &[&str] = &["*"];
+
+/// Parse the parenthesized content after a tag.
+/// Returns `(author, deadline)` extracted from the content.
+///
+/// Supported formats:
+/// - `"alice"` → author only
+/// - `"2025-06-01"` → deadline only
+/// - `"alice, 2025-06-01"` → both author and deadline
+fn parse_paren_content(s: &str) -> (Option<String>, Option<Deadline>) {
+    let s = s.trim();
+    if s.is_empty() {
+        return (None, None);
+    }
+
+    // Check if there's a comma separating author and date
+    if let Some(idx) = s.find(',') {
+        let left = s[..idx].trim();
+        let right = s[idx + 1..].trim();
+
+        // Try date on the right side
+        if let Some(deadline) = parse_deadline(right) {
+            let author = if left.is_empty() {
+                None
+            } else {
+                Some(left.to_string())
+            };
+            return (author, Some(deadline));
+        }
+
+        // Try date on the left side
+        if let Some(deadline) = parse_deadline(left) {
+            let author = if right.is_empty() {
+                None
+            } else {
+                Some(right.to_string())
+            };
+            return (author, Some(deadline));
+        }
+
+        // Neither side is a date; treat the whole thing as the author
+        return (Some(s.to_string()), None);
+    }
+
+    // No comma: try as a date first, otherwise treat as author
+    if let Some(deadline) = parse_deadline(s) {
+        return (None, Some(deadline));
+    }
+
+    (Some(s.to_string()), None)
+}
 
 /// Heuristic: does the tag at `tag_start` appear to be inside a comment?
 fn is_in_comment(line: &str, tag_start: usize) -> bool {
@@ -64,7 +115,10 @@ pub fn scan_content(content: &str, file_path: &str, pattern: &Regex) -> Vec<Todo
                 Err(_) => continue,
             };
 
-            let author = caps.get(2).map(|m| m.as_str().to_string());
+            let (author, deadline) = match caps.get(2) {
+                Some(m) => parse_paren_content(m.as_str()),
+                None => (None, None),
+            };
 
             let priority = match caps.get(3).map(|m| m.as_str()) {
                 Some("!!") => Priority::Urgent,
@@ -87,6 +141,7 @@ pub fn scan_content(content: &str, file_path: &str, pattern: &Regex) -> Vec<Todo
                 author,
                 issue_ref,
                 priority,
+                deadline,
             });
         }
     }
@@ -614,5 +669,129 @@ line four
 
         assert_eq!(result.items.len(), 1);
         assert_eq!(result.files_scanned, 2);
+    }
+
+    // --- parse_paren_content tests ---
+
+    #[test]
+    fn test_parse_paren_author_only() {
+        let (author, deadline) = parse_paren_content("alice");
+        assert_eq!(author.as_deref(), Some("alice"));
+        assert!(deadline.is_none());
+    }
+
+    #[test]
+    fn test_parse_paren_date_only() {
+        let (author, deadline) = parse_paren_content("2025-06-01");
+        assert!(author.is_none());
+        let d = deadline.unwrap();
+        assert_eq!(d.year, 2025);
+        assert_eq!(d.month, 6);
+        assert_eq!(d.day, 1);
+    }
+
+    #[test]
+    fn test_parse_paren_author_and_date() {
+        let (author, deadline) = parse_paren_content("alice, 2025-06-01");
+        assert_eq!(author.as_deref(), Some("alice"));
+        let d = deadline.unwrap();
+        assert_eq!(d.year, 2025);
+        assert_eq!(d.month, 6);
+        assert_eq!(d.day, 1);
+    }
+
+    #[test]
+    fn test_parse_paren_quarter_format() {
+        let (author, deadline) = parse_paren_content("2025-Q2");
+        assert!(author.is_none());
+        let d = deadline.unwrap();
+        assert_eq!(d.year, 2025);
+        assert_eq!(d.month, 6);
+        assert_eq!(d.day, 30);
+    }
+
+    #[test]
+    fn test_parse_paren_author_and_quarter() {
+        let (author, deadline) = parse_paren_content("bob, 2025-Q3");
+        assert_eq!(author.as_deref(), Some("bob"));
+        let d = deadline.unwrap();
+        assert_eq!(d.year, 2025);
+        assert_eq!(d.month, 9);
+        assert_eq!(d.day, 30);
+    }
+
+    #[test]
+    fn test_parse_paren_empty() {
+        let (author, deadline) = parse_paren_content("");
+        assert!(author.is_none());
+        assert!(deadline.is_none());
+    }
+
+    // --- Scanning TODOs with dates ---
+
+    #[test]
+    fn test_scan_todo_with_date() {
+        let pattern = default_pattern();
+        let content = "// TODO(2025-06-01): finish this by June\n";
+        let items = scan_content(content, "test.rs", &pattern);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].tag, Tag::Todo);
+        assert!(items[0].author.is_none());
+        let d = items[0].deadline.unwrap();
+        assert_eq!(d.year, 2025);
+        assert_eq!(d.month, 6);
+        assert_eq!(d.day, 1);
+        assert_eq!(items[0].message, "finish this by June");
+    }
+
+    #[test]
+    fn test_scan_todo_with_author_and_date() {
+        let pattern = default_pattern();
+        let content = "// TODO(alice, 2025-06-01): finish this\n";
+        let items = scan_content(content, "test.rs", &pattern);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].author.as_deref(), Some("alice"));
+        let d = items[0].deadline.unwrap();
+        assert_eq!(d.year, 2025);
+        assert_eq!(d.month, 6);
+        assert_eq!(d.day, 1);
+    }
+
+    #[test]
+    fn test_scan_todo_with_quarter() {
+        let pattern = default_pattern();
+        let content = "// TODO(2025-Q4): year-end cleanup\n";
+        let items = scan_content(content, "test.rs", &pattern);
+
+        assert_eq!(items.len(), 1);
+        assert!(items[0].author.is_none());
+        let d = items[0].deadline.unwrap();
+        assert_eq!(d.year, 2025);
+        assert_eq!(d.month, 12);
+        assert_eq!(d.day, 31);
+    }
+
+    #[test]
+    fn test_scan_todo_author_only_still_works() {
+        let pattern = default_pattern();
+        let content = "// TODO(bob): no date here\n";
+        let items = scan_content(content, "test.rs", &pattern);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].author.as_deref(), Some("bob"));
+        assert!(items[0].deadline.is_none());
+    }
+
+    #[test]
+    fn test_scan_todo_no_parens_no_deadline() {
+        let pattern = default_pattern();
+        let content = "// TODO: plain task\n";
+        let items = scan_content(content, "test.rs", &pattern);
+
+        assert_eq!(items.len(), 1);
+        assert!(items[0].author.is_none());
+        assert!(items[0].deadline.is_none());
     }
 }

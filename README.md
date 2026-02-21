@@ -28,7 +28,7 @@ New TODOs slip into pull requests unnoticed while resolved ones go unrecognized.
 
 **`todox check`**
 
-Without enforcement, TODO debt grows silently until it becomes unmanageable. `todox check` acts as a CI gate that fails the build when TODO counts exceed a threshold, forbidden tags appear, or too many new TODOs are introduced. Run `todox check --max 100 --block-tags BUG` in your CI pipeline.
+Without enforcement, TODO debt grows silently until it becomes unmanageable. `todox check` acts as a CI gate that fails the build when TODO counts exceed a threshold, forbidden tags appear, too many new TODOs are introduced, or deadlines have expired. Run `todox check --max 100 --block-tags BUG` in your CI pipeline, or `todox check --expired` to catch overdue TODOs.
 
 **CI-ready output formats**
 
@@ -44,6 +44,8 @@ Tags: `TODO`, `FIXME`, `HACK`, `XXX`, `BUG`, `NOTE` (case-insensitive)
 // BUG: !! crashes on empty input       ← priority: urgent
 // TODO: fix layout issue #123          ← issue ref extracted
 // HACK(bob): workaround for JIRA-456   ← author + issue ref
+// TODO(2025-06-01): migrate to v2 API   ← deadline (YYYY-MM-DD)
+// TODO(alice, 2025-Q2): refactor auth   ← author + deadline (quarter)
 ```
 
 ## Installation
@@ -103,8 +105,11 @@ todox check --block-tags FIXME,BUG
 # Fail if new TODOs were added since main
 todox check --max-new 0 --since main
 
+# Fail if any TODOs have expired deadlines
+todox check --expired
+
 # Combine rules
-todox check --max 50 --block-tags BUG --max-new 0 --since main
+todox check --max 50 --block-tags BUG --max-new 0 --since main --expired
 ```
 
 Exit codes: `0` = pass, `1` = fail, `2` = error.
@@ -154,6 +159,9 @@ max_new = 0
 
 # Tags that cause check to fail immediately
 block_tags = ["BUG"]
+
+# Fail if any TODOs have expired deadlines
+expired = true
 ```
 
 All fields are optional. Unspecified values use sensible defaults.
