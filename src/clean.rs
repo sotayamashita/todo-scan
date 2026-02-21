@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use anyhow::Result;
 use regex::Regex;
@@ -6,6 +7,11 @@ use regex::Regex;
 use crate::blame::parse_duration_days;
 use crate::config::Config;
 use crate::model::{CleanResult, CleanViolation, ScanResult, TodoItem};
+
+static ISO8601_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})").unwrap());
+
+static ISSUE_NUMBER_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^#(\d+)$").unwrap());
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IssueState {
@@ -79,9 +85,7 @@ impl IssueChecker for GhIssueChecker {
 
 /// Parse an ISO 8601 timestamp string into a Unix timestamp.
 fn parse_iso8601_timestamp(s: &str) -> Option<i64> {
-    // Handle format like "2024-01-15T10:30:00Z"
-    let re = Regex::new(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})").ok()?;
-    let caps = re.captures(s)?;
+    let caps = ISO8601_RE.captures(s)?;
 
     let year: i64 = caps[1].parse().ok()?;
     let month: u32 = caps[2].parse().ok()?;
@@ -122,8 +126,7 @@ fn normalize_message(msg: &str) -> String {
 
 /// Extract GitHub issue number from an issue ref like "#123".
 fn extract_issue_number(issue_ref: &str) -> Option<u32> {
-    let re = Regex::new(r"^#(\d+)$").ok()?;
-    let caps = re.captures(issue_ref.trim())?;
+    let caps = ISSUE_NUMBER_RE.captures(issue_ref.trim())?;
     caps[1].parse().ok()
 }
 
