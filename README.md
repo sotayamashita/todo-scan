@@ -88,6 +88,25 @@ Tags: `TODO`, `FIXME`, `HACK`, `XXX`, `BUG`, `NOTE` (case-insensitive)
 // TODO(alice, 2025-Q2): refactor auth   ← author + deadline (quarter)
 ```
 
+### Supported comment syntax
+
+The scanner uses line-based heuristic comment detection, not a language parser. The following comment prefixes are recognized:
+
+| Prefix | Languages |
+|--------|-----------|
+| `//`   | Rust, C/C++, Java, Go, JavaScript, TypeScript, Swift, Kotlin, C# |
+| `#`    | Python, Ruby, Shell, YAML, TOML, Perl, R |
+| `/* `  | C/C++, Java, JavaScript, CSS (block comment start) |
+| ` * `  | Block comment continuation lines |
+| `--`   | SQL, Haskell, Lua, Ada |
+| `<!--` | HTML, XML, Markdown |
+| `;`    | Lisp, Clojure, Assembly, INI |
+| `(*`   | OCaml, Pascal, F# |
+| `{-`   | Haskell (block) |
+| `%`    | LaTeX, Erlang, MATLAB |
+
+> **Note:** Detection is line-based. Multi-line constructs (Python docstrings, heredocs) are not supported. Tags must appear as standalone words — `todox` and `TODOS` will not match `TODO`.
+
 ## Installation
 
 ```bash

@@ -794,4 +794,84 @@ line four
         assert!(items[0].author.is_none());
         assert!(items[0].deadline.is_none());
     }
+
+    // --- Word boundary after tag: false-positive rejection ---
+
+    #[test]
+    fn test_no_match_todox_in_comment() {
+        let pattern = default_pattern();
+        let content = "// todox report generates HTML\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert!(
+            items.is_empty(),
+            "should not match TODO as prefix of 'todox'"
+        );
+    }
+
+    #[test]
+    fn test_no_match_todos_in_comment() {
+        let pattern = default_pattern();
+        let content = "// TODOS remaining in the backlog\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert!(
+            items.is_empty(),
+            "should not match TODO as prefix of 'TODOS'"
+        );
+    }
+
+    #[test]
+    fn test_no_match_noted_in_comment() {
+        let pattern = default_pattern();
+        let content = "# NOTEd this for future reference\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert!(
+            items.is_empty(),
+            "should not match NOTE as prefix of 'NOTEd'"
+        );
+    }
+
+    #[test]
+    fn test_no_match_fixme_suffix_in_comment() {
+        let pattern = default_pattern();
+        let content = "// FIXMEd the issue yesterday\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert!(
+            items.is_empty(),
+            "should not match FIXME as prefix of 'FIXMEd'"
+        );
+    }
+
+    // --- Word boundary after tag: legitimate patterns still match ---
+
+    #[test]
+    fn test_still_matches_todo_colon() {
+        let pattern = default_pattern();
+        let content = "// TODO: fix this\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert_eq!(items.len(), 1, "TODO: should still match");
+    }
+
+    #[test]
+    fn test_still_matches_todo_paren() {
+        let pattern = default_pattern();
+        let content = "// TODO(alice): fix this\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert_eq!(items.len(), 1, "TODO(author) should still match");
+    }
+
+    #[test]
+    fn test_still_matches_todo_space() {
+        let pattern = default_pattern();
+        let content = "// TODO fix this\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert_eq!(items.len(), 1, "TODO followed by space should still match");
+    }
+
+    #[test]
+    fn test_still_matches_todo_bang() {
+        let pattern = default_pattern();
+        let content = "// TODO! fix this\n";
+        let items = scan_content(content, "test.rs", &pattern);
+        assert_eq!(items.len(), 1, "TODO! should still match");
+    }
 }
