@@ -103,6 +103,28 @@ pub fn format_blame(result: &BlameResult) -> String {
     lines.join("\n")
 }
 
+pub fn format_lint(result: &LintResult) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    if result.passed {
+        lines.push("::notice::todox lint: PASS".to_string());
+    } else {
+        for violation in &result.violations {
+            let file = escape_property(&violation.file);
+            let msg = escape_message(&violation.message);
+            lines.push(format!(
+                "::error file={file},line={},title={}::{msg}",
+                violation.line, violation.rule
+            ));
+        }
+        lines.push(format!(
+            "::error::todox lint: FAIL ({} violations)",
+            result.violation_count
+        ));
+    }
+    lines.push(String::new());
+    lines.join("\n")
+}
+
 pub fn format_check(result: &CheckResult) -> String {
     let mut lines: Vec<String> = Vec::new();
     if result.passed {

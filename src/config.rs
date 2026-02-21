@@ -18,6 +18,8 @@ pub struct Config {
     pub check: CheckConfig,
     /// Git blame analysis settings
     pub blame: BlameConfig,
+    /// Lint rule settings
+    pub lint: LintConfig,
 }
 
 /// CI gate check settings
@@ -44,6 +46,25 @@ pub struct BlameConfig {
     pub stale_threshold: Option<String>,
 }
 
+/// Lint rule settings for TODO comment formatting
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+#[serde(default)]
+#[schemars(deny_unknown_fields)]
+pub struct LintConfig {
+    /// Reject TODOs with empty message (default: true)
+    pub no_bare_tags: Option<bool>,
+    /// Enforce max message character count
+    pub max_message_length: Option<usize>,
+    /// Require (author) for specified tags
+    pub require_author: Option<Vec<String>>,
+    /// Require issue ref (#N) for specified tags
+    pub require_issue_ref: Option<Vec<String>>,
+    /// Enforce uppercase tag names (default: true)
+    pub uppercase_tag: Option<bool>,
+    /// Enforce colon after tag (default: true)
+    pub require_colon: Option<bool>,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -59,6 +80,7 @@ impl Default for Config {
             exclude_patterns: vec![],
             check: CheckConfig::default(),
             blame: BlameConfig::default(),
+            lint: LintConfig::default(),
         }
     }
 }
@@ -67,7 +89,7 @@ impl Config {
     /// Build regex pattern from configured tags
     pub fn tags_pattern(&self) -> String {
         let tags = self.tags.join("|");
-        format!(r"(?i)\b({tags})(?:\(([^)]+)\))?:?\s*(!{{1,2}})?\s*(.+)$")
+        format!(r"(?i)\b({tags})(?:\(([^)]+)\))?:?\s*(!{{1,2}})?\s*(.*)$")
     }
 
     /// Load config from .todox.toml, searching up from the given directory

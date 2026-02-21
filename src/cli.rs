@@ -171,6 +171,33 @@ pub enum Command {
         #[arg(long)]
         expired: bool,
     },
+
+    /// Lint TODO comment formatting against configurable rules
+    Lint {
+        /// Reject TODOs with empty message
+        #[arg(long)]
+        no_bare_tags: bool,
+
+        /// Enforce max message character count
+        #[arg(long)]
+        max_message_length: Option<usize>,
+
+        /// Require (author) for specified tags (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        require_author: Vec<String>,
+
+        /// Require issue ref (#N) for specified tags (comma-separated)
+        #[arg(long, value_delimiter = ',')]
+        require_issue_ref: Vec<String>,
+
+        /// Enforce uppercase tag names
+        #[arg(long)]
+        uppercase_tag: bool,
+
+        /// Enforce colon after tag
+        #[arg(long)]
+        require_colon: bool,
+    },
 }
 
 #[derive(Clone, ValueEnum)]

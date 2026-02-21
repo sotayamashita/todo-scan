@@ -8,6 +8,7 @@ mod deadline;
 mod diff;
 mod git;
 mod init;
+mod lint;
 mod model;
 mod output;
 mod scanner;
@@ -25,9 +26,11 @@ use cli::{BlameSortBy, Cli, Command, Format, GroupBy, PriorityFilter, SortBy};
 use config::Config;
 use context::{build_rich_context, collect_context_map, parse_location};
 use diff::compute_diff;
+use lint::{run_lint, LintOverrides};
 use model::Tag;
 use output::{
-    print_blame, print_check, print_context, print_diff, print_list, print_search, print_stats,
+    print_blame, print_check, print_context, print_diff, print_lint, print_list, print_search,
+    print_stats,
 };
 use scanner::scan_directory;
 use search::search_items;
@@ -149,6 +152,24 @@ fn run() -> Result<()> {
                 }
                 Command::Context { location, context } => {
                     cmd_context(&root, &config, &cli.format, &location, context)
+                }
+                Command::Lint {
+                    no_bare_tags,
+                    max_message_length,
+                    require_author,
+                    require_issue_ref,
+                    uppercase_tag,
+                    require_colon,
+                } => {
+                    let overrides = LintOverrides {
+                        no_bare_tags,
+                        max_message_length,
+                        require_author,
+                        require_issue_ref,
+                        uppercase_tag,
+                        require_colon,
+                    };
+                    cmd_lint(&root, &config, &cli.format, overrides)
                 }
             }
         }
@@ -429,6 +450,25 @@ fn cmd_check(
     let passed = result.passed;
 
     print_check(&result, format);
+
+    if !passed {
+        process::exit(1);
+    }
+
+    Ok(())
+}
+
+fn cmd_lint(
+    root: &std::path::Path,
+    config: &Config,
+    format: &Format,
+    overrides: LintOverrides,
+) -> Result<()> {
+    let scan = scan_directory(root, config)?;
+    let result = run_lint(&scan, config, &overrides, root);
+    let passed = result.passed;
+
+    print_lint(&result, format);
 
     if !passed {
         process::exit(1);

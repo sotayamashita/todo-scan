@@ -140,6 +140,89 @@ pub fn format_blame(result: &BlameResult) -> String {
     output
 }
 
+pub fn format_lint(result: &LintResult) -> String {
+    let results: Vec<serde_json::Value> = result
+        .violations
+        .iter()
+        .map(|v| {
+            let mut r = serde_json::json!({
+                "ruleId": format!("todox/lint/{}", v.rule),
+                "level": "error",
+                "message": {
+                    "text": v.message
+                },
+                "locations": [{
+                    "physicalLocation": {
+                        "artifactLocation": {
+                            "uri": v.file
+                        },
+                        "region": {
+                            "startLine": v.line
+                        }
+                    }
+                }]
+            });
+            if let Some(ref suggestion) = v.suggestion {
+                r.as_object_mut().unwrap().insert(
+                    "fixes".to_string(),
+                    serde_json::json!([{
+                        "description": {
+                            "text": suggestion
+                        }
+                    }]),
+                );
+            }
+            r
+        })
+        .collect();
+
+    let mut seen = std::collections::BTreeSet::new();
+    let rules: Vec<serde_json::Value> = result
+        .violations
+        .iter()
+        .filter_map(|v| {
+            let id = format!("todox/lint/{}", v.rule);
+            if seen.insert(id.clone()) {
+                Some(serde_json::json!({
+                    "id": id,
+                    "shortDescription": {
+                        "text": format!("{} lint rule", v.rule)
+                    }
+                }))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let final_results = if result.passed && results.is_empty() {
+        vec![serde_json::json!({
+            "ruleId": "todox/lint/summary",
+            "level": "note",
+            "message": {
+                "text": format!("All lint checks passed ({} items)", result.total_items)
+            }
+        })]
+    } else {
+        results
+    };
+
+    let final_rules = if result.passed && rules.is_empty() {
+        vec![serde_json::json!({
+            "id": "todox/lint/summary",
+            "shortDescription": {
+                "text": "todox lint summary"
+            }
+        })]
+    } else {
+        rules
+    };
+
+    let mut output = build_sarif_envelope(final_results, final_rules);
+    output.push('\n');
+    output
+}
+
 pub fn format_check(result: &CheckResult) -> String {
     let results: Vec<serde_json::Value> = result
         .violations

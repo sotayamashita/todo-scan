@@ -511,6 +511,56 @@ pub fn print_stats(result: &StatsResult, format: &Format) {
     }
 }
 
+pub fn print_lint(result: &LintResult, format: &Format) {
+    match format {
+        Format::Text => {
+            if result.passed {
+                println!("{}", "PASS".green().bold());
+                println!("{} items checked, no violations", result.total_items);
+            } else {
+                println!("{}", "FAIL".red().bold());
+
+                // Group violations by file
+                let mut groups: Vec<(String, Vec<&LintViolation>)> = Vec::new();
+                let mut key_index: std::collections::HashMap<String, usize> =
+                    std::collections::HashMap::new();
+
+                for v in &result.violations {
+                    let key = v.file.clone();
+                    if let Some(&idx) = key_index.get(&key) {
+                        groups[idx].1.push(v);
+                    } else {
+                        key_index.insert(key.clone(), groups.len());
+                        groups.push((key, vec![v]));
+                    }
+                }
+
+                for (file, violations) in &groups {
+                    println!("{}", file.bold().underline());
+                    for v in violations {
+                        println!("  L{}: {} - {}", v.line, v.rule.yellow(), v.message);
+                        if let Some(ref suggestion) = v.suggestion {
+                            println!("    {} {}", "suggestion:".dimmed(), suggestion.dimmed());
+                        }
+                    }
+                }
+
+                println!(
+                    "\n{} violations in {} items",
+                    result.violation_count, result.total_items
+                );
+            }
+        }
+        Format::Json => {
+            let json = serde_json::to_string_pretty(result).expect("failed to serialize");
+            println!("{}", json);
+        }
+        Format::GithubActions => print!("{}", github_actions::format_lint(result)),
+        Format::Sarif => print!("{}", sarif::format_lint(result)),
+        Format::Markdown => print!("{}", markdown::format_lint(result)),
+    }
+}
+
 pub fn print_check(result: &CheckResult, format: &Format) {
     match format {
         Format::Text => {

@@ -38,6 +38,10 @@ TODO comments lack accountability — you can't tell who wrote them or when with
 
 Scrolling through `todox list` output or manually grepping to find specific TODOs is impractical in large codebases with hundreds of items. `todox search` filters TODO comments by message text or issue reference using case-insensitive substring matching, with an `--exact` flag for case-sensitive searches. Run `todox search "migration"` to find relevant items, or combine with `--author`, `--tag`, `--path`, and `-C` context lines for precise results.
 
+**`todox lint`**
+
+TODO comments in team codebases drift in format — inconsistent casing, missing colons, missing authors — degrading scanner reliability and code hygiene. `todox lint` enforces configurable formatting rules (uppercase tags, colons, author attribution, issue references, message length) and exits with code 1 on violations, making it CI-ready out of the box. Run `todox lint` for sensible defaults, or configure rules in `.todox.toml` under `[lint]`.
+
 **`todox check`**
 
 Without enforcement, TODO debt grows silently until it becomes unmanageable. `todox check` acts as a CI gate that fails the build when TODO counts exceed a threshold, forbidden tags appear, too many new TODOs are introduced, or deadlines have expired. Run `todox check --max 100 --block-tags BUG` in your CI pipeline, or `todox check --expired` to catch overdue TODOs.
@@ -218,6 +222,30 @@ todox stats --since main
 todox stats --format json
 ```
 
+### Lint TODO formatting
+
+```bash
+# Check formatting with sensible defaults (uppercase, colon, no bare tags)
+todox lint
+
+# Require author for specific tags
+todox lint --require-author TODO,FIXME
+
+# Require issue reference for BUG tags
+todox lint --require-issue-ref BUG
+
+# Enforce max message length
+todox lint --max-message-length 120
+
+# Combine rules
+todox lint --require-author TODO --require-issue-ref BUG --max-message-length 120
+
+# JSON output
+todox lint --format json
+```
+
+Exit codes: `0` = pass, `1` = fail, `2` = error.
+
 ### CI gate
 
 ```bash
@@ -314,6 +342,25 @@ expired = true
 [blame]
 # Days threshold for marking TODOs as stale (default: 365d)
 stale_threshold = "180d"
+
+[lint]
+# Reject TODOs with empty message (default: true)
+no_bare_tags = true
+
+# Enforce uppercase tag names (default: true)
+uppercase_tag = true
+
+# Enforce colon after tag (default: true)
+require_colon = true
+
+# Enforce max message character count (default: disabled)
+# max_message_length = 120
+
+# Require (author) for specified tags (default: disabled)
+# require_author = ["TODO", "FIXME"]
+
+# Require issue ref for specified tags (default: disabled)
+# require_issue_ref = ["BUG"]
 ```
 
 All fields are optional. Unspecified values use sensible defaults.
@@ -344,6 +391,17 @@ A machine-readable JSON Schema is available at [`schema/todox.schema.json`](sche
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `stale_threshold` | `string` | `"365d"` | Duration threshold for marking TODOs as stale |
+
+#### `[lint]` section
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `no_bare_tags` | `boolean` | `true` | Reject TODOs with empty message |
+| `uppercase_tag` | `boolean` | `true` | Enforce uppercase tag names |
+| `require_colon` | `boolean` | `true` | Enforce colon after tag |
+| `max_message_length` | `integer` | _(none)_ | Enforce max message character count |
+| `require_author` | `string[]` | _(none)_ | Require `(author)` for specified tags |
+| `require_issue_ref` | `string[]` | _(none)_ | Require issue ref for specified tags |
 
 ## Agent Skill
 
