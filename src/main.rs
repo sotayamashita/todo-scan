@@ -11,6 +11,7 @@ mod init;
 mod model;
 mod output;
 mod scanner;
+mod search;
 mod stats;
 
 use std::process;
@@ -25,8 +26,11 @@ use config::Config;
 use context::{build_rich_context, collect_context_map, parse_location};
 use diff::compute_diff;
 use model::Tag;
-use output::{print_blame, print_check, print_context, print_diff, print_list, print_stats};
+use output::{
+    print_blame, print_check, print_context, print_diff, print_list, print_search, print_stats,
+};
 use scanner::scan_directory;
+use search::search_items;
 use stats::compute_stats;
 
 fn main() {
@@ -100,6 +104,28 @@ fn run() -> Result<()> {
                     tag,
                     path,
                 ),
+                Command::Search {
+                    query,
+                    exact,
+                    context,
+                    author,
+                    tag,
+                    path,
+                    sort,
+                    group_by,
+                } => {
+                    let opts = SearchOptions {
+                        query,
+                        exact,
+                        context,
+                        author,
+                        tag,
+                        path,
+                        sort,
+                        group_by,
+                    };
+                    cmd_search(&root, &config, &cli.format, opts)
+                }
                 Command::Stats { since } => cmd_stats(&root, &config, &cli.format, since),
                 Command::Diff {
                     git_ref,
@@ -138,6 +164,100 @@ struct ListOptions {
     path: Option<String>,
     limit: Option<usize>,
     context: Option<usize>,
+}
+
+struct SearchOptions {
+    query: String,
+    exact: bool,
+    context: Option<usize>,
+    author: Option<String>,
+    tag: Vec<String>,
+    path: Option<String>,
+    sort: SortBy,
+    group_by: GroupBy,
+}
+
+fn cmd_search(
+    root: &std::path::Path,
+    config: &Config,
+    format: &Format,
+    opts: SearchOptions,
+) -> Result<()> {
+    let scan = scan_directory(root, config)?;
+    let mut result = search_items(&scan, &opts.query, opts.exact);
+
+    // Apply tag filter
+    if !opts.tag.is_empty() {
+        let filter_tags: Vec<Tag> = opts
+            .tag
+            .iter()
+            .filter_map(|s| s.parse::<Tag>().ok())
+            .collect();
+        result.items.retain(|item| filter_tags.contains(&item.tag));
+    }
+
+    // Apply author filter
+    if let Some(ref author) = opts.author {
+        result
+            .items
+            .retain(|item| item.author.as_deref() == Some(author.as_str()));
+    }
+
+    // Apply path filter
+    if let Some(ref pattern) = opts.path {
+        let glob = globset::Glob::new(pattern)
+            .context("invalid glob pattern")?
+            .compile_matcher();
+        result.items.retain(|item| glob.is_match(&item.file));
+    }
+
+    // Apply sort
+    match opts.sort {
+        SortBy::File => result
+            .items
+            .sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line))),
+        SortBy::Tag => result.items.sort_by(|a, b| {
+            a.tag
+                .severity()
+                .cmp(&b.tag.severity())
+                .reverse()
+                .then(a.file.cmp(&b.file))
+                .then(a.line.cmp(&b.line))
+        }),
+        SortBy::Priority => result.items.sort_by(|a, b| {
+            let pa = match a.priority {
+                model::Priority::Urgent => 2,
+                model::Priority::High => 1,
+                model::Priority::Normal => 0,
+            };
+            let pb = match b.priority {
+                model::Priority::Urgent => 2,
+                model::Priority::High => 1,
+                model::Priority::Normal => 0,
+            };
+            pb.cmp(&pa)
+                .then(a.file.cmp(&b.file))
+                .then(a.line.cmp(&b.line))
+        }),
+    }
+
+    // Recompute counts after filtering
+    result.match_count = result.items.len();
+    result.file_count = result
+        .items
+        .iter()
+        .map(|i| &i.file)
+        .collect::<std::collections::HashSet<_>>()
+        .len();
+
+    let context_map = if let Some(n) = opts.context {
+        collect_context_map(root, &result.items, n)
+    } else {
+        std::collections::HashMap::new()
+    };
+
+    print_search(&result, format, &opts.group_by, &context_map);
+    Ok(())
 }
 
 fn cmd_list(

@@ -180,6 +180,15 @@ pub struct BlameResult {
     pub stale_threshold_days: u64,
 }
 
+#[derive(Debug, Serialize)]
+pub struct SearchResult {
+    pub query: String,
+    pub exact: bool,
+    pub items: Vec<TodoItem>,
+    pub match_count: usize,
+    pub file_count: usize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
     Error,

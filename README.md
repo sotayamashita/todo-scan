@@ -34,6 +34,10 @@ A flat list of TODOs makes it hard to see the big picture — whether tech debt 
 
 TODO comments lack accountability — you can't tell who wrote them or when without manually running `git blame`. `todox blame` enriches each TODO with git blame metadata including author, commit date, and age in days, and flags items older than a configurable threshold as stale. Run `todox blame` to see all TODOs with ownership info, `todox blame --sort age` to find the oldest ones, or `todox blame --author alice --min-age 90d` to filter by author and age.
 
+**`todox search`**
+
+Scrolling through `todox list` output or manually grepping to find specific TODOs is impractical in large codebases with hundreds of items. `todox search` filters TODO comments by message text or issue reference using case-insensitive substring matching, with an `--exact` flag for case-sensitive searches. Run `todox search "migration"` to find relevant items, or combine with `--author`, `--tag`, `--path`, and `-C` context lines for precise results.
+
 **`todox check`**
 
 Without enforcement, TODO debt grows silently until it becomes unmanageable. `todox check` acts as a CI gate that fails the build when TODO counts exceed a threshold, forbidden tags appear, too many new TODOs are introduced, or deadlines have expired. Run `todox check --max 100 --block-tags BUG` in your CI pipeline, or `todox check --expired` to catch overdue TODOs.
@@ -112,6 +116,31 @@ todox list --sort tag
 
 # JSON output
 todox list --format json
+```
+
+### Search TODOs
+
+```bash
+# Search by message text (case-insensitive)
+todox search "migration"
+
+# Short alias
+todox s "migration"
+
+# Case-sensitive exact match
+todox search "TODO" --exact
+
+# Search by issue reference
+todox search "#123"
+
+# Combine with filters
+todox search "fix" --author alice --tag FIXME --path "src/**"
+
+# Show context lines around matches
+todox search "bug" -C 3
+
+# JSON output with query metadata
+todox search "fix" --format json
 ```
 
 ### Show context around TODOs

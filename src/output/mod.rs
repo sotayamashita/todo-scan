@@ -216,6 +216,137 @@ pub fn print_list(
     }
 }
 
+pub fn print_search(
+    result: &SearchResult,
+    format: &Format,
+    group_by: &GroupBy,
+    context_map: &HashMap<String, ContextInfo>,
+) {
+    let has_context = !context_map.is_empty();
+
+    match format {
+        Format::Text => {
+            let groups = group_items(&result.items, group_by);
+            let group_count = groups.len();
+            let is_file_group = matches!(group_by, GroupBy::File);
+
+            for (key, items) in &groups {
+                if is_file_group {
+                    println!("{}", key.bold().underline());
+                } else {
+                    println!(
+                        "{}",
+                        format!("{} ({} items)", key, items.len())
+                            .bold()
+                            .underline()
+                    );
+                }
+                for item in items {
+                    let tag_str = colorize_tag(&item.tag);
+
+                    // Print before-context lines
+                    let ctx_key = format!("{}:{}", item.file, item.line);
+                    if let Some(ctx) = context_map.get(&ctx_key) {
+                        for cl in &ctx.before {
+                            println!(
+                                "    {} {}",
+                                format!("{:>4}", cl.line_number).dimmed(),
+                                cl.content.dimmed()
+                            );
+                        }
+                    }
+
+                    let mut line = if is_file_group {
+                        format!("  L{}: [{}] {}", item.line, tag_str, item.message)
+                    } else {
+                        format!(
+                            "  {}:{}: [{}] {}",
+                            item.file, item.line, tag_str, item.message
+                        )
+                    };
+
+                    if let Some(ref author) = item.author {
+                        line.push_str(&format!(" (@{})", author));
+                    }
+                    if let Some(ref issue) = item.issue_ref {
+                        line.push_str(&format!(" ({})", issue));
+                    }
+                    if let Some(ref deadline) = item.deadline {
+                        let today = crate::deadline::today();
+                        if deadline.is_expired(&today) {
+                            line.push_str(&format!(
+                                " {}",
+                                format!("[expired: {}]", deadline).red()
+                            ));
+                        } else {
+                            line.push_str(&format!(" [deadline: {}]", deadline));
+                        }
+                    }
+
+                    if has_context {
+                        println!("{} {}", "  →".cyan(), line.trim_start());
+                    } else {
+                        println!("{}", line);
+                    }
+
+                    // Print after-context lines
+                    if let Some(ctx) = context_map.get(&ctx_key) {
+                        for cl in &ctx.after {
+                            println!(
+                                "    {} {}",
+                                format!("{:>4}", cl.line_number).dimmed(),
+                                cl.content.dimmed()
+                            );
+                        }
+                        println!();
+                    }
+                }
+            }
+
+            if is_file_group {
+                println!(
+                    "{} matches across {} files (query: \"{}\")",
+                    result.match_count, result.file_count, result.query
+                );
+            } else {
+                println!(
+                    "{} matches across {} groups (query: \"{}\")",
+                    result.match_count, group_count, result.query
+                );
+            }
+        }
+        Format::Json => {
+            if has_context {
+                let mut value: serde_json::Value =
+                    serde_json::to_value(result).expect("failed to serialize");
+                if let Some(items) = value.get_mut("items").and_then(|v| v.as_array_mut()) {
+                    for item_val in items.iter_mut() {
+                        let file = item_val.get("file").and_then(|v| v.as_str()).unwrap_or("");
+                        let line = item_val.get("line").and_then(|v| v.as_u64()).unwrap_or(0);
+                        let key = format!("{}:{}", file, line);
+                        if let Some(ctx) = context_map.get(&key) {
+                            let ctx_value =
+                                serde_json::to_value(ctx).expect("failed to serialize context");
+                            item_val
+                                .as_object_mut()
+                                .unwrap()
+                                .insert("context".to_string(), ctx_value);
+                        }
+                    }
+                }
+                let json = serde_json::to_string_pretty(&value).expect("failed to serialize");
+                println!("{}", json);
+            } else {
+                let json = serde_json::to_string_pretty(result).expect("failed to serialize");
+                println!("{}", json);
+            }
+        }
+        Format::GithubActions => print!("{}", github_actions::format_search(result)),
+        Format::Sarif => print!("{}", sarif::format_search(result)),
+        Format::Markdown => print!("{}", markdown::format_search(result)),
+    }
+}
+
 pub fn print_diff(
     result: &DiffResult,
     format: &Format,

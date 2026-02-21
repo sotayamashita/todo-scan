@@ -37,6 +37,16 @@ pub fn format_list(result: &ScanResult) -> String {
     lines.join("\n")
 }
 
+pub fn format_search(result: &SearchResult) -> String {
+    let mut lines: Vec<String> = result.items.iter().map(format_item_annotation).collect();
+    lines.push(format!(
+        "::notice::todox search: {} matches (query: \"{}\")",
+        result.match_count, result.query
+    ));
+    lines.push(String::new());
+    lines.join("\n")
+}
+
 pub fn format_diff(result: &DiffResult) -> String {
     let mut lines: Vec<String> = Vec::new();
     for entry in &result.entries {

@@ -45,6 +45,41 @@ pub fn format_list(result: &ScanResult) -> String {
     lines.join("\n")
 }
 
+pub fn format_search(result: &SearchResult) -> String {
+    let mut lines: Vec<String> = Vec::new();
+
+    lines
+        .push("| File | Line | Tag | Priority | Message | Author | Issue | Deadline |".to_string());
+    lines
+        .push("|------|------|-----|----------|---------|--------|-------|----------|".to_string());
+
+    for item in &result.items {
+        let file = escape_cell(&item.file);
+        let tag = item.tag.as_str();
+        let priority = priority_str(&item.priority);
+        let message = escape_cell(&item.message);
+        let author = item.author.as_deref().unwrap_or("");
+        let issue = item.issue_ref.as_deref().unwrap_or("");
+        let deadline = item
+            .deadline
+            .as_ref()
+            .map(|d| d.to_string())
+            .unwrap_or_default();
+        lines.push(format!(
+            "| {file} | {} | {tag} | {priority} | {message} | {author} | {issue} | {deadline} |",
+            item.line
+        ));
+    }
+
+    lines.push(String::new());
+    lines.push(format!(
+        "**{} matches across {} files** (query: \"{}\")",
+        result.match_count, result.file_count, result.query
+    ));
+    lines.push(String::new());
+    lines.join("\n")
+}
+
 pub fn format_diff(result: &DiffResult) -> String {
     let mut lines: Vec<String> = Vec::new();
 

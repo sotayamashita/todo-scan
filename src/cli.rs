@@ -125,6 +125,36 @@ pub enum Command {
         since: Option<String>,
     },
 
+    /// Search TODO comments by message text or issue reference
+    #[command(alias = "s")]
+    Search {
+        /// Search query string
+        query: String,
+
+        /// Exact case-sensitive substring match (default: case-insensitive)
+        #[arg(long)]
+        exact: bool,
+
+        /// Number of context lines to show around each match
+        #[arg(short = 'C', long)]
+        context: Option<usize>,
+
+        #[arg(long)]
+        author: Option<String>,
+
+        #[arg(long)]
+        tag: Vec<String>,
+
+        #[arg(long)]
+        path: Option<String>,
+
+        #[arg(long, value_enum, default_value = "file")]
+        sort: SortBy,
+
+        #[arg(long, value_enum, default_value = "file")]
+        group_by: GroupBy,
+    },
+
     Check {
         #[arg(long)]
         max: Option<usize>,

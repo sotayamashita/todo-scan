@@ -76,6 +76,15 @@ pub fn format_list(result: &ScanResult) -> String {
     output
 }
 
+pub fn format_search(result: &SearchResult) -> String {
+    let results: Vec<serde_json::Value> = result.items.iter().map(item_to_result).collect();
+    let all_items: Vec<&TodoItem> = result.items.iter().collect();
+    let rules = collect_rules(&all_items);
+    let mut output = build_sarif_envelope(results, rules);
+    output.push('\n');
+    output
+}
+
 pub fn format_diff(result: &DiffResult) -> String {
     let results: Vec<serde_json::Value> = result
         .entries
