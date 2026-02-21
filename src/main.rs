@@ -1,9 +1,11 @@
 mod check;
 mod cli;
+mod completions;
 mod config;
 mod context;
 mod deadline;
 mod diff;
+mod init;
 mod model;
 mod output;
 mod scanner;
@@ -39,59 +41,69 @@ fn run() -> Result<()> {
         None => std::env::current_dir().context("cannot determine current directory")?,
     };
 
-    let config = if let Some(ref config_path) = cli.config {
-        let content = std::fs::read_to_string(config_path)?;
-        toml::from_str(&content)?
-    } else {
-        Config::load(&root)?
-    };
-
     match cli.command {
-        Command::List {
-            tag,
-            sort,
-            group_by,
-            priority,
-            author,
-            path,
-            limit,
-            context,
-        } => {
-            let opts = ListOptions {
-                tag,
-                sort,
-                group_by,
-                priority,
-                author,
-                path,
-                limit,
-                context,
+        // Commands that don't need config
+        Command::Init { yes } => init::cmd_init(&root, yes),
+        Command::Completions { shell } => completions::cmd_completions(shell),
+
+        // Commands that need config
+        command => {
+            let config = if let Some(ref config_path) = cli.config {
+                let content = std::fs::read_to_string(config_path)?;
+                toml::from_str(&content)?
+            } else {
+                Config::load(&root)?
             };
-            cmd_list(&root, &config, &cli.format, opts)
-        }
-        Command::Stats { since } => cmd_stats(&root, &config, &cli.format, since),
-        Command::Diff {
-            git_ref,
-            tag,
-            context,
-        } => cmd_diff(&root, &config, &cli.format, &git_ref, &tag, context),
-        Command::Check {
-            max,
-            block_tags,
-            max_new,
-            since,
-            expired,
-        } => {
-            let overrides = CheckOverrides {
-                max,
-                block_tags,
-                max_new,
-                expired,
-            };
-            cmd_check(&root, &config, &cli.format, overrides, since)
-        }
-        Command::Context { location, context } => {
-            cmd_context(&root, &config, &cli.format, &location, context)
+
+            match command {
+                Command::Init { .. } | Command::Completions { .. } => unreachable!(),
+                Command::List {
+                    tag,
+                    sort,
+                    group_by,
+                    priority,
+                    author,
+                    path,
+                    limit,
+                    context,
+                } => {
+                    let opts = ListOptions {
+                        tag,
+                        sort,
+                        group_by,
+                        priority,
+                        author,
+                        path,
+                        limit,
+                        context,
+                    };
+                    cmd_list(&root, &config, &cli.format, opts)
+                }
+                Command::Stats { since } => cmd_stats(&root, &config, &cli.format, since),
+                Command::Diff {
+                    git_ref,
+                    tag,
+                    context,
+                } => cmd_diff(&root, &config, &cli.format, &git_ref, &tag, context),
+                Command::Check {
+                    max,
+                    block_tags,
+                    max_new,
+                    since,
+                    expired,
+                } => {
+                    let overrides = CheckOverrides {
+                        max,
+                        block_tags,
+                        max_new,
+                        expired,
+                    };
+                    cmd_check(&root, &config, &cli.format, overrides, since)
+                }
+                Command::Context { location, context } => {
+                    cmd_context(&root, &config, &cli.format, &location, context)
+                }
+            }
         }
     }
 }

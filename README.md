@@ -38,6 +38,14 @@ Without enforcement, TODO debt grows silently until it becomes unmanageable. `to
 
 TODO lists show file:line references but lack surrounding code, forcing you to open files to understand what each TODO refers to. `todox context` displays the code around a specific line with related TODOs in the same file, and the `-C N` flag on `list` and `diff` adds inline context to every item. Run `todox context src/main.rs:25` or `todox list -C 3` to see code in context.
 
+**`todox init`**
+
+New users must manually create `.todox.toml` from documentation, slowing onboarding. `todox init` walks you through an interactive setup that detects your project type (Rust, Node, Go, Python), suggests appropriate exclude directories, and lets you choose which tags to track. Run `todox init` for interactive mode or `todox init --yes` to accept defaults.
+
+**`todox completions <shell>`**
+
+Shell completions are table stakes for CLI tools but require manual setup. `todox completions` generates completion scripts for bash, zsh, fish, elvish, and PowerShell and outputs them to stdout for easy installation. Run `todox completions fish > ~/.config/fish/completions/todox.fish` to install.
+
 **CI-ready output formats**
 
 Plain text output requires extra tooling to integrate with CI dashboards and PR workflows. todox supports `--format github-actions` for inline PR annotations, `--format sarif` for GitHub's [Code Scanning](https://docs.github.com/en/code-security/code-scanning) tab via SARIF (Static Analysis Results Interchange Format), and `--format markdown` for PR comment bot tables. Add `--format github-actions` to any command to get started.
@@ -194,9 +202,32 @@ todox list --format sarif > results.sarif
 todox diff main --format markdown
 ```
 
+### Quick start
+
+```bash
+# Interactive setup — generates .todox.toml
+todox init
+
+# Non-interactive with defaults
+todox init --yes
+```
+
+### Shell completions
+
+```bash
+# Bash
+todox completions bash > ~/.local/share/bash-completion/completions/todox
+
+# Zsh
+todox completions zsh > ~/.zfunc/_todox
+
+# Fish
+todox completions fish > ~/.config/fish/completions/todox.fish
+```
+
 ## Configuration
 
-Create a `.todox.toml` in your project root. The file is discovered by searching upward from the current directory.
+Create a `.todox.toml` in your project root (or run `todox init`). The file is discovered by searching upward from the current directory.
 
 ```toml
 # Tags to scan for (default: all supported tags)

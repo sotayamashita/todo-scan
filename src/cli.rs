@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand, ValueEnum};
+use clap_complete::Shell;
 use std::path::PathBuf;
 
 use crate::model;
@@ -81,6 +82,20 @@ pub enum Command {
         /// Number of context lines (default: 5)
         #[arg(short = 'C', long, default_value = "5")]
         context: usize,
+    },
+
+    /// Generate a .todox.toml configuration file
+    Init {
+        /// Accept defaults without interactive prompts
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
+
+    /// Generate shell completions
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: Shell,
     },
 
     Stats {
