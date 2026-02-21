@@ -65,6 +65,11 @@ pub enum Command {
         tag: Vec<String>,
     },
 
+    Stats {
+        #[arg(long)]
+        since: Option<String>,
+    },
+
     Check {
         #[arg(long)]
         max: Option<usize>,

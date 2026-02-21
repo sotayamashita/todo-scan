@@ -129,6 +129,31 @@ pub struct CheckViolation {
     pub message: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct StatsResult {
+    pub total_items: usize,
+    pub total_files: usize,
+    pub tag_counts: Vec<(Tag, usize)>,
+    pub priority_counts: PriorityCounts,
+    pub author_counts: Vec<(String, usize)>,
+    pub hotspot_files: Vec<(String, usize)>,
+    pub trend: Option<TrendInfo>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PriorityCounts {
+    pub normal: usize,
+    pub high: usize,
+    pub urgent: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TrendInfo {
+    pub added: usize,
+    pub removed: usize,
+    pub base_ref: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
     Error,

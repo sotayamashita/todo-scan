@@ -6,6 +6,7 @@ mod diff;
 mod model;
 mod output;
 mod scanner;
+mod stats;
 
 use std::process;
 
@@ -17,8 +18,9 @@ use cli::{Cli, Command, Format, GroupBy, PriorityFilter, SortBy};
 use config::Config;
 use diff::compute_diff;
 use model::Tag;
-use output::{print_check, print_diff, print_list};
+use output::{print_check, print_diff, print_list, print_stats};
 use scanner::scan_directory;
+use stats::compute_stats;
 
 fn main() {
     if let Err(e) = run() {
@@ -63,6 +65,7 @@ fn run() -> Result<()> {
             };
             cmd_list(&root, &config, &cli.format, opts)
         }
+        Command::Stats { since } => cmd_stats(&root, &config, &cli.format, since),
         Command::Diff { git_ref, tag } => cmd_diff(&root, &config, &cli.format, &git_ref, &tag),
         Command::Check {
             max,
@@ -233,5 +236,24 @@ fn cmd_check(
         process::exit(1);
     }
 
+    Ok(())
+}
+
+fn cmd_stats(
+    root: &std::path::Path,
+    config: &Config,
+    format: &Format,
+    since: Option<String>,
+) -> Result<()> {
+    let scan = scan_directory(root, config)?;
+
+    let diff = if let Some(ref base_ref) = since {
+        Some(compute_diff(&scan, base_ref, root, config)?)
+    } else {
+        None
+    };
+
+    let result = compute_stats(&scan, diff.as_ref());
+    print_stats(&result, format);
     Ok(())
 }

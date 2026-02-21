@@ -187,6 +187,84 @@ pub fn print_diff(result: &DiffResult, format: &Format) {
     }
 }
 
+fn bar(count: usize, max: usize, width: usize) -> String {
+    if max == 0 {
+        return String::new();
+    }
+    let filled = (count * width).div_ceil(max);
+    "\u{2588}".repeat(filled)
+}
+
+pub fn print_stats(result: &StatsResult, format: &Format) {
+    match format {
+        Format::Text => {
+            // Tag breakdown
+            println!("{}", "Tags".bold().underline());
+            let tag_max = result.tag_counts.first().map(|(_, c)| *c).unwrap_or(0);
+            for (tag, count) in &result.tag_counts {
+                let tag_str = colorize_tag(tag);
+                println!(
+                    "  {:6} {:>4}  {}",
+                    tag_str,
+                    count,
+                    bar(*count, tag_max, 20).dimmed()
+                );
+            }
+
+            // Priority summary
+            println!(
+                "\n{} normal: {} | high: {} | urgent: {}",
+                "Priority".bold().underline(),
+                result.priority_counts.normal,
+                result.priority_counts.high,
+                result.priority_counts.urgent,
+            );
+
+            // Author breakdown
+            if !result.author_counts.is_empty() {
+                println!("\n{}", "Authors".bold().underline());
+                let author_max = result.author_counts.first().map(|(_, c)| *c).unwrap_or(0);
+                for (author, count) in &result.author_counts {
+                    println!(
+                        "  {:20} {:>4}  {}",
+                        author,
+                        count,
+                        bar(*count, author_max, 20).dimmed()
+                    );
+                }
+            }
+
+            // Hotspot files
+            if !result.hotspot_files.is_empty() {
+                println!("\n{}", "Hotspots".bold().underline());
+                for (file, count) in &result.hotspot_files {
+                    println!("  {} ({})", file, count);
+                }
+            }
+
+            // Total summary
+            println!(
+                "\n{} items across {} files",
+                result.total_items, result.total_files
+            );
+
+            // Trend
+            if let Some(ref trend) = result.trend {
+                let net: i64 = trend.added as i64 - trend.removed as i64;
+                let sign = if net > 0 { "+" } else { "" };
+                println!(
+                    "Trend since {}: {} added, {} removed ({}{})",
+                    trend.base_ref, trend.added, trend.removed, sign, net
+                );
+            }
+        }
+        _ => {
+            let json = serde_json::to_string_pretty(result).expect("failed to serialize");
+            println!("{}", json);
+        }
+    }
+}
+
 pub fn print_check(result: &CheckResult, format: &Format) {
     match format {
         Format::Text => {

@@ -26,6 +26,10 @@ TODO comments scatter across hundreds of files, making it hard to know what's ou
 
 New TODOs slip into pull requests unnoticed while resolved ones go unrecognized. `todox diff` compares the current working tree against any git ref and shows exactly which TODOs were added or removed. Run `todox diff main` to compare against your main branch.
 
+**`todox stats`**
+
+A flat list of TODOs makes it hard to see the big picture — whether tech debt is growing, who owns the most items, and which files are hotspots. `todox stats` provides a dashboard summary with tag and author breakdowns, priority distribution, and top files by TODO count. Add `--since <ref>` to see the trend of added and removed items over time.
+
 **`todox check`**
 
 Without enforcement, TODO debt grows silently until it becomes unmanageable. `todox check` acts as a CI gate that fails the build when TODO counts exceed a threshold, forbidden tags appear, too many new TODOs are introduced, or deadlines have expired. Run `todox check --max 100 --block-tags BUG` in your CI pipeline, or `todox check --expired` to catch overdue TODOs.
@@ -108,6 +112,19 @@ todox diff main --tag FIXME
 
 # JSON output
 todox diff main --format json
+```
+
+### Stats dashboard
+
+```bash
+# Show tag/priority/author/hotspot summary
+todox stats
+
+# Show trend compared to a git ref
+todox stats --since main
+
+# JSON output
+todox stats --format json
 ```
 
 ### CI gate
