@@ -1,29 +1,46 @@
 use anyhow::{Context, Result};
+use schemars::JsonSchema;
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Deserialize)]
+/// Configuration for todox TODO tracking tool
+#[derive(Debug, Deserialize, JsonSchema)]
 #[serde(default)]
+#[schemars(deny_unknown_fields, title = "todox Configuration")]
 pub struct Config {
+    /// Tags to scan for (e.g., TODO, FIXME, HACK)
     pub tags: Vec<String>,
+    /// Directory names to skip during scanning
     pub exclude_dirs: Vec<String>,
+    /// Regex patterns; matching file paths are excluded
     pub exclude_patterns: Vec<String>,
+    /// CI gate check settings
     pub check: CheckConfig,
+    /// Git blame analysis settings
     pub blame: BlameConfig,
 }
 
-#[derive(Debug, Default, Deserialize)]
+/// CI gate check settings
+#[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(default)]
+#[schemars(deny_unknown_fields)]
 pub struct CheckConfig {
+    /// Maximum total TODOs allowed
     pub max: Option<usize>,
+    /// Maximum new TODOs allowed (requires --since)
     pub max_new: Option<usize>,
+    /// Tags that cause check to fail immediately
     pub block_tags: Vec<String>,
+    /// Fail if any TODOs have expired deadlines
     pub expired: Option<bool>,
 }
 
-#[derive(Debug, Default, Deserialize)]
+/// Git blame analysis settings
+#[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(default)]
+#[schemars(deny_unknown_fields)]
 pub struct BlameConfig {
+    /// Duration threshold for marking TODOs as stale (e.g., "180d")
     pub stale_threshold: Option<String>,
 }
 
@@ -107,5 +124,32 @@ block_tags = ["BUG"]
         assert_eq!(config.tags.len(), 2);
         assert_eq!(config.check.max, Some(50));
         assert_eq!(config.check.block_tags, vec!["BUG"]);
+    }
+
+    /// Validates that schema/todox.schema.json matches the current Config structs.
+    ///
+    /// To regenerate the schema after changing Config:
+    ///   UPDATE_SCHEMA=1 cargo test schema_is_up_to_date
+    #[test]
+    fn schema_is_up_to_date() {
+        let schema = schemars::schema_for!(Config);
+        let generated = serde_json::to_string_pretty(&schema).unwrap() + "\n";
+
+        let schema_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("schema/todox.schema.json");
+
+        if std::env::var("UPDATE_SCHEMA").is_ok() {
+            std::fs::create_dir_all(schema_path.parent().unwrap()).unwrap();
+            std::fs::write(&schema_path, &generated).unwrap();
+            return;
+        }
+
+        let committed = std::fs::read_to_string(&schema_path).expect(
+            "schema/todox.schema.json not found. Run `UPDATE_SCHEMA=1 cargo test schema_is_up_to_date` to generate it.",
+        );
+        assert_eq!(
+            generated, committed,
+            "Schema is out of date. Run `UPDATE_SCHEMA=1 cargo test schema_is_up_to_date` to update."
+        );
     }
 }

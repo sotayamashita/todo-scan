@@ -289,6 +289,33 @@ stale_threshold = "180d"
 
 All fields are optional. Unspecified values use sensible defaults.
 
+A machine-readable JSON Schema is available at [`schema/todox.schema.json`](schema/todox.schema.json) for editor validation and autocompletion (e.g., [Taplo](https://taplo.tamasfe.dev/), [Even Better TOML](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)).
+
+### Configuration Reference
+
+#### Top-level fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `tags` | `string[]` | `["TODO","FIXME","HACK","XXX","BUG","NOTE"]` | Tag keywords to scan for |
+| `exclude_dirs` | `string[]` | `[]` | Directory names to skip during scanning |
+| `exclude_patterns` | `string[]` | `[]` | Regex patterns; matching file paths are excluded |
+
+#### `[check]` section
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `max` | `integer` | _(none)_ | Maximum total TODOs allowed |
+| `max_new` | `integer` | _(none)_ | Maximum new TODOs allowed (requires `--since`) |
+| `block_tags` | `string[]` | `[]` | Tags that cause `check` to fail immediately |
+| `expired` | `boolean` | _(none)_ | Fail if any TODOs have expired deadlines |
+
+#### `[blame]` section
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `stale_threshold` | `string` | `"365d"` | Duration threshold for marking TODOs as stale |
+
 ## Agent Skill
 
 todox provides a [Claude Code skill](https://docs.anthropic.com/en/docs/claude-code/skills) that enables AI coding agents to automatically use todox commands for TODO tracking, CI gate configuration, and code quality checks.

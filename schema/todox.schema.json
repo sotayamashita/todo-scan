@@ -1,0 +1,116 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "todox Configuration",
+  "description": "Configuration for todox TODO tracking tool",
+  "type": "object",
+  "properties": {
+    "blame": {
+      "description": "Git blame analysis settings",
+      "allOf": [
+        {
+          "$ref": "#/definitions/BlameConfig"
+        }
+      ]
+    },
+    "check": {
+      "description": "CI gate check settings",
+      "allOf": [
+        {
+          "$ref": "#/definitions/CheckConfig"
+        }
+      ]
+    },
+    "exclude_dirs": {
+      "description": "Directory names to skip during scanning",
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "exclude_patterns": {
+      "description": "Regex patterns; matching file paths are excluded",
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tags": {
+      "description": "Tags to scan for (e.g., TODO, FIXME, HACK)",
+      "default": [
+        "TODO",
+        "FIXME",
+        "HACK",
+        "XXX",
+        "BUG",
+        "NOTE"
+      ],
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "BlameConfig": {
+      "description": "Git blame analysis settings",
+      "type": "object",
+      "properties": {
+        "stale_threshold": {
+          "description": "Duration threshold for marking TODOs as stale (e.g., \"180d\")",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "CheckConfig": {
+      "description": "CI gate check settings",
+      "type": "object",
+      "properties": {
+        "block_tags": {
+          "description": "Tags that cause check to fail immediately",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "expired": {
+          "description": "Fail if any TODOs have expired deadlines",
+          "default": null,
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "max": {
+          "description": "Maximum total TODOs allowed",
+          "default": null,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "max_new": {
+          "description": "Maximum new TODOs allowed (requires --since)",
+          "default": null,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
