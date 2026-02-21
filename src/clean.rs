@@ -60,9 +60,7 @@ impl IssueChecker for GhIssueChecker {
                     serde_json::from_slice(&out.stdout).unwrap_or_default();
                 let state_str = json["state"].as_str().unwrap_or("OPEN");
                 if state_str == "CLOSED" {
-                    let closed_at = json["closedAt"]
-                        .as_str()
-                        .and_then(|s| parse_iso8601_timestamp(s));
+                    let closed_at = json["closedAt"].as_str().and_then(parse_iso8601_timestamp);
                     Some(IssueState::Closed { closed_at })
                 } else {
                     Some(IssueState::Open)
@@ -110,7 +108,7 @@ fn ymd_to_days(year: i64, month: u32, day: u32) -> i64 {
     let yoe = (y - era * 400) as u64;
     let doy = (153 * m as u64 + 2) / 5 + day as u64 - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    (era * 146097 + doe as i64 - 719468) as i64
+    era * 146097 + doe as i64 - 719468
 }
 
 /// Normalize a TODO message for duplicate comparison.
@@ -244,7 +242,7 @@ fn detect_duplicates(items: &[TodoItem], violations: &mut Vec<CleanViolation>) {
         groups.entry(normalized).or_default().push(item);
     }
 
-    for (_normalized, group) in &groups {
+    for group in groups.values() {
         if group.len() < 2 {
             continue;
         }
