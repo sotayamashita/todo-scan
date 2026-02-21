@@ -87,14 +87,31 @@ fn parse_paren_content(s: &str) -> (Option<String>, Option<Deadline>) {
     (Some(s.to_string()), None)
 }
 
+/// Returns true if the prefix at `pos` in `text` is outside any string literal,
+/// using a quote-parity heuristic (even number of `"` before the position).
+fn prefix_outside_quotes(text: &str, pos: usize) -> bool {
+    text[..pos].chars().filter(|&c| c == '"').count() % 2 == 0
+}
+
 /// Heuristic: does the tag at `tag_start` appear to be inside a comment?
 pub(crate) fn is_in_comment(line: &str, tag_start: usize) -> bool {
     let before_tag = &line[..tag_start];
-    if COMMENT_PREFIXES.iter().any(|p| before_tag.contains(p)) {
-        return true;
+    for prefix in COMMENT_PREFIXES {
+        let mut start = 0;
+        while let Some(pos) = before_tag[start..].find(prefix) {
+            let abs_pos = start + pos;
+            if prefix_outside_quotes(before_tag, abs_pos) {
+                return true;
+            }
+            start = abs_pos + prefix.len();
+        }
     }
     let trimmed = before_tag.trim_start();
-    LINE_START_PREFIXES.iter().any(|p| trimmed.starts_with(p))
+    if LINE_START_PREFIXES.iter().any(|p| trimmed.starts_with(p)) {
+        let leading_ws = before_tag.len() - trimmed.len();
+        return prefix_outside_quotes(before_tag, leading_ws);
+    }
+    false
 }
 
 /// Scan text content line by line for TODO-style comments.
@@ -594,6 +611,41 @@ line four
         assert!(items.is_empty(), "should not match Todo in struct name");
     }
 
+    #[test]
+    fn test_no_match_comment_prefix_in_string_literal() {
+        let pattern = default_pattern();
+        let content = r#"let s = "// TODO: not real";"#;
+        let items = scan_content(content, "test.rs", &pattern);
+        assert!(
+            items.is_empty(),
+            "should not match TODO when // is inside a string literal"
+        );
+    }
+
+    #[test]
+    fn test_no_match_hash_prefix_in_string_literal() {
+        let pattern = default_pattern();
+        let content = r##"let s = "# TODO: not real";"##;
+        let items = scan_content(content, "test.py", &pattern);
+        assert!(
+            items.is_empty(),
+            "should not match TODO when # is inside a string literal"
+        );
+    }
+
+    #[test]
+    fn test_match_real_comment_after_quoted_prefix() {
+        let pattern = default_pattern();
+        let content = r#""//"; // TODO: fix this"#;
+        let items = scan_content(content, "test.rs", &pattern);
+        assert_eq!(
+            items.len(),
+            1,
+            "should match the real comment after quoted prefix"
+        );
+        assert_eq!(items[0].message, "fix this");
+    }
+
     // --- Comment detection tests (various languages) ---
 
     #[test]
@@ -738,6 +790,36 @@ line four
     #[test]
     fn test_is_in_comment_false_for_identifier() {
         assert!(!is_in_comment("TodoService::new()", 0));
+    }
+
+    #[test]
+    fn test_is_in_comment_false_for_string_with_comment_prefix() {
+        // "// TODO" inside a string literal should not be detected as a comment
+        assert!(!is_in_comment(r#"let s = "// TODO: test";"#, 12));
+    }
+
+    #[test]
+    fn test_is_in_comment_inline_after_code() {
+        // Real inline comment after code → should match
+        assert!(is_in_comment("let x = 1; // TODO: fix this", 15));
+    }
+
+    #[test]
+    fn test_is_in_comment_false_for_string_with_hash_prefix() {
+        // "# TODO" inside a string literal should not be detected as a comment
+        assert!(!is_in_comment(r##"let s = "# TODO: test";"##, 11));
+    }
+
+    #[test]
+    fn test_is_in_comment_quoted_prefix_then_real_comment() {
+        // "//"; // TODO — quoted prefix then real comment → should match
+        assert!(is_in_comment(r#""//"; // TODO: fix"#, 10));
+    }
+
+    #[test]
+    fn test_is_in_comment_false_for_string_with_block_comment_prefix() {
+        // "/* TODO" inside a string literal should not be detected as a comment
+        assert!(!is_in_comment(r#"let s = "/* TODO: test";"#, 12));
     }
 
     // --- scan_directory() tests ---
