@@ -51,16 +51,15 @@ fn run() -> Result<()> {
             max_new,
             since,
             expired,
-        } => cmd_check(
-            &root,
-            &config,
-            &cli.format,
-            max,
-            block_tags,
-            max_new,
-            since,
-            expired,
-        ),
+        } => {
+            let overrides = CheckOverrides {
+                max,
+                block_tags,
+                max_new,
+                expired,
+            };
+            cmd_check(&root, &config, &cli.format, overrides, since)
+        }
     }
 }
 
@@ -155,11 +154,8 @@ fn cmd_check(
     root: &std::path::Path,
     config: &Config,
     format: &Format,
-    max: Option<usize>,
-    block_tags: Vec<String>,
-    max_new: Option<usize>,
+    overrides: CheckOverrides,
     since: Option<String>,
-    expired: bool,
 ) -> Result<()> {
     let scan = scan_directory(root, config)?;
 
@@ -167,13 +163,6 @@ fn cmd_check(
         Some(compute_diff(&scan, base_ref, root, config)?)
     } else {
         None
-    };
-
-    let overrides = CheckOverrides {
-        max,
-        block_tags,
-        max_new,
-        expired,
     };
 
     let today = deadline::today();
