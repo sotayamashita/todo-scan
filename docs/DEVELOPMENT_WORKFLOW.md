@@ -26,7 +26,8 @@ sequenceDiagram
     Dev->>GH: gh issue comment <number> --body "plan"
     GH-->>Dev: Plan posted to issue
 
-    Note over Dev,CI: 4. Implement with TDD
+    Note over Dev,CI: 4. Implement with TDD (/tdd-workflow)
+    Dev->>Dev: /tdd-workflow
     loop Red-Green-Refactor
         Dev->>Repo: Write failing test
         Dev->>CI: cargo test (Red)
@@ -64,7 +65,7 @@ sequenceDiagram
 
 - **No work without an issue** — every change must be linked to a GitHub issue
 - **Use `gh` CLI** for all GitHub operations (issues, PRs, project board)
-- **Follow TDD** — write failing tests first, then implement, then refactor
+- **Follow TDD with `/tdd-workflow`** — always use the `tdd-workflow` skill for all implementation work; it enforces the Red-Green-Refactor cycle
 - **Post the plan to the issue** — share the implementation plan as a comment before coding
 - **Link PRs to issues** with `Closes #<number>` for auto-closing
 - **Update README** when adding or changing user-facing features — use the `feature-writing` skill for the Features section
@@ -140,11 +141,19 @@ EOF
 
 ### 4. Implement with TDD
 
-Follow the Red-Green-Refactor cycle:
+**Always use the `/tdd-workflow` skill to drive implementation.** This skill enforces Kent Beck's canonical 5-step TDD workflow (Test List, Write Test, Make Pass, Refactor, Repeat) and ensures strict vertical-slice cycles.
 
-1. **Red** — Write a failing test that defines the expected behavior
-2. **Green** — Write the minimum code to make the test pass
-3. **Refactor** — Clean up the code while keeping tests green
+```
+/tdd-workflow
+```
+
+The skill manages the Red-Green-Refactor cycle automatically:
+
+1. **Test List** — Enumerate the test cases needed for the feature
+2. **Red** — Write a failing test that defines the expected behavior
+3. **Green** — Write the minimum code to make the test pass
+4. **Refactor** — Clean up the code while keeping tests green
+5. **Repeat** — Move to the next test from the list
 
 ```bash
 # Run tests continuously during development
