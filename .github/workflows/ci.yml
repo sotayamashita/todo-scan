@@ -47,6 +47,16 @@ jobs:
       - name: Run tests with coverage
         run: cargo llvm-cov --ignore-run-fail --summary-only --fail-under-lines 88
 
+      - name: Generate coverage report (lcov)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: cargo llvm-cov --ignore-run-fail --lcov --output-path lcov.info
+
+      - name: Upload coverage to Codecov
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+
       - name: Build release
         run: cargo build --release
 
