@@ -184,7 +184,7 @@ pub fn compute_blame(
         total,
         avg_age_days,
         stale_count,
-        stale_threshold_days: stale_threshold_days,
+        stale_threshold_days,
     })
 }
 
