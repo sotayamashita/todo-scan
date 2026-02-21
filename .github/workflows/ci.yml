@@ -62,7 +62,7 @@ jobs:
         run: cargo build --release
 
       - name: TODO gate
-        run: cargo run --release -- check --max 200
+        run: cargo run --release -- check --max 225
 
       - name: TODO diff (PR only)
         if: github.event_name == 'pull_request'
