@@ -683,3 +683,87 @@ pub fn print_context(rich: &RichContext, format: &Format) {
         }
     }
 }
+
+pub fn print_initial_summary(tag_counts: &[(Tag, usize)], total: usize, format: &Format) {
+    match format {
+        Format::Text => {
+            println!("{}", "Initial scan".bold().underline());
+            for (tag, count) in tag_counts {
+                println!("  {:6} {}", colorize_tag(tag), count);
+            }
+            println!("{} items total", total);
+            println!();
+        }
+        _ => {
+            let summary: serde_json::Value = serde_json::json!({
+                "type": "initial_scan",
+                "total": total,
+                "tags": tag_counts.iter().map(|(tag, count)| {
+                    serde_json::json!({ "tag": tag.as_str(), "count": count })
+                }).collect::<Vec<_>>(),
+            });
+            println!(
+                "{}",
+                serde_json::to_string(&summary).expect("failed to serialize")
+            );
+        }
+    }
+}
+
+pub fn print_watch_event(event: &WatchEvent, format: &Format, max: Option<usize>) {
+    match format {
+        Format::Text => {
+            println!("{} {}", event.timestamp.dimmed(), event.file.bold());
+
+            for item in &event.added {
+                let tag_str = colorize_tag(&item.tag);
+                println!(
+                    "  {} L{}: [{}] {}",
+                    "+".green(),
+                    item.line,
+                    tag_str,
+                    item.message
+                );
+            }
+
+            for item in &event.removed {
+                let tag_str = colorize_tag(&item.tag);
+                println!(
+                    "  {} L{}: [{}] {}",
+                    "-".red(),
+                    item.line,
+                    tag_str,
+                    item.message
+                );
+            }
+
+            let delta_str = if event.total_delta > 0 {
+                format!("+{}", event.total_delta).green().to_string()
+            } else if event.total_delta < 0 {
+                format!("{}", event.total_delta).red().to_string()
+            } else {
+                "±0".to_string()
+            };
+            println!("  {} total ({})", event.total, delta_str);
+
+            if let Some(threshold) = max {
+                if event.total >= threshold {
+                    println!(
+                        "  {}",
+                        format!(
+                            "Warning: total {} reached --max threshold {}",
+                            event.total, threshold
+                        )
+                        .yellow()
+                    );
+                }
+            }
+
+            println!();
+        }
+        _ => {
+            let json = serde_json::to_string(&event).expect("failed to serialize");
+            println!("{}", json);
+        }
+    }
+}

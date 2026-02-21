@@ -14,6 +14,7 @@ mod output;
 mod scanner;
 mod search;
 mod stats;
+mod watch;
 
 use std::process;
 
@@ -170,6 +171,9 @@ fn run() -> Result<()> {
                         require_colon,
                     };
                     cmd_lint(&root, &config, &cli.format, overrides)
+                }
+                Command::Watch { tag, max, debounce } => {
+                    watch::cmd_watch(&root, &config, &cli.format, &tag, max, debounce)
                 }
             }
         }

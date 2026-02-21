@@ -58,6 +58,10 @@ New users must manually create `.todox.toml` from documentation, slowing onboard
 
 Shell completions are table stakes for CLI tools but require manual setup. `todox completions` generates completion scripts for bash, zsh, fish, elvish, and PowerShell and outputs them to stdout for easy installation. Run `todox completions fish > ~/.config/fish/completions/todox.fish` to install.
 
+**`todox watch`**
+
+Re-running `todox list` after every edit breaks flow when actively cleaning up TODO debt. `todox watch` monitors the filesystem and shows real-time TODO additions and removals as files change, with optional `--max` threshold warnings. Run `todox watch` in your project root to start monitoring.
+
 **CI-ready output formats**
 
 Plain text output requires extra tooling to integrate with CI dashboards and PR workflows. todox supports `--format github-actions` for inline PR annotations, `--format sarif` for GitHub's [Code Scanning](https://docs.github.com/en/code-security/code-scanning) tab via SARIF (Static Analysis Results Interchange Format), and `--format markdown` for PR comment bot tables. Add `--format github-actions` to any command to get started.

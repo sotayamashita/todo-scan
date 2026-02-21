@@ -172,6 +172,20 @@ pub enum Command {
         expired: bool,
     },
 
+    /// Watch filesystem for TODO changes in real-time
+    #[command(alias = "w")]
+    Watch {
+        #[arg(long)]
+        tag: Vec<String>,
+
+        #[arg(long)]
+        max: Option<usize>,
+
+        /// Debounce interval in milliseconds
+        #[arg(long, default_value = "300")]
+        debounce: u64,
+    },
+
     /// Lint TODO comment formatting against configurable rules
     Lint {
         /// Reject TODOs with empty message

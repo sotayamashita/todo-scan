@@ -206,6 +206,23 @@ pub struct LintResult {
     pub violations: Vec<LintViolation>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct FileUpdate {
+    pub added: Vec<TodoItem>,
+    pub removed: Vec<TodoItem>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WatchEvent {
+    pub timestamp: String,
+    pub file: String,
+    pub added: Vec<TodoItem>,
+    pub removed: Vec<TodoItem>,
+    pub tag_summary: Vec<(String, usize)>,
+    pub total: usize,
+    pub total_delta: i64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
     Error,

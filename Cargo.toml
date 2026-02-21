@@ -20,6 +20,9 @@ clap_complete = "4"
 toml_edit = "0.22"
 thiserror = "2"
 time = { version = "0.3", features = ["local-offset"] }
+notify = "7"
+notify-debouncer-mini = "0.5"
+ctrlc = "3"
 
 [dev-dependencies]
 assert_cmd = "2"
