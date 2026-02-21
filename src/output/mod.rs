@@ -4,9 +4,9 @@ mod sarif;
 
 use colored::*;
 
-use crate::cli::Format;
+use crate::cli::{Format, GroupBy};
 use crate::model::*;
-use std::collections::BTreeMap;
+use std::path::Path;
 
 fn colorize_tag(tag: &Tag) -> ColoredString {
     match tag {
@@ -19,21 +19,103 @@ fn colorize_tag(tag: &Tag) -> ColoredString {
     }
 }
 
-pub fn print_list(result: &ScanResult, format: &Format) {
+fn group_key(item: &TodoItem, group_by: &GroupBy) -> String {
+    match group_by {
+        GroupBy::File => item.file.clone(),
+        GroupBy::Tag => item.tag.as_str().to_string(),
+        GroupBy::Priority => match item.priority {
+            Priority::Urgent => "!! Urgent".to_string(),
+            Priority::High => "! High".to_string(),
+            Priority::Normal => "Normal".to_string(),
+        },
+        GroupBy::Author => item
+            .author
+            .clone()
+            .unwrap_or_else(|| "unassigned".to_string()),
+        GroupBy::Dir => Path::new(&item.file)
+            .parent()
+            .map(|p| {
+                let s = p.to_string_lossy().to_string();
+                if s.is_empty() {
+                    ".".to_string()
+                } else {
+                    s
+                }
+            })
+            .unwrap_or_else(|| ".".to_string()),
+    }
+}
+
+fn group_items<'a>(items: &'a [TodoItem], group_by: &GroupBy) -> Vec<(String, Vec<&'a TodoItem>)> {
+    let mut groups: Vec<(String, Vec<&'a TodoItem>)> = Vec::new();
+    let mut key_index: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+
+    for item in items {
+        let key = group_key(item, group_by);
+        if let Some(&idx) = key_index.get(&key) {
+            groups[idx].1.push(item);
+        } else {
+            key_index.insert(key.clone(), groups.len());
+            groups.push((key, vec![item]));
+        }
+    }
+
+    // Sort groups based on GroupBy variant
+    match group_by {
+        GroupBy::Priority => {
+            let priority_order = |key: &str| -> u8 {
+                match key {
+                    "!! Urgent" => 0,
+                    "! High" => 1,
+                    "Normal" => 2,
+                    _ => 3,
+                }
+            };
+            groups.sort_by(|a, b| priority_order(&a.0).cmp(&priority_order(&b.0)));
+        }
+        GroupBy::Tag => {
+            groups.sort_by(|a, b| {
+                let sa = a.1.first().map(|i| i.tag.severity()).unwrap_or(0);
+                let sb = b.1.first().map(|i| i.tag.severity()).unwrap_or(0);
+                sb.cmp(&sa)
+            });
+        }
+        _ => {
+            groups.sort_by(|a, b| a.0.cmp(&b.0));
+        }
+    }
+
+    groups
+}
+
+pub fn print_list(result: &ScanResult, format: &Format, group_by: &GroupBy) {
     match format {
         Format::Text => {
-            let mut grouped: BTreeMap<&str, Vec<&TodoItem>> = BTreeMap::new();
-            for item in &result.items {
-                grouped.entry(&item.file).or_default().push(item);
-            }
+            let groups = group_items(&result.items, group_by);
+            let group_count = groups.len();
+            let is_file_group = matches!(group_by, GroupBy::File);
 
-            let file_count = grouped.len();
-
-            for (file, items) in &grouped {
-                println!("{}", file.bold().underline());
+            for (key, items) in &groups {
+                if is_file_group {
+                    println!("{}", key.bold().underline());
+                } else {
+                    println!(
+                        "{}",
+                        format!("{} ({} items)", key, items.len())
+                            .bold()
+                            .underline()
+                    );
+                }
                 for item in items {
                     let tag_str = colorize_tag(&item.tag);
-                    let mut line = format!("  L{}: [{}] {}", item.line, tag_str, item.message);
+                    let mut line = if is_file_group {
+                        format!("  L{}: [{}] {}", item.line, tag_str, item.message)
+                    } else {
+                        format!(
+                            "  {}:{}: [{}] {}",
+                            item.file, item.line, tag_str, item.message
+                        )
+                    };
 
                     if let Some(ref author) = item.author {
                         line.push_str(&format!(" (@{})", author));
@@ -57,7 +139,11 @@ pub fn print_list(result: &ScanResult, format: &Format) {
                 }
             }
 
-            println!("\n{} items in {} files", result.items.len(), file_count);
+            if is_file_group {
+                println!("\n{} items in {} files", result.items.len(), group_count);
+            } else {
+                println!("\n{} items in {} groups", result.items.len(), group_count);
+            }
         }
         Format::Json => {
             let json = serde_json::to_string_pretty(result).expect("failed to serialize");

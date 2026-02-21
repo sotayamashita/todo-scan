@@ -679,6 +679,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "colored",
+ "globset",
  "ignore",
  "predicates",
  "regex",

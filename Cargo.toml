@@ -6,6 +6,7 @@ description = "Track TODO/FIXME/HACK comments with git-aware diff and CI gate"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+globset = "0.4"
 ignore = "0.4"
 regex = "1"
 serde = { version = "1", features = ["derive"] }

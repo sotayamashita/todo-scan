@@ -321,3 +321,238 @@ fn test_list_quarter_deadline_in_json() {
         .success()
         .stdout(predicate::str::contains("\"deadline\": \"2025-06-30\""));
 }
+
+// --- Filtering ---
+
+#[test]
+fn test_list_filter_priority() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO!!: urgent task\n// TODO!: high task\n// TODO: normal task\n",
+    )]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--priority",
+            "urgent",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("urgent task"))
+        .stdout(predicate::str::contains("high task").not())
+        .stdout(predicate::str::contains("normal task").not())
+        .stdout(predicate::str::contains("1 items"));
+}
+
+#[test]
+fn test_list_filter_author() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO(alice): alice task\n// TODO(bob): bob task\n// TODO: no author\n",
+    )]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--author",
+            "alice",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("alice task"))
+        .stdout(predicate::str::contains("bob task").not())
+        .stdout(predicate::str::contains("no author").not())
+        .stdout(predicate::str::contains("1 items"));
+}
+
+#[test]
+fn test_list_filter_path() {
+    let dir = setup_project(&[
+        ("src/lib.rs", "// TODO: in src\n"),
+        ("tests/test.rs", "// TODO: in tests\n"),
+    ]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--path",
+            "src/**",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("in src"))
+        .stdout(predicate::str::contains("in tests").not())
+        .stdout(predicate::str::contains("1 items"));
+}
+
+#[test]
+fn test_list_limit() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO: first\n// TODO: second\n// TODO: third\n",
+    )]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--limit",
+            "2",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("2 items"));
+}
+
+// --- Group by ---
+
+#[test]
+fn test_list_group_by_tag() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO: task one\n// FIXME: task two\n// TODO: task three\n",
+    )]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--group-by",
+            "tag",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("TODO (2 items)"))
+        .stdout(predicate::str::contains("FIXME (1 items)"))
+        .stdout(predicate::str::contains("3 items in 2 groups"));
+}
+
+#[test]
+fn test_list_group_by_priority() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO!!: urgent task\n// TODO!: high task\n// TODO: normal task\n",
+    )]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--group-by",
+            "priority",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("!! Urgent (1 items)"))
+        .stdout(predicate::str::contains("! High (1 items)"))
+        .stdout(predicate::str::contains("Normal (1 items)"))
+        .stdout(predicate::str::contains("3 items in 3 groups"));
+}
+
+#[test]
+fn test_list_group_by_author() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO(alice): alice task\n// TODO(bob): bob task\n// TODO: no author\n",
+    )]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--group-by",
+            "author",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("alice (1 items)"))
+        .stdout(predicate::str::contains("bob (1 items)"))
+        .stdout(predicate::str::contains("unassigned (1 items)"))
+        .stdout(predicate::str::contains("3 items in 3 groups"));
+}
+
+#[test]
+fn test_list_group_by_dir() {
+    let dir = setup_project(&[
+        ("src/lib.rs", "// TODO: in src\n"),
+        ("src/main.rs", "// TODO: also in src\n"),
+        ("tests/test.rs", "// TODO: in tests\n"),
+    ]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--group-by",
+            "dir",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("src (2 items)"))
+        .stdout(predicate::str::contains("tests (1 items)"))
+        .stdout(predicate::str::contains("3 items in 2 groups"));
+}
+
+#[test]
+fn test_list_group_by_with_json() {
+    let dir = setup_project(&[("main.rs", "// TODO!!: urgent task\n// TODO: normal task\n")]);
+
+    // JSON output should be flat regardless of --group-by
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--group-by",
+            "priority",
+            "--format",
+            "json",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"items\""))
+        .stdout(predicate::str::contains("\"tag\": \"TODO\""));
+}
+
+#[test]
+fn test_list_filter_composition() {
+    let dir = setup_project(&[
+        ("src/lib.rs", "// TODO(alice)!!: urgent alice in src\n"),
+        ("src/main.rs", "// TODO(alice): normal alice in src\n"),
+        ("src/other.rs", "// TODO(bob)!!: urgent bob in src\n"),
+        ("tests/test.rs", "// TODO(alice)!!: urgent alice in tests\n"),
+    ]);
+
+    // Combine: --priority urgent --author alice --path "src/**"
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--priority",
+            "urgent",
+            "--author",
+            "alice",
+            "--path",
+            "src/**",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("urgent alice in src"))
+        .stdout(predicate::str::contains("normal alice in src").not())
+        .stdout(predicate::str::contains("urgent bob in src").not())
+        .stdout(predicate::str::contains("urgent alice in tests").not())
+        .stdout(predicate::str::contains("1 items"));
+}

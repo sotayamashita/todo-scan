@@ -20,7 +20,7 @@ Track TODO/FIXME/HACK comments in your codebase with git-aware diff and CI gate.
 
 **`todox list`**
 
-TODO comments scatter across hundreds of files, making it hard to know what's outstanding. `todox list` scans your entire codebase and displays every TODO, FIXME, HACK, XXX, BUG, and NOTE comment, grouped by file with color-coded tags. Run `todox list` or use the short alias `todox ls`.
+TODO comments scatter across hundreds of files, making it hard to know what's outstanding. `todox list` scans your entire codebase and displays every TODO, FIXME, HACK, XXX, BUG, and NOTE comment with color-coded tags, and supports flexible grouping (`--group-by file|tag|priority|author|dir`) and filtering by priority, author, path glob, and result limit. Run `todox list` or use the short alias `todox ls`.
 
 **`todox diff <ref>`**
 
@@ -68,6 +68,23 @@ todox ls
 # Filter by tag
 todox list --tag FIXME
 todox list --tag TODO --tag BUG
+
+# Filter by priority, author, or path
+todox list --priority urgent
+todox list --author alice
+todox list --path "src/**"
+
+# Combine filters
+todox list --priority urgent --author alice --path "src/**"
+
+# Limit results
+todox list --limit 10
+
+# Group by tag, priority, author, or directory (default: file)
+todox list --group-by tag
+todox list --group-by priority
+todox list --group-by author
+todox list --group-by dir
 
 # Sort by priority or tag severity
 todox list --sort priority

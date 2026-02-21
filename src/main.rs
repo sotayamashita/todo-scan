@@ -13,7 +13,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 
 use check::{run_check, CheckOverrides};
-use cli::{Cli, Command, Format, SortBy};
+use cli::{Cli, Command, Format, GroupBy, PriorityFilter, SortBy};
 use config::Config;
 use diff::compute_diff;
 use model::Tag;
@@ -43,7 +43,26 @@ fn run() -> Result<()> {
     };
 
     match cli.command {
-        Command::List { tag, sort } => cmd_list(&root, &config, &cli.format, &tag, &sort),
+        Command::List {
+            tag,
+            sort,
+            group_by,
+            priority,
+            author,
+            path,
+            limit,
+        } => {
+            let opts = ListOptions {
+                tag,
+                sort,
+                group_by,
+                priority,
+                author,
+                path,
+                limit,
+            };
+            cmd_list(&root, &config, &cli.format, opts)
+        }
         Command::Diff { git_ref, tag } => cmd_diff(&root, &config, &cli.format, &git_ref, &tag),
         Command::Check {
             max,
@@ -63,26 +82,60 @@ fn run() -> Result<()> {
     }
 }
 
+struct ListOptions {
+    tag: Vec<String>,
+    sort: SortBy,
+    group_by: GroupBy,
+    priority: Vec<PriorityFilter>,
+    author: Option<String>,
+    path: Option<String>,
+    limit: Option<usize>,
+}
+
 fn cmd_list(
     root: &std::path::Path,
     config: &Config,
     format: &Format,
-    tag_filter: &[String],
-    sort: &SortBy,
+    opts: ListOptions,
 ) -> Result<()> {
     let mut result = scan_directory(root, config)?;
 
     // Apply tag filter
-    if !tag_filter.is_empty() {
-        let filter_tags: Vec<Tag> = tag_filter
+    if !opts.tag.is_empty() {
+        let filter_tags: Vec<Tag> = opts
+            .tag
             .iter()
             .filter_map(|s| s.parse::<Tag>().ok())
             .collect();
         result.items.retain(|item| filter_tags.contains(&item.tag));
     }
 
+    // Apply priority filter
+    if !opts.priority.is_empty() {
+        let priorities: Vec<model::Priority> =
+            opts.priority.iter().map(|p| p.to_priority()).collect();
+        result
+            .items
+            .retain(|item| priorities.contains(&item.priority));
+    }
+
+    // Apply author filter
+    if let Some(ref author) = opts.author {
+        result
+            .items
+            .retain(|item| item.author.as_deref() == Some(author.as_str()));
+    }
+
+    // Apply path filter
+    if let Some(ref pattern) = opts.path {
+        let glob = globset::Glob::new(pattern)
+            .context("invalid glob pattern")?
+            .compile_matcher();
+        result.items.retain(|item| glob.is_match(&item.file));
+    }
+
     // Apply sort
-    match sort {
+    match opts.sort {
         SortBy::File => result
             .items
             .sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line))),
@@ -111,7 +164,12 @@ fn cmd_list(
         }),
     }
 
-    print_list(&result, format);
+    // Apply limit
+    if let Some(n) = opts.limit {
+        result.items.truncate(n);
+    }
+
+    print_list(&result, format, &opts.group_by);
     Ok(())
 }
 

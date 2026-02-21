@@ -1,6 +1,8 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
+use crate::model;
+
 #[derive(Parser)]
 #[command(
     name = "todox",
@@ -39,6 +41,21 @@ pub enum Command {
 
         #[arg(long, value_enum, default_value = "file")]
         sort: SortBy,
+
+        #[arg(long, value_enum, default_value = "file")]
+        group_by: GroupBy,
+
+        #[arg(long, value_enum)]
+        priority: Vec<PriorityFilter>,
+
+        #[arg(long)]
+        author: Option<String>,
+
+        #[arg(long)]
+        path: Option<String>,
+
+        #[arg(long)]
+        limit: Option<usize>,
     },
 
     Diff {
@@ -71,4 +88,30 @@ pub enum SortBy {
     File,
     Tag,
     Priority,
+}
+
+#[derive(Clone, ValueEnum)]
+pub enum GroupBy {
+    File,
+    Tag,
+    Priority,
+    Author,
+    Dir,
+}
+
+#[derive(Clone, ValueEnum)]
+pub enum PriorityFilter {
+    Normal,
+    High,
+    Urgent,
+}
+
+impl PriorityFilter {
+    pub fn to_priority(&self) -> model::Priority {
+        match self {
+            PriorityFilter::Normal => model::Priority::Normal,
+            PriorityFilter::High => model::Priority::High,
+            PriorityFilter::Urgent => model::Priority::Urgent,
+        }
+    }
 }
