@@ -15,6 +15,9 @@ cargo check                  # Type-check without building
 cargo run -- list            # Run list command on current directory
 cargo run -- diff main       # Diff TODOs against main branch
 cargo run -- check --max 100 # CI gate check
+cargo llvm-cov --summary-only          # Show coverage summary
+cargo llvm-cov --ignore-run-fail --summary-only --fail-under-lines 88  # CI coverage gate
+cargo llvm-cov --html                  # Generate HTML coverage report in target/llvm-cov/html/
 ```
 
 ## Architecture
