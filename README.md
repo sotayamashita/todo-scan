@@ -18,10 +18,21 @@ Track TODO/FIXME/HACK comments in your codebase with git-aware diff and CI gate.
 
 ## Features
 
-- **`todox list`** — Scan and display all TODO-style comments, grouped by file with color-coded tags
-- **`todox diff <ref>`** — Show added/removed TODOs compared to a git ref (branch, tag, or commit)
-- **`todox check`** — CI gate that fails when TODO counts exceed thresholds or blocked tags are found
-- **CI-ready output formats** — Get inline PR annotations with `--format github-actions`, surface findings in GitHub's Security tab with `--format sarif`, or generate tables for PR comment bots with `--format markdown`
+**`todox list`**
+
+TODO comments scatter across hundreds of files, making it hard to know what's outstanding. `todox list` scans your entire codebase and displays every TODO, FIXME, HACK, XXX, BUG, and NOTE comment, grouped by file with color-coded tags. Run `todox list` or use the short alias `todox ls`.
+
+**`todox diff <ref>`**
+
+New TODOs slip into pull requests unnoticed while resolved ones go unrecognized. `todox diff` compares the current working tree against any git ref and shows exactly which TODOs were added or removed. Run `todox diff main` to compare against your main branch.
+
+**`todox check`**
+
+Without enforcement, TODO debt grows silently until it becomes unmanageable. `todox check` acts as a CI gate that fails the build when TODO counts exceed a threshold, forbidden tags appear, or too many new TODOs are introduced. Run `todox check --max 100 --block-tags BUG` in your CI pipeline.
+
+**CI-ready output formats**
+
+Plain text output requires extra tooling to integrate with CI dashboards and PR workflows. todox supports `--format github-actions` for inline PR annotations, `--format sarif` for GitHub's [Code Scanning](https://docs.github.com/en/code-security/code-scanning) tab via SARIF (Static Analysis Results Interchange Format), and `--format markdown` for PR comment bot tables. Add `--format github-actions` to any command to get started.
 
 ### What it detects
 
@@ -212,7 +223,3 @@ cargo test
 # Run against a project
 cargo run -- list --root /path/to/project
 ```
-
-## License
-
-MIT

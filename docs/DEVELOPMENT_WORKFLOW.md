@@ -177,6 +177,26 @@ When a change adds or modifies user-facing features, update the Features section
 - **When to skip**: internal optimizations, refactoring, test-only changes, docs-only changes
 - Use the `feature-writing` skill (`/feature-writing`) to ensure consistent messaging
 
+Each feature entry must follow this format:
+
+```markdown
+**[Feature name]**
+
+[1 sentence: problem it solves]. [1-2 sentences: what it does].
+[1 sentence: how to use or enable].
+```
+
+Example:
+
+```markdown
+**`todox check`**
+
+Without enforcement, TODO debt grows silently until it becomes unmanageable.
+`todox check` acts as a CI gate that fails the build when TODO counts exceed
+a threshold, forbidden tags appear, or too many new TODOs are introduced.
+Run `todox check --max 100 --block-tags BUG` in your CI pipeline.
+```
+
 ### 6. Commit
 
 Use the `/commit` skill for all commits. It handles staging, conventional commit message formatting, and validation automatically.
