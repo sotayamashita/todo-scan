@@ -1,10 +1,12 @@
 use anyhow::Result;
 use ignore::{WalkBuilder, WalkState};
 use regex::Regex;
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 
+use crate::cache::ScanCache;
 use crate::config::Config;
 use crate::deadline::{parse_deadline, Deadline};
 use crate::model::{Priority, ScanResult, Tag, TodoItem};
@@ -239,6 +241,138 @@ pub fn scan_directory(root: &Path, config: &Config) -> Result<ScanResult> {
     Ok(ScanResult {
         items,
         files_scanned,
+    })
+}
+
+/// Result of a cached scan, wrapping ScanResult with cache statistics.
+pub struct CachedScanResult {
+    pub result: ScanResult,
+    #[allow(dead_code)]
+    pub cache_hits: usize,
+    #[allow(dead_code)]
+    pub cache_misses: usize,
+}
+
+/// Scan a directory using a two-layer cache (mtime + content hash).
+///
+/// Uses sequential walk because the cache requires `&mut ScanCache`.
+/// When cache is warm, most files are skipped via mtime check (no file I/O),
+/// so parallelism provides diminishing returns.
+pub fn scan_directory_cached(
+    root: &Path,
+    config: &Config,
+    cache: &mut ScanCache,
+) -> Result<CachedScanResult> {
+    let pattern_str = config.tags_pattern();
+    let pattern = Regex::new(&pattern_str)?;
+
+    let exclude_regexes: Vec<Regex> = config
+        .exclude_patterns
+        .iter()
+        .filter_map(|p| Regex::new(p).ok())
+        .collect();
+
+    let mut items = Vec::new();
+    let mut files_scanned: usize = 0;
+    let mut cache_hits: usize = 0;
+    let mut cache_misses: usize = 0;
+    let mut seen_paths = HashSet::new();
+
+    let walker = WalkBuilder::new(root).build();
+
+    for entry in walker {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        let path = entry.path();
+
+        if !path.is_file() {
+            continue;
+        }
+
+        // Check exclude_dirs
+        let should_exclude_dir = config.exclude_dirs.iter().any(|dir| {
+            path.components()
+                .any(|c| c.as_os_str().to_str().map(|s| s == dir).unwrap_or(false))
+        });
+        if should_exclude_dir {
+            continue;
+        }
+
+        // Check exclude_patterns
+        let path_str = path.to_string_lossy();
+        let should_exclude_pattern = exclude_regexes.iter().any(|re| re.is_match(&path_str));
+        if should_exclude_pattern {
+            continue;
+        }
+
+        let relative_path = path.strip_prefix(root).unwrap_or(path).to_path_buf();
+
+        seen_paths.insert(relative_path.clone());
+
+        // Layer 1: mtime check
+        let metadata = match path.metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        let mtime = metadata
+            .modified()
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+
+        if let Some(cached_items) = cache.check(&relative_path, mtime) {
+            let mut cloned: Vec<TodoItem> = cached_items.to_vec();
+            items.append(&mut cloned);
+            files_scanned += 1;
+            cache_hits += 1;
+            continue;
+        }
+
+        // Read file content
+        let content = match std::fs::read_to_string(path) {
+            Ok(c) => c,
+            Err(_) => {
+                files_scanned += 1;
+                continue;
+            }
+        };
+
+        // Layer 2: content hash check
+        let content_bytes = content.as_bytes();
+        if let Some(cached_items) = cache.check_with_content(&relative_path, content_bytes) {
+            // Content unchanged (mtime was different, e.g. touched file)
+            // Clone first to release the immutable borrow on cache
+            let cloned: Vec<TodoItem> = cached_items.to_vec();
+            // Update mtime in cache so next time layer 1 hits
+            let content_hash = *blake3::hash(content_bytes).as_bytes();
+            cache.insert(relative_path.clone(), content_hash, cloned.clone(), mtime);
+            items.extend(cloned);
+            files_scanned += 1;
+            cache_hits += 1;
+            continue;
+        }
+
+        // Cache miss: full scan
+        let relative_str = relative_path.to_string_lossy().to_string();
+        let found = scan_content(&content, &relative_str, &pattern);
+        let content_hash = *blake3::hash(content_bytes).as_bytes();
+        cache.insert(relative_path, content_hash, found.clone(), mtime);
+        items.extend(found);
+        files_scanned += 1;
+        cache_misses += 1;
+    }
+
+    // Prune deleted files
+    cache.prune(&seen_paths);
+
+    Ok(CachedScanResult {
+        result: ScanResult {
+            items,
+            files_scanned,
+        },
+        cache_hits,
+        cache_misses,
     })
 }
 
@@ -873,5 +1007,138 @@ line four
         let content = "// TODO! fix this\n";
         let items = scan_content(content, "test.rs", &pattern);
         assert_eq!(items.len(), 1, "TODO! should still match");
+    }
+
+    // --- scan_directory_cached tests ---
+
+    #[test]
+    fn test_cached_scan_first_run_all_misses() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.rs"), "// TODO: task a\n").unwrap();
+        std::fs::write(dir.path().join("b.rs"), "// FIXME: task b\n").unwrap();
+
+        let config = Config::default();
+        let config_hash = ScanCache::config_hash(&config);
+        let mut cache = ScanCache::new(config_hash);
+
+        let result = scan_directory_cached(dir.path(), &config, &mut cache).unwrap();
+
+        assert_eq!(result.result.items.len(), 2);
+        assert_eq!(result.cache_hits, 0);
+        assert_eq!(result.cache_misses, 2);
+        assert_eq!(cache.entries.len(), 2);
+    }
+
+    #[test]
+    fn test_cached_scan_second_run_all_hits() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.rs"), "// TODO: task a\n").unwrap();
+        std::fs::write(dir.path().join("b.rs"), "// FIXME: task b\n").unwrap();
+
+        let config = Config::default();
+        let config_hash = ScanCache::config_hash(&config);
+        let mut cache = ScanCache::new(config_hash);
+
+        // First run
+        scan_directory_cached(dir.path(), &config, &mut cache).unwrap();
+
+        // Second run - should be all hits
+        let result = scan_directory_cached(dir.path(), &config, &mut cache).unwrap();
+
+        assert_eq!(result.result.items.len(), 2);
+        assert_eq!(result.cache_hits, 2);
+        assert_eq!(result.cache_misses, 0);
+    }
+
+    #[test]
+    fn test_cached_scan_modified_file_detected() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.rs"), "// TODO: original\n").unwrap();
+        std::fs::write(dir.path().join("b.rs"), "// FIXME: unchanged\n").unwrap();
+
+        let config = Config::default();
+        let config_hash = ScanCache::config_hash(&config);
+        let mut cache = ScanCache::new(config_hash);
+
+        // First run
+        scan_directory_cached(dir.path(), &config, &mut cache).unwrap();
+
+        // Modify one file (ensure mtime changes)
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::fs::write(
+            dir.path().join("a.rs"),
+            "// TODO: original\n// HACK: new item\n",
+        )
+        .unwrap();
+
+        // Second run
+        let result = scan_directory_cached(dir.path(), &config, &mut cache).unwrap();
+
+        assert_eq!(result.result.items.len(), 3);
+        assert_eq!(result.cache_hits, 1); // b.rs hit
+        assert_eq!(result.cache_misses, 1); // a.rs miss
+    }
+
+    #[test]
+    fn test_cached_scan_deleted_file_pruned() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.rs"), "// TODO: keep\n").unwrap();
+        std::fs::write(dir.path().join("b.rs"), "// FIXME: remove\n").unwrap();
+
+        let config = Config::default();
+        let config_hash = ScanCache::config_hash(&config);
+        let mut cache = ScanCache::new(config_hash);
+
+        // First run
+        scan_directory_cached(dir.path(), &config, &mut cache).unwrap();
+        assert_eq!(cache.entries.len(), 2);
+
+        // Delete one file
+        std::fs::remove_file(dir.path().join("b.rs")).unwrap();
+
+        // Second run
+        let result = scan_directory_cached(dir.path(), &config, &mut cache).unwrap();
+
+        assert_eq!(result.result.items.len(), 1);
+        assert_eq!(cache.entries.len(), 1);
+    }
+
+    #[test]
+    fn test_cached_scan_matches_uncached_results() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.rs"), "// TODO: task one\n").unwrap();
+        std::fs::write(
+            dir.path().join("b.rs"),
+            "// FIXME(alice): task two\n// BUG: !! urgent\n",
+        )
+        .unwrap();
+
+        let config = Config::default();
+
+        // Uncached scan
+        let uncached = scan_directory(dir.path(), &config).unwrap();
+
+        // Cached scan
+        let config_hash = ScanCache::config_hash(&config);
+        let mut cache = ScanCache::new(config_hash);
+        let cached = scan_directory_cached(dir.path(), &config, &mut cache).unwrap();
+
+        // Sort both results for comparison
+        let mut uncached_items = uncached.items;
+        let mut cached_items = cached.result.items;
+
+        uncached_items.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
+        cached_items.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
+
+        assert_eq!(uncached_items.len(), cached_items.len());
+        for (u, c) in uncached_items.iter().zip(cached_items.iter()) {
+            assert_eq!(u.file, c.file);
+            assert_eq!(u.line, c.line);
+            assert_eq!(u.tag, c.tag);
+            assert_eq!(u.message, c.message);
+            assert_eq!(u.author, c.author);
+            assert_eq!(u.issue_ref, c.issue_ref);
+            assert_eq!(u.priority, c.priority);
+        }
     }
 }

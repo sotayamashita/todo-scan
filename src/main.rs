@@ -1,4 +1,5 @@
 mod blame;
+mod cache;
 mod check;
 mod clean;
 mod cli;
@@ -39,6 +40,26 @@ use scanner::scan_directory;
 use search::search_items;
 use stats::compute_stats;
 
+/// Perform a directory scan, optionally using cache for performance.
+fn do_scan(root: &std::path::Path, config: &Config, no_cache: bool) -> Result<model::ScanResult> {
+    if no_cache {
+        return scan_directory(root, config);
+    }
+
+    let config_hash = cache::ScanCache::config_hash(config);
+
+    let mut scan_cache = cache::ScanCache::load(root)
+        .filter(|c| c.config_hash == config_hash)
+        .unwrap_or_else(|| cache::ScanCache::new(config_hash));
+
+    let cached_result = scanner::scan_directory_cached(root, config, &mut scan_cache)?;
+
+    // Best-effort save; don't fail the scan if cache write fails
+    let _ = scan_cache.save(root);
+
+    Ok(cached_result.result)
+}
+
 fn main() {
     if let Err(e) = run() {
         eprintln!("error: {:#}", e);
@@ -67,6 +88,7 @@ fn run() -> Result<()> {
             } else {
                 Config::load(&root)?
             };
+            let no_cache = cli.no_cache;
 
             match command {
                 Command::Init { .. } | Command::Completions { .. } => unreachable!(),
@@ -90,7 +112,7 @@ fn run() -> Result<()> {
                         limit,
                         context,
                     };
-                    cmd_list(&root, &config, &cli.format, opts)
+                    cmd_list(&root, &config, &cli.format, opts, no_cache)
                 }
                 Command::Blame {
                     sort,
@@ -109,6 +131,7 @@ fn run() -> Result<()> {
                     stale_threshold,
                     tag,
                     path,
+                    no_cache,
                 ),
                 Command::Search {
                     query,
@@ -130,14 +153,22 @@ fn run() -> Result<()> {
                         sort,
                         group_by,
                     };
-                    cmd_search(&root, &config, &cli.format, opts)
+                    cmd_search(&root, &config, &cli.format, opts, no_cache)
                 }
-                Command::Stats { since } => cmd_stats(&root, &config, &cli.format, since),
+                Command::Stats { since } => cmd_stats(&root, &config, &cli.format, since, no_cache),
                 Command::Diff {
                     git_ref,
                     tag,
                     context,
-                } => cmd_diff(&root, &config, &cli.format, &git_ref, &tag, context),
+                } => cmd_diff(
+                    &root,
+                    &config,
+                    &cli.format,
+                    &git_ref,
+                    &tag,
+                    context,
+                    no_cache,
+                ),
                 Command::Check {
                     max,
                     block_tags,
@@ -151,13 +182,13 @@ fn run() -> Result<()> {
                         max_new,
                         expired,
                     };
-                    cmd_check(&root, &config, &cli.format, overrides, since)
+                    cmd_check(&root, &config, &cli.format, overrides, since, no_cache)
                 }
                 Command::Context { location, context } => {
-                    cmd_context(&root, &config, &cli.format, &location, context)
+                    cmd_context(&root, &config, &cli.format, &location, context, no_cache)
                 }
                 Command::Clean { check, since } => {
-                    cmd_clean(&root, &config, &cli.format, check, since)
+                    cmd_clean(&root, &config, &cli.format, check, since, no_cache)
                 }
                 Command::Lint {
                     no_bare_tags,
@@ -175,13 +206,13 @@ fn run() -> Result<()> {
                         uppercase_tag,
                         require_colon,
                     };
-                    cmd_lint(&root, &config, &cli.format, overrides)
+                    cmd_lint(&root, &config, &cli.format, overrides, no_cache)
                 }
                 Command::Report {
                     output,
                     history,
                     stale_threshold,
-                } => cmd_report(&root, &config, &output, history, stale_threshold),
+                } => cmd_report(&root, &config, &output, history, stale_threshold, no_cache),
                 Command::Watch { tag, max, debounce } => {
                     watch::cmd_watch(&root, &config, &cli.format, &tag, max, debounce)
                 }
@@ -217,8 +248,9 @@ fn cmd_search(
     config: &Config,
     format: &Format,
     opts: SearchOptions,
+    no_cache: bool,
 ) -> Result<()> {
-    let scan = scan_directory(root, config)?;
+    let scan = do_scan(root, config, no_cache)?;
     let mut result = search_items(&scan, &opts.query, opts.exact);
 
     // Apply tag filter
@@ -300,8 +332,9 @@ fn cmd_list(
     config: &Config,
     format: &Format,
     opts: ListOptions,
+    no_cache: bool,
 ) -> Result<()> {
-    let mut result = scan_directory(root, config)?;
+    let mut result = do_scan(root, config, no_cache)?;
 
     // Apply tag filter
     if !opts.tag.is_empty() {
@@ -389,8 +422,9 @@ fn cmd_diff(
     git_ref: &str,
     tag_filter: &[String],
     context_lines: Option<usize>,
+    no_cache: bool,
 ) -> Result<()> {
-    let current = scan_directory(root, config)?;
+    let current = do_scan(root, config, no_cache)?;
     let mut diff_result = compute_diff(&current, git_ref, root, config)?;
 
     // Apply tag filter
@@ -431,11 +465,12 @@ fn cmd_context(
     format: &Format,
     location: &str,
     n: usize,
+    no_cache: bool,
 ) -> Result<()> {
     let (file, line) = parse_location(location)?;
 
     // Scan to find related TODOs in the same file
-    let scan = scan_directory(root, config)?;
+    let scan = do_scan(root, config, no_cache)?;
     let todos_in_file: Vec<&model::TodoItem> =
         scan.items.iter().filter(|i| i.file == file).collect();
 
@@ -450,8 +485,9 @@ fn cmd_check(
     format: &Format,
     overrides: CheckOverrides,
     since: Option<String>,
+    no_cache: bool,
 ) -> Result<()> {
-    let scan = scan_directory(root, config)?;
+    let scan = do_scan(root, config, no_cache)?;
 
     let diff = if let Some(ref base_ref) = since {
         Some(compute_diff(&scan, base_ref, root, config)?)
@@ -477,8 +513,9 @@ fn cmd_lint(
     config: &Config,
     format: &Format,
     overrides: LintOverrides,
+    no_cache: bool,
 ) -> Result<()> {
-    let scan = scan_directory(root, config)?;
+    let scan = do_scan(root, config, no_cache)?;
     let result = run_lint(&scan, config, &overrides, root);
     let passed = result.passed;
 
@@ -497,8 +534,9 @@ fn cmd_clean(
     format: &Format,
     check_mode: bool,
     since: Option<String>,
+    no_cache: bool,
 ) -> Result<()> {
-    let scan = scan_directory(root, config)?;
+    let scan = do_scan(root, config, no_cache)?;
 
     // Try to create GhIssueChecker; warn if gh is unavailable
     let gh_checker = clean::GhIssueChecker::new();
@@ -528,8 +566,9 @@ fn cmd_stats(
     config: &Config,
     format: &Format,
     since: Option<String>,
+    no_cache: bool,
 ) -> Result<()> {
-    let scan = scan_directory(root, config)?;
+    let scan = do_scan(root, config, no_cache)?;
 
     let diff = if let Some(ref base_ref) = since {
         Some(compute_diff(&scan, base_ref, root, config)?)
@@ -548,8 +587,9 @@ fn cmd_report(
     output_path: &str,
     history_count: usize,
     stale_threshold_cli: Option<String>,
+    no_cache: bool,
 ) -> Result<()> {
-    let scan = scan_directory(root, config)?;
+    let scan = do_scan(root, config, no_cache)?;
 
     let threshold_str = stale_threshold_cli
         .or_else(|| config.blame.stale_threshold.clone())
@@ -572,8 +612,9 @@ fn cmd_blame(
     stale_threshold_cli: Option<String>,
     tag_filter: Vec<String>,
     path_filter: Option<String>,
+    no_cache: bool,
 ) -> Result<()> {
-    let scan = scan_directory(root, config)?;
+    let scan = do_scan(root, config, no_cache)?;
 
     // Resolve stale threshold: CLI > config > default (365d)
     let threshold_str = stale_threshold_cli

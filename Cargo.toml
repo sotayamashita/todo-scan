@@ -23,6 +23,9 @@ time = { version = "0.3", features = ["local-offset"] }
 notify = "7"
 notify-debouncer-mini = "0.5"
 ctrlc = "3"
+blake3 = "1"
+bincode = "1"
+dirs = "6"
 
 [dev-dependencies]
 assert_cmd = "2"
