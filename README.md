@@ -23,7 +23,7 @@ Track TODO/FIXME/HACK comments in your codebase with git-aware diff and CI gate.
 2. **Analyze**
      - [Diff Against Git Refs](#diff-against-git-refs) · [Dashboard & Statistics](#dashboard--statistics) · [Git Blame Integration](#git-blame-integration) · [Discover TODO Relationships](#discover-todo-relationships)
 3. **Enforce**
-     - [Lint TODO Format](#lint-todo-format) · [Clean Stale & Duplicate TODOs](#clean-stale--duplicate-todos) · [CI Quality Gate](#ci-quality-gate)
+     - [Inline Suppression](#inline-suppression) · [Lint TODO Format](#lint-todo-format) · [Clean Stale & Duplicate TODOs](#clean-stale--duplicate-todos) · [CI Quality Gate](#ci-quality-gate)
 4. **Scale**
      - [Workspace-Aware Scanning](#workspace-aware-scanning) · [Per-Package CI Gate](#per-package-ci-gate) · [Single Package Scope](#single-package-scope)
 5. **Report & Integrate**
@@ -155,6 +155,27 @@ Related TODOs surface as actionable clusters, revealing hidden patterns in your 
 
 ```sh
 todox relate --cluster
+```
+
+### Inline Suppression
+
+🔥 **Problem**
+
+Some TODO comments are intentional or false positives, but the only way to exclude them is file-level patterns in `.todox.toml`, which is too coarse.
+
+🌱 **Solution**
+
+Add `todox:ignore` at the end of a TODO line to suppress that specific item, or place `todox:ignore-next-line` on the line above to suppress the following TODO. Suppressed items are excluded from counts, checks, and output by default. Use `--show-ignored` to reveal them.
+
+🎁 **Outcome**
+
+You get fine-grained, inline control over false positives without maintaining exclusion lists in config files.
+
+```
+// TODO: this is tracked normally
+// TODO: known false positive todox:ignore
+// todox:ignore-next-line
+// FIXME: suppressed item
 ```
 
 ### Lint TODO Format
@@ -385,6 +406,9 @@ Tags: `TODO`, `FIXME`, `HACK`, `XXX`, `BUG`, `NOTE` (case-insensitive)
 // HACK(bob): workaround for JIRA-456   ← author + issue ref
 // TODO(2025-06-01): migrate to v2 API   ← deadline (YYYY-MM-DD)
 // TODO(alice, 2025-Q2): refactor auth   ← author + deadline (quarter)
+// TODO: false positive todox:ignore     ← suppressed from output
+// todox:ignore-next-line                ← suppresses the line below
+// FIXME: suppressed item
 ```
 
 ### Supported comment syntax
@@ -724,6 +748,7 @@ todox tasks --dry-run --format json
 | `--root <path>` | Set the project root directory (default: current directory) |
 | `--format <format>` | Output format: `text`, `json`, `github-actions`, `sarif`, `markdown` (default: text) |
 | `--config <path>` | Path to config file (default: auto-discover `.todox.toml`) |
+| `--show-ignored` | Show items suppressed by `todox:ignore` markers |
 
 ### Output formats
 

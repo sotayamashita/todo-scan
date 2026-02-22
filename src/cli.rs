@@ -24,6 +24,10 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub no_cache: bool,
 
+    /// Show items suppressed by todox:ignore markers
+    #[arg(long, global = true)]
+    pub show_ignored: bool,
+
     #[command(subcommand)]
     pub command: Command,
 }

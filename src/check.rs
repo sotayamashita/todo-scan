@@ -125,6 +125,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("a.rs", 1, Tag::Todo, "do something")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let config = Config::default();
         let overrides = CheckOverrides {
@@ -146,6 +147,7 @@ mod tests {
         let scan = ScanResult {
             items,
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let config = Config::default();
         let overrides = CheckOverrides {
@@ -169,6 +171,7 @@ mod tests {
                 make_item("b.rs", 5, Tag::Todo, "normal todo"),
             ],
             files_scanned: 2,
+            ignored_items: vec![],
         };
         let config = Config::default();
         let overrides = CheckOverrides {
@@ -189,6 +192,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("a.rs", 1, Tag::Todo, "new todo")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let diff = DiffResult {
             entries: vec![DiffEntry {
@@ -221,6 +225,7 @@ mod tests {
                 make_item("b.rs", 2, Tag::Note, "just a note"),
             ],
             files_scanned: 2,
+            ignored_items: vec![],
         };
         let config = Config::default();
         let overrides = default_overrides();
@@ -242,6 +247,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![item],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let config = Config::default();
         let overrides = CheckOverrides {
@@ -267,6 +273,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![item],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let config = Config::default();
         let overrides = CheckOverrides {
@@ -290,6 +297,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![item],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let config = Config::default();
         let overrides = default_overrides(); // expired: false

@@ -619,3 +619,92 @@ fn test_list_without_context_no_context_lines() {
         .success()
         .stdout(predicate::str::contains("\"context\"").not());
 }
+
+// --- todox:ignore suppression tests ---
+
+#[test]
+fn test_list_excludes_ignored_items_by_default() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO: visible item\n// TODO: hidden item todox:ignore\n",
+    )]);
+
+    todox()
+        .args(["list", "--root", dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("visible item"))
+        .stdout(predicate::str::contains("hidden item").not())
+        .stdout(predicate::str::contains("1 items"))
+        .stdout(predicate::str::contains("(1 ignored)"));
+}
+
+#[test]
+fn test_list_show_ignored_reveals_suppressed() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO: visible item\n// TODO: hidden item todox:ignore\n",
+    )]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--show-ignored",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("visible item"))
+        .stdout(predicate::str::contains("Ignored items"))
+        .stdout(predicate::str::contains("hidden item"))
+        .stdout(predicate::str::contains("(1 ignored)"));
+}
+
+#[test]
+fn test_list_ignore_next_line_works_e2e() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// todox:ignore-next-line\n// TODO: suppressed\n// TODO: visible\n",
+    )]);
+
+    todox()
+        .args(["list", "--root", dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("visible"))
+        .stdout(predicate::str::contains("suppressed").not())
+        .stdout(predicate::str::contains("1 items"))
+        .stdout(predicate::str::contains("(1 ignored)"));
+}
+
+#[test]
+fn test_list_no_ignored_shows_no_suffix() {
+    let dir = setup_project(&[("main.rs", "// TODO: just a normal todo\n")]);
+
+    todox()
+        .args(["list", "--root", dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("1 items in 1 files"))
+        .stdout(predicate::str::contains("ignored").not());
+}
+
+#[test]
+fn test_list_ignore_strips_marker_from_message() {
+    let dir = setup_project(&[("main.rs", "// TODO: fix this todox:ignore\n")]);
+
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--show-ignored",
+            "--format",
+            "json",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"message\": \"fix this\""))
+        .stdout(predicate::str::contains("todox:ignore").not());
+}

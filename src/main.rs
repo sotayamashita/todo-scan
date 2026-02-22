@@ -88,6 +88,7 @@ fn run() -> Result<()> {
                         path,
                         limit,
                         context,
+                        show_ignored: cli.show_ignored,
                     };
                     let scan_root = resolve_package_root(&root, &config, package.as_deref())?;
                     cmd_list(&scan_root, &config, &cli.format, opts, no_cache)

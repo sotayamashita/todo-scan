@@ -514,6 +514,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![],
             files_scanned: 0,
+            ignored_items: vec![],
         };
         let result = compute_relations(&scan, 0.3, 10);
         assert!(result.relationships.is_empty());
@@ -525,6 +526,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("src/main.rs", 10, Tag::Todo, "fix something")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let result = compute_relations(&scan, 0.3, 10);
         assert!(result.relationships.is_empty());
@@ -539,6 +541,7 @@ mod tests {
                 make_item("src/main.rs", 12, Tag::Fixme, "broken authentication"),
             ],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         // With min_score=0.0, should find relationship
         let result_low = compute_relations(&scan, 0.0, 10);

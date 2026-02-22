@@ -402,6 +402,7 @@ mod tests {
         let result = ScanResult {
             items: vec![sample_item(Tag::Todo, "implement feature")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let output = format_list(&result);
         let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
@@ -432,6 +433,7 @@ mod tests {
                 sample_item(Tag::Note, "info"),
             ],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let output = format_list(&result);
         let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
@@ -449,6 +451,7 @@ mod tests {
                 sample_item(Tag::Bug, "a bug"),
             ],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let output = format_list(&result);
         let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();

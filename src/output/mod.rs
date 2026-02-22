@@ -97,6 +97,8 @@ pub fn print_list(
     format: &Format,
     group_by: &GroupBy,
     context_map: &HashMap<String, ContextInfo>,
+    ignored_count: usize,
+    show_ignored: bool,
 ) {
     let has_context = !context_map.is_empty();
 
@@ -179,10 +181,53 @@ pub fn print_list(
                 }
             }
 
-            if is_file_group {
-                println!("{} items in {} files", result.items.len(), group_count);
+            // Show ignored items section
+            if show_ignored && !result.ignored_items.is_empty() {
+                println!();
+                println!("{}", "Ignored items".bold().underline());
+                let ignored_groups = group_items(&result.ignored_items, group_by);
+                for (key, items) in &ignored_groups {
+                    if is_file_group {
+                        println!("{}", key.dimmed());
+                    } else {
+                        println!("{}", format!("{} ({} items)", key, items.len()).dimmed());
+                    }
+                    for item in items {
+                        let tag_str = colorize_tag(&item.tag);
+                        let line = if is_file_group {
+                            format!("  L{}: [{}] {}", item.line, tag_str, item.message)
+                        } else {
+                            format!(
+                                "  {}:{}: [{}] {}",
+                                item.file, item.line, tag_str, item.message
+                            )
+                        };
+                        println!("{}", line.dimmed());
+                    }
+                }
+            }
+
+            // Summary line
+            let ignored_suffix = if ignored_count > 0 {
+                format!(" ({} ignored)", ignored_count)
             } else {
-                println!("{} items in {} groups", result.items.len(), group_count);
+                String::new()
+            };
+
+            if is_file_group {
+                println!(
+                    "{} items in {} files{}",
+                    result.items.len(),
+                    group_count,
+                    ignored_suffix
+                );
+            } else {
+                println!(
+                    "{} items in {} groups{}",
+                    result.items.len(),
+                    group_count,
+                    ignored_suffix
+                );
             }
         }
         Format::Json => {

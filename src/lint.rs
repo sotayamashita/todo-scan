@@ -246,6 +246,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("a.rs", 1, Tag::Todo, "")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let config = Config::default();
         let overrides = default_overrides();
@@ -260,6 +261,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("a.rs", 1, Tag::Todo, "real message")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let mut config = Config::default();
         config.lint.uppercase_tag = Some(false);
@@ -274,6 +276,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("a.rs", 1, Tag::Todo, "this is a long message")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let mut config = Config::default();
         config.lint.no_bare_tags = Some(false);
@@ -293,6 +296,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("a.rs", 1, Tag::Todo, "no author")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let mut config = Config::default();
         config.lint.no_bare_tags = Some(false);
@@ -314,6 +318,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![item],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let mut config = Config::default();
         config.lint.no_bare_tags = Some(false);
@@ -332,6 +337,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("a.rs", 1, Tag::Bug, "no issue ref")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let mut config = Config::default();
         config.lint.no_bare_tags = Some(false);
@@ -353,6 +359,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![item],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let mut config = Config::default();
         config.lint.no_bare_tags = Some(false);
@@ -371,6 +378,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("a.rs", 1, Tag::Note, "just a note")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let mut config = Config::default();
         config.lint.no_bare_tags = Some(false);
@@ -393,6 +401,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("test.rs", 1, Tag::Todo, "lowercase tag")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let mut config = Config::default();
         config.lint.no_bare_tags = Some(false);
@@ -415,6 +424,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("test.rs", 1, Tag::Todo, "uppercase tag")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let mut config = Config::default();
         config.lint.no_bare_tags = Some(false);
@@ -436,6 +446,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("test.rs", 1, Tag::Todo, "fix without colon")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let mut config = Config::default();
         config.lint.no_bare_tags = Some(false);
@@ -458,6 +469,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("test.rs", 1, Tag::Todo, "fix with colon")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let mut config = Config::default();
         config.lint.no_bare_tags = Some(false);
@@ -475,6 +487,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("a.rs", 1, Tag::Todo, "valid message")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let mut config = Config::default();
         // Disable all default-true rules via config
@@ -491,6 +504,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("a.rs", 1, Tag::Todo, "")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let mut config = Config::default();
         config.lint.no_bare_tags = Some(false); // Config disables
@@ -513,6 +527,7 @@ mod tests {
                 make_item("a.rs", 2, Tag::Bug, "no issue ref"),
             ],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let mut config = Config::default();
         config.lint.uppercase_tag = Some(false);

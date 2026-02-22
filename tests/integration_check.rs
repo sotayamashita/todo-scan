@@ -285,3 +285,43 @@ fn test_check_expired_quarter_format() {
         .stdout(predicate::str::contains("FAIL"))
         .stdout(predicate::str::contains("expired"));
 }
+
+#[test]
+fn test_check_max_does_not_count_ignored() {
+    // 3 TODOs total, but 1 is ignored via todox:ignore
+    // So effective count is 2, which should pass --max 2
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO: one\n// TODO: two\n// TODO: three todox:ignore\n",
+    )]);
+
+    todox()
+        .args([
+            "check",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--max",
+            "2",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("PASS"));
+}
+
+#[test]
+fn test_check_max_fails_without_ignore() {
+    // Same content but without todox:ignore - should fail --max 2
+    let dir = setup_project(&[("main.rs", "// TODO: one\n// TODO: two\n// TODO: three\n")]);
+
+    todox()
+        .args([
+            "check",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--max",
+            "2",
+        ])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("FAIL"));
+}

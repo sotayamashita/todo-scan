@@ -258,6 +258,7 @@ mod tests {
         let result = ScanResult {
             items: vec![],
             files_scanned: 0,
+            ignored_items: vec![],
         };
         let output = format_list(&result);
         assert!(output
@@ -279,6 +280,7 @@ mod tests {
                 deadline: None,
             }],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let output = format_list(&result);
         assert!(output.contains("| lib.rs | 42 | TODO | ! | add tests | alice | #123 |  |"));
@@ -290,6 +292,7 @@ mod tests {
         let result = ScanResult {
             items: vec![sample_item(Tag::Todo, "a | b")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let output = format_list(&result);
         assert!(output.contains("a \\| b"));
