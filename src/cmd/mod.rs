@@ -1,4 +1,5 @@
 mod blame;
+mod brief;
 mod check;
 mod clean;
 mod context;
@@ -14,6 +15,7 @@ mod tasks;
 mod workspace;
 
 pub use self::blame::{cmd_blame, BlameOptions};
+pub use self::brief::cmd_brief;
 pub use self::check::{cmd_check, cmd_workspace_check};
 pub use self::clean::cmd_clean;
 pub use self::context::cmd_context;

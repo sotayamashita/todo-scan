@@ -1,4 +1,5 @@
 mod blame;
+mod brief;
 mod cache;
 mod check;
 mod clean;
@@ -137,6 +138,9 @@ fn run() -> Result<()> {
                     cmd_search(&root, &config, &cli.format, opts, no_cache)
                 }
                 Command::Stats { since } => cmd_stats(&root, &config, &cli.format, since, no_cache),
+                Command::Brief { since, budget } => {
+                    cmd_brief(&root, &config, &cli.format, since, budget, no_cache)
+                }
                 Command::Diff {
                     git_ref,
                     tag,

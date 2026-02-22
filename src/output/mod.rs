@@ -526,6 +526,79 @@ fn bar(count: usize, max: usize, width: usize) -> String {
     "\u{2588}".repeat(filled)
 }
 
+pub fn print_brief(result: &BriefResult, format: &Format, budget: Option<usize>) {
+    match format {
+        Format::Text => {
+            let mut lines: Vec<String> = Vec::new();
+
+            // Line 1: summary
+            let pc = &result.priority_counts;
+            let mut priority_parts: Vec<String> = Vec::new();
+            if pc.urgent > 0 {
+                priority_parts.push(format!("{} urgent", pc.urgent));
+            }
+            if pc.high > 0 {
+                priority_parts.push(format!("{} high", pc.high));
+            }
+
+            let summary = if priority_parts.is_empty() {
+                format!(
+                    "{} TODOs across {} files",
+                    result.total_items, result.total_files
+                )
+            } else {
+                format!(
+                    "{} TODOs across {} files ({})",
+                    result.total_items,
+                    result.total_files,
+                    priority_parts.join(", ")
+                )
+            };
+            lines.push(summary);
+
+            // Line 2: top urgent (if any)
+            if let Some(ref item) = result.top_urgent {
+                let priority_marker = match item.priority {
+                    Priority::Urgent => "!!",
+                    Priority::High => "!",
+                    Priority::Normal => "",
+                };
+                let issue_suffix = item
+                    .issue_ref
+                    .as_ref()
+                    .map(|r| format!(" ({})", r))
+                    .unwrap_or_default();
+                lines.push(format!(
+                    "Top urgent: {}:{} {}{} {}{}",
+                    item.file,
+                    item.line,
+                    item.tag.as_str(),
+                    priority_marker,
+                    item.message,
+                    issue_suffix
+                ));
+            }
+
+            // Line 3: trend (if available)
+            if let Some(ref trend) = result.trend {
+                lines.push(format!(
+                    "Trends vs {}: +{} added, -{} removed",
+                    trend.base_ref, trend.added, trend.removed
+                ));
+            }
+
+            let max_lines = budget.unwrap_or(lines.len());
+            for line in lines.iter().take(max_lines) {
+                println!("{}", line);
+            }
+        }
+        _ => {
+            let json = serde_json::to_string_pretty(result).expect("failed to serialize");
+            println!("{}", json);
+        }
+    }
+}
+
 pub fn print_stats(result: &StatsResult, format: &Format) {
     match format {
         Format::Text => {

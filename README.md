@@ -155,6 +155,24 @@ You get an at-a-glance view of your project's technical debt health and trends.
 todo-scan stats --since main
 ```
 
+### Compressed Brief Summary
+
+🔥 **Problem**
+
+AI agents and developers working in token-constrained environments need a quick TODO landscape overview without consuming excessive context window or screen space.
+
+🌱 **Solution**
+
+`todo-scan brief` produces a compressed 2-4 line summary showing total counts, priority breakdown, and the single most urgent item, with optional `--since <ref>` for trend info and `--budget N` to cap output lines.
+
+🎁 **Outcome**
+
+You get the essential TODO health signal in minimal output, ideal for CI summaries and AI agent context.
+
+```sh
+todo-scan brief --since main --budget 2
+```
+
 ### Git Blame Integration
 
 🔥 **Problem**
@@ -622,6 +640,22 @@ todo-scan stats --since main
 
 # JSON output
 todo-scan stats --format json
+```
+
+### Brief summary
+
+```bash
+# Compressed summary (2-4 lines)
+todo-scan brief
+
+# With trend info compared to a git ref
+todo-scan brief --since main
+
+# Limit output to N lines
+todo-scan brief --budget 1
+
+# JSON output
+todo-scan brief --format json
 ```
 
 ### Lint TODO formatting

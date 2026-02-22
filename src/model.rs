@@ -466,6 +466,15 @@ pub struct RelateResult {
     pub target: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct BriefResult {
+    pub total_items: usize,
+    pub total_files: usize,
+    pub priority_counts: PriorityCounts,
+    pub top_urgent: Option<TodoItem>,
+    pub trend: Option<TrendInfo>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

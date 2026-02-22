@@ -152,6 +152,17 @@ pub enum Command {
         since: Option<String>,
     },
 
+    /// Compressed summary of TODO landscape (2-4 lines)
+    Brief {
+        /// Git ref for trend comparison (e.g., "main")
+        #[arg(long)]
+        since: Option<String>,
+
+        /// Maximum output lines
+        #[arg(long)]
+        budget: Option<usize>,
+    },
+
     /// Search TODO comments by message text or issue reference
     #[command(alias = "s")]
     Search {
