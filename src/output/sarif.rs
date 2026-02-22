@@ -59,10 +59,13 @@ fn item_to_result(item: &TodoItem) -> serde_json::Value {
         }]
     });
     if let Some(ref deadline) = item.deadline {
-        result.as_object_mut().unwrap().insert(
-            "properties".to_string(),
-            serde_json::json!({ "deadline": deadline.to_string() }),
-        );
+        result
+            .as_object_mut()
+            .expect("SARIF result should be a JSON object")
+            .insert(
+                "properties".to_string(),
+                serde_json::json!({ "deadline": deadline.to_string() }),
+            );
     }
     result
 }
@@ -95,10 +98,12 @@ pub fn format_diff(result: &DiffResult) -> String {
                 DiffStatus::Added => "added",
                 DiffStatus::Removed => "removed",
             };
-            r.as_object_mut().unwrap().insert(
-                "properties".to_string(),
-                serde_json::json!({ "diffStatus": status }),
-            );
+            r.as_object_mut()
+                .expect("SARIF result should be a JSON object")
+                .insert(
+                    "properties".to_string(),
+                    serde_json::json!({ "diffStatus": status }),
+                );
             r
         })
         .collect();
@@ -116,19 +121,21 @@ pub fn format_blame(result: &BlameResult) -> String {
         .iter()
         .map(|entry| {
             let mut r = item_to_result(&entry.item);
-            r.as_object_mut().unwrap().insert(
-                "properties".to_string(),
-                serde_json::json!({
-                    "blame": {
-                        "author": entry.blame.author,
-                        "email": entry.blame.email,
-                        "date": entry.blame.date,
-                        "ageDays": entry.blame.age_days,
-                        "commit": entry.blame.commit,
-                        "stale": entry.stale,
-                    }
-                }),
-            );
+            r.as_object_mut()
+                .expect("SARIF result should be a JSON object")
+                .insert(
+                    "properties".to_string(),
+                    serde_json::json!({
+                        "blame": {
+                            "author": entry.blame.author,
+                            "email": entry.blame.email,
+                            "date": entry.blame.date,
+                            "ageDays": entry.blame.age_days,
+                            "commit": entry.blame.commit,
+                            "stale": entry.stale,
+                        }
+                    }),
+                );
             r
         })
         .collect();
@@ -163,14 +170,16 @@ pub fn format_lint(result: &LintResult) -> String {
                 }]
             });
             if let Some(ref suggestion) = v.suggestion {
-                r.as_object_mut().unwrap().insert(
-                    "fixes".to_string(),
-                    serde_json::json!([{
-                        "description": {
-                            "text": suggestion
-                        }
-                    }]),
-                );
+                r.as_object_mut()
+                    .expect("SARIF result should be a JSON object")
+                    .insert(
+                        "fixes".to_string(),
+                        serde_json::json!([{
+                            "description": {
+                                "text": suggestion
+                            }
+                        }]),
+                    );
             }
             r
         })

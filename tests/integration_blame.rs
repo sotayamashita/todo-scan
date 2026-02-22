@@ -5,7 +5,7 @@ use std::process;
 use tempfile::TempDir;
 
 fn todox() -> Command {
-    Command::cargo_bin("todox").unwrap()
+    assert_cmd::cargo_bin_cmd!("todox")
 }
 
 fn setup_git_repo(files: &[(&str, &str)]) -> TempDir {

@@ -241,7 +241,7 @@ pub fn scan_directory(root: &Path, config: &Config) -> Result<ScanResult> {
 
             let found = scan_content(&content, &relative_path, &pattern);
             if !found.is_empty() {
-                items.lock().unwrap().extend(found);
+                items.lock().expect("scan thread panicked").extend(found);
             }
             files_scanned.fetch_add(1, Ordering::Relaxed);
 

@@ -222,7 +222,7 @@ mod tests {
         // 30 days ago
         let thirty_days_ago = now - (30 * 86400);
         let age = compute_age_days(thirty_days_ago);
-        assert!(age >= 29 && age <= 31);
+        assert!((29..=31).contains(&age));
     }
 
     #[test]

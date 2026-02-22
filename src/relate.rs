@@ -659,7 +659,7 @@ mod tests {
 
     #[test]
     fn generate_theme_extracts_top_keywords() {
-        let items = vec![
+        let items = [
             make_item(
                 "src/auth.rs",
                 10,
@@ -677,7 +677,7 @@ mod tests {
 
     #[test]
     fn compute_suggested_order_by_priority_then_severity() {
-        let items = vec![
+        let items = [
             make_item("src/a.rs", 10, Tag::Note, "low prio note"),
             {
                 let mut item = make_item("src/b.rs", 20, Tag::Bug, "urgent bug");

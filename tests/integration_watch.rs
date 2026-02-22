@@ -8,7 +8,7 @@ use std::time::Duration;
 use tempfile::TempDir;
 
 fn todox() -> Command {
-    Command::cargo_bin("todox").unwrap()
+    assert_cmd::cargo_bin_cmd!("todox")
 }
 
 fn setup_project(files: &[(&str, &str)]) -> TempDir {
@@ -28,11 +28,9 @@ fn spawn_line_reader(reader: impl std::io::Read + Send + 'static) -> mpsc::Recei
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
         let reader = BufReader::new(reader);
-        for line in reader.lines() {
-            if let Ok(line) = line {
-                if tx.send(line).is_err() {
-                    break;
-                }
+        for line in reader.lines().map_while(Result::ok) {
+            if tx.send(line).is_err() {
+                break;
             }
         }
     });
@@ -104,7 +102,7 @@ fn test_watch_initial_summary_text() {
         ("b.rs", "// HACK: third\n"),
     ]);
 
-    let bin = assert_cmd::cargo::cargo_bin("todox");
+    let bin = assert_cmd::cargo_bin!("todox");
     let mut child = StdCommand::new(bin)
         .args(["watch", "--root", dir.path().to_str().unwrap()])
         .stdout(Stdio::piped())
@@ -130,7 +128,7 @@ fn test_watch_initial_summary_text() {
 fn test_watch_initial_summary_json() {
     let dir = setup_project(&[("a.rs", "// TODO: test item\n")]);
 
-    let bin = assert_cmd::cargo::cargo_bin("todox");
+    let bin = assert_cmd::cargo_bin!("todox");
     let mut child = StdCommand::new(bin)
         .args([
             "watch",
@@ -165,7 +163,7 @@ fn test_watch_initial_summary_json() {
 fn test_watch_detects_file_change() {
     let dir = setup_project(&[("a.rs", "// TODO: original\n")]);
 
-    let bin = assert_cmd::cargo::cargo_bin("todox");
+    let bin = assert_cmd::cargo_bin!("todox");
     let mut child = StdCommand::new(bin)
         .args([
             "watch",
@@ -220,7 +218,7 @@ fn test_watch_detects_file_change() {
 fn test_watch_max_warning() {
     let dir = setup_project(&[("a.rs", "// TODO: one\n// TODO: two\n// TODO: three\n")]);
 
-    let bin = assert_cmd::cargo::cargo_bin("todox");
+    let bin = assert_cmd::cargo_bin!("todox");
     let mut child = StdCommand::new(bin)
         .args([
             "watch",
@@ -276,7 +274,7 @@ fn test_watch_max_warning() {
 fn test_watch_stopped_message() {
     let dir = setup_project(&[("a.rs", "// TODO: test\n")]);
 
-    let bin = assert_cmd::cargo::cargo_bin("todox");
+    let bin = assert_cmd::cargo_bin!("todox");
     let mut child = StdCommand::new(bin)
         .args(["watch", "--root", dir.path().to_str().unwrap()])
         .stdout(Stdio::piped())

@@ -2,7 +2,7 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 
 fn todox() -> Command {
-    Command::cargo_bin("todox").unwrap()
+    assert_cmd::cargo_bin_cmd!("todox")
 }
 
 #[test]

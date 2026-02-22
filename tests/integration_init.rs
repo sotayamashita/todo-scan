@@ -4,7 +4,7 @@ use std::fs;
 use tempfile::TempDir;
 
 fn todox() -> Command {
-    Command::cargo_bin("todox").unwrap()
+    assert_cmd::cargo_bin_cmd!("todox")
 }
 
 #[test]
