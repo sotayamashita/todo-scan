@@ -1131,6 +1131,17 @@ line four
     }
 
     #[test]
+    fn test_no_match_todo_scan_in_comment() {
+        let pattern = default_pattern();
+        let content = "// todo-scan report generates HTML\n";
+        let result = scan_content(content, "test.rs", &pattern);
+        assert!(
+            result.items.is_empty(),
+            "should not match TODO as prefix of 'todo-scan'"
+        );
+    }
+
+    #[test]
     fn test_no_match_todos_in_comment() {
         let pattern = default_pattern();
         let content = "// TODOS remaining in the backlog\n";
