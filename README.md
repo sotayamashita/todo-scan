@@ -87,9 +87,17 @@ todox context src/main.rs:25 -C 3
 
 ### Progressive Detail Levels
 
-Different consumers need different levels of detail — a quick terminal glance needs compact output, while an AI agent needs full metadata.
-`--detail minimal|normal|full` controls information density across `list`, `diff`, and `search`: `minimal` shows only file, line, tag, and message; `normal` (default) is unchanged; `full` adds `match_key` and auto-context.
-Run `todox list --detail minimal` for compact output or `--detail full --format json` for enriched machine-readable data.
+🔥 **Problem**
+
+Humans scanning a terminal need compact output, while AI agents need full metadata — but every command outputs the same level of detail regardless of the consumer.
+
+🌱 **Solution**
+
+`--detail minimal|normal|full` controls information density across `list`, `diff`, and `search`: `minimal` shows only file, line, tag, and message; `normal` (default) preserves current behavior; `full` injects `match_key` and auto-collects surrounding source context.
+
+🎁 **Outcome**
+
+One flag adapts todox output from quick human glances to rich machine-readable payloads without separate commands.
 
 ```sh
 todox list --detail minimal
