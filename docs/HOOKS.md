@@ -1,6 +1,6 @@
 # Hook & Integration Recipes
 
-Copy-paste recipes for integrating todox into git hooks, CI pipelines, and Claude Code workflows.
+Copy-paste recipes for integrating todo-scan into git hooks, CI pipelines, and Claude Code workflows.
 
 ## 1. Git Pre-commit Hook
 
@@ -10,25 +10,25 @@ Create `.git/hooks/pre-commit` (or add to an existing one):
 #!/usr/bin/env bash
 set -euo pipefail
 
-# --- todox lint: reject malformed TODO comments ---
-echo "todox: linting TODO comments..."
-todox lint --no-bare-tags --uppercase-tag --require-colon
+# --- todo-scan lint: reject malformed TODO comments ---
+echo "todo-scan: linting TODO comments..."
+todo-scan lint --no-bare-tags --uppercase-tag --require-colon
 lint_status=$?
 if [ $lint_status -ne 0 ]; then
-  echo "todox lint failed. Fix the TODO formatting issues above."
+  echo "todo-scan lint failed. Fix the TODO formatting issues above."
   exit 1
 fi
 
-# --- todox check: enforce thresholds ---
-echo "todox: checking TODO thresholds..."
-todox check --max 100 --block-tags BUG,FIXME
+# --- todo-scan check: enforce thresholds ---
+echo "todo-scan: checking TODO thresholds..."
+todo-scan check --max 100 --block-tags BUG,FIXME
 check_status=$?
 if [ $check_status -ne 0 ]; then
-  echo "todox check failed. Reduce TODOs or adjust thresholds."
+  echo "todo-scan check failed. Reduce TODOs or adjust thresholds."
   exit 1
 fi
 
-echo "todox: all checks passed."
+echo "todo-scan: all checks passed."
 ```
 
 Make it executable:
@@ -45,10 +45,10 @@ chmod +x .git/hooks/pre-commit
 # .lefthook.yml
 pre-commit:
   commands:
-    todox-lint:
-      run: todox lint --no-bare-tags --uppercase-tag --require-colon
-    todox-check:
-      run: todox check --max 100 --block-tags BUG,FIXME
+    todo-scan-lint:
+      run: todo-scan lint --no-bare-tags --uppercase-tag --require-colon
+    todo-scan-check:
+      run: todo-scan check --max 100 --block-tags BUG,FIXME
 ```
 
 ## 2. GitHub Actions CI Gate
@@ -56,7 +56,7 @@ pre-commit:
 ### Basic workflow
 
 ```yaml
-# .github/workflows/todox.yml
+# .github/workflows/todo-scan.yml
 name: TODO Gate
 
 on:
@@ -65,31 +65,31 @@ on:
     branches: [main]
 
 jobs:
-  todox:
+  todo-scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Required for todox diff and --since
+          fetch-depth: 0  # Required for todo-scan diff and --since
 
-      - name: Install todox
-        run: cargo install todox
+      - name: Install todo-scan
+        run: cargo install todo-scan
 
       - name: Lint TODO format
-        run: todox lint --no-bare-tags --uppercase-tag --require-colon
+        run: todo-scan lint --no-bare-tags --uppercase-tag --require-colon
 
       - name: Check TODO thresholds
-        run: todox check --max 100 --block-tags BUG,FIXME
+        run: todo-scan check --max 100 --block-tags BUG,FIXME
 
       - name: Block new TODOs in PR
         if: github.event_name == 'pull_request'
-        run: todox check --max-new 0 --since origin/${{ github.base_ref }}
+        run: todo-scan check --max-new 0 --since origin/${{ github.base_ref }}
 ```
 
 ### With SARIF upload and PR diff
 
 ```yaml
-# .github/workflows/todox.yml
+# .github/workflows/todo-scan.yml
 name: TODO Gate
 
 on:
@@ -98,56 +98,56 @@ on:
     branches: [main]
 
 jobs:
-  todox:
+  todo-scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install todox
-        run: cargo install todox
+      - name: Install todo-scan
+        run: cargo install todo-scan
 
       - name: Check TODO thresholds
-        run: todox check --max 100 --block-tags BUG,FIXME
+        run: todo-scan check --max 100 --block-tags BUG,FIXME
 
       - name: Upload SARIF to Code Scanning
         if: always()
-        run: todox list --format sarif > todox.sarif
+        run: todo-scan list --format sarif > todo-scan.sarif
 
       - name: Upload SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: todox.sarif
+          sarif_file: todo-scan.sarif
 
       - name: PR diff summary
         if: github.event_name == 'pull_request'
         run: |
           echo "## TODO Diff" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          todox diff origin/${{ github.base_ref }} >> "$GITHUB_STEP_SUMMARY"
+          todo-scan diff origin/${{ github.base_ref }} >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate HTML report
         if: always()
-        run: todox report --output todox-report.html
+        run: todo-scan report --output todo-scan-report.html
 
       - name: Upload report artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: todox-report
-          path: todox-report.html
+          name: todo-scan-report
+          path: todo-scan-report.html
 ```
 
 ## 3. Claude Code Hooks
 
-Add these hooks to `.claude/settings.json` to run todox automatically during Claude Code sessions.
+Add these hooks to `.claude/settings.json` to run todo-scan automatically during Claude Code sessions.
 
 ### Lint on file write
 
-Run `todox lint` whenever Claude edits or creates a file, catching malformed TODOs immediately:
+Run `todo-scan lint` whenever Claude edits or creates a file, catching malformed TODOs immediately:
 
 ```jsonc
 {
@@ -158,7 +158,7 @@ Run `todox lint` whenever Claude edits or creates a file, catching malformed TOD
         "hooks": [
           {
             "type": "command",
-            "command": "file_path=$(echo '$TOOL_INPUT' | jq -r '.file_path') && dir=$(dirname \"$file_path\") && todox lint --root \"$dir\" --no-bare-tags --uppercase-tag --require-colon"
+            "command": "file_path=$(echo '$TOOL_INPUT' | jq -r '.file_path') && dir=$(dirname \"$file_path\") && todo-scan lint --root \"$dir\" --no-bare-tags --uppercase-tag --require-colon"
           }
         ]
       }
@@ -179,7 +179,7 @@ Show a TODO diff summary when a Claude Code session ends, so you can see what ch
         "hooks": [
           {
             "type": "command",
-            "command": "todox diff HEAD~1 2>/dev/null || true"
+            "command": "todo-scan diff HEAD~1 2>/dev/null || true"
           }
         ]
       }
@@ -201,7 +201,7 @@ A complete `.claude/settings.json` with both hooks:
         "hooks": [
           {
             "type": "command",
-            "command": "file_path=$(echo '$TOOL_INPUT' | jq -r '.file_path') && dir=$(dirname \"$file_path\") && todox lint --root \"$dir\" --no-bare-tags --uppercase-tag --require-colon"
+            "command": "file_path=$(echo '$TOOL_INPUT' | jq -r '.file_path') && dir=$(dirname \"$file_path\") && todo-scan lint --root \"$dir\" --no-bare-tags --uppercase-tag --require-colon"
           }
         ]
       }
@@ -211,7 +211,7 @@ A complete `.claude/settings.json` with both hooks:
         "hooks": [
           {
             "type": "command",
-            "command": "todox diff HEAD~1 2>/dev/null || true"
+            "command": "todo-scan diff HEAD~1 2>/dev/null || true"
           }
         ]
       }
@@ -222,14 +222,14 @@ A complete `.claude/settings.json` with both hooks:
 
 ## 4. Claude Code CLAUDE.md Snippet
 
-Add this to your project's `CLAUDE.md` to instruct Claude Code to use todox during development:
+Add this to your project's `CLAUDE.md` to instruct Claude Code to use todo-scan during development:
 
 ````markdown
 ## TODO Hygiene
 
-- Run `todox lint --no-bare-tags --uppercase-tag --require-colon` before committing
-- Run `todox check --max 100 --block-tags BUG,FIXME` to verify thresholds
-- Use `todox diff main` to review TODO changes before opening a PR
+- Run `todo-scan lint --no-bare-tags --uppercase-tag --require-colon` before committing
+- Run `todo-scan check --max 100 --block-tags BUG,FIXME` to verify thresholds
+- Use `todo-scan diff main` to review TODO changes before opening a PR
 - Format TODO comments as: `TAG(author): message #issue-ref`
 - Tags must be uppercase with a colon separator
 - Do not leave bare tags (e.g., `// TODO` with no message)
@@ -239,10 +239,10 @@ Add this to your project's `CLAUDE.md` to instruct Claude Code to use todox duri
 
 | Command | Purpose |
 |---|---|
-| `todox lint` | Check TODO formatting rules |
-| `todox check` | Enforce count/tag thresholds |
-| `todox diff <ref>` | Compare TODOs against a git ref |
-| `todox list` | List all TODOs |
-| `todox report` | Generate HTML dashboard |
+| `todo-scan lint` | Check TODO formatting rules |
+| `todo-scan check` | Enforce count/tag thresholds |
+| `todo-scan diff <ref>` | Compare TODOs against a git ref |
+| `todo-scan list` | List all TODOs |
+| `todo-scan report` | Generate HTML dashboard |
 
-See `todox <command> --help` for all available flags.
+See `todo-scan <command> --help` for all available flags.

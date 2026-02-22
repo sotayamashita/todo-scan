@@ -7,8 +7,8 @@ use std::sync::mpsc;
 use std::time::Duration;
 use tempfile::TempDir;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 fn setup_project(files: &[(&str, &str)]) -> TempDir {
@@ -76,7 +76,7 @@ fn wait_for_watcher_ready(stderr_rx: &mpsc::Receiver<String>, timeout: Duration)
 
 #[test]
 fn test_watch_help() {
-    todox()
+    todo_scan()
         .args(["watch", "--help"])
         .assert()
         .success()
@@ -88,7 +88,7 @@ fn test_watch_help() {
 
 #[test]
 fn test_watch_alias_w() {
-    todox()
+    todo_scan()
         .args(["w", "--help"])
         .assert()
         .success()
@@ -102,13 +102,13 @@ fn test_watch_initial_summary_text() {
         ("b.rs", "// HACK: third\n"),
     ]);
 
-    let bin = assert_cmd::cargo_bin!("todox");
+    let bin = assert_cmd::cargo_bin!("todo-scan");
     let mut child = StdCommand::new(bin)
         .args(["watch", "--root", dir.path().to_str().unwrap()])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("failed to start todox watch");
+        .expect("failed to start todo-scan watch");
 
     let stdout = child.stdout.take().unwrap();
     let rx = spawn_line_reader(stdout);
@@ -128,7 +128,7 @@ fn test_watch_initial_summary_text() {
 fn test_watch_initial_summary_json() {
     let dir = setup_project(&[("a.rs", "// TODO: test item\n")]);
 
-    let bin = assert_cmd::cargo_bin!("todox");
+    let bin = assert_cmd::cargo_bin!("todo-scan");
     let mut child = StdCommand::new(bin)
         .args([
             "watch",
@@ -140,7 +140,7 @@ fn test_watch_initial_summary_json() {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("failed to start todox watch");
+        .expect("failed to start todo-scan watch");
 
     let stdout = child.stdout.take().unwrap();
     let rx = spawn_line_reader(stdout);
@@ -163,7 +163,7 @@ fn test_watch_initial_summary_json() {
 fn test_watch_detects_file_change() {
     let dir = setup_project(&[("a.rs", "// TODO: original\n")]);
 
-    let bin = assert_cmd::cargo_bin!("todox");
+    let bin = assert_cmd::cargo_bin!("todo-scan");
     let mut child = StdCommand::new(bin)
         .args([
             "watch",
@@ -175,7 +175,7 @@ fn test_watch_detects_file_change() {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("failed to start todox watch");
+        .expect("failed to start todo-scan watch");
 
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
@@ -218,7 +218,7 @@ fn test_watch_detects_file_change() {
 fn test_watch_max_warning() {
     let dir = setup_project(&[("a.rs", "// TODO: one\n// TODO: two\n// TODO: three\n")]);
 
-    let bin = assert_cmd::cargo_bin!("todox");
+    let bin = assert_cmd::cargo_bin!("todo-scan");
     let mut child = StdCommand::new(bin)
         .args([
             "watch",
@@ -232,7 +232,7 @@ fn test_watch_max_warning() {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("failed to start todox watch");
+        .expect("failed to start todo-scan watch");
 
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
@@ -274,13 +274,13 @@ fn test_watch_max_warning() {
 fn test_watch_stopped_message() {
     let dir = setup_project(&[("a.rs", "// TODO: test\n")]);
 
-    let bin = assert_cmd::cargo_bin!("todox");
+    let bin = assert_cmd::cargo_bin!("todo-scan");
     let mut child = StdCommand::new(bin)
         .args(["watch", "--root", dir.path().to_str().unwrap()])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("failed to start todox watch");
+        .expect("failed to start todo-scan watch");
 
     // Give it time to start
     std::thread::sleep(Duration::from_millis(300));

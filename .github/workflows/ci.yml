@@ -69,11 +69,11 @@ jobs:
         run: cargo run --release -- diff ${{ github.event.pull_request.base.sha }}
 
       - name: Generate TODO report
-        run: cargo run --release -- report --output todox-report.html
+        run: cargo run --release -- report --output todo-scan-report.html
 
       - name: Upload TODO report
         uses: actions/upload-artifact@v4
         with:
-          name: todox-report
-          path: todox-report.html
+          name: todo-scan-report
+          path: todo-scan-report.html
           retention-days: 1

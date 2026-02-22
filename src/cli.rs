@@ -6,7 +6,7 @@ use crate::model;
 
 #[derive(Parser)]
 #[command(
-    name = "todox",
+    name = "todo-scan",
     version,
     about = "Track TODO/FIXME/HACK comments in your codebase"
 )]
@@ -28,7 +28,7 @@ pub struct Cli {
     #[arg(long, global = true, value_enum, default_value = "normal")]
     pub detail: DetailLevel,
 
-    /// Show items suppressed by todox:ignore markers
+    /// Show items suppressed by todo-scan:ignore markers
     #[arg(long, global = true)]
     pub show_ignored: bool,
 
@@ -111,7 +111,7 @@ pub enum Command {
         context: usize,
     },
 
-    /// Generate a .todox.toml configuration file
+    /// Generate a .todo-scan.toml configuration file
     Init {
         /// Accept defaults without interactive prompts
         #[arg(long, short = 'y')]
@@ -234,8 +234,8 @@ pub enum Command {
 
     /// Generate an HTML technical debt dashboard report
     Report {
-        /// Output file path (default: todox-report.html)
-        #[arg(long, default_value = "todox-report.html")]
+        /// Output file path (default: todo-scan-report.html)
+        #[arg(long, default_value = "todo-scan-report.html")]
         output: String,
 
         /// Number of historical commits to sample for trend chart

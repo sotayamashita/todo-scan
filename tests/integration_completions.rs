@@ -1,33 +1,33 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 #[test]
 fn test_completions_bash() {
-    todox()
+    todo_scan()
         .args(["completions", "bash"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("todox"));
+        .stdout(predicate::str::contains("todo-scan"));
 }
 
 #[test]
 fn test_completions_zsh() {
-    todox()
+    todo_scan()
         .args(["completions", "zsh"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("todox"));
+        .stdout(predicate::str::contains("todo-scan"));
 }
 
 #[test]
 fn test_completions_fish() {
-    todox()
+    todo_scan()
         .args(["completions", "fish"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("complete -c todox"));
+        .stdout(predicate::str::contains("complete -c todo-scan"));
 }

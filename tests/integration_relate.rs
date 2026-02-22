@@ -3,8 +3,8 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 fn setup_project(files: &[(&str, &str)]) -> TempDir {
@@ -26,7 +26,7 @@ fn test_relate_proximity_detection() {
         "// TODO: fix input validation\n// FIXME: broken input handling\nfn main() {}\n",
     )]);
 
-    todox()
+    todo_scan()
         .args(["relate", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -44,7 +44,7 @@ fn test_relate_keyword_detection() {
         ),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "relate",
             "--root",
@@ -64,7 +64,7 @@ fn test_relate_cross_reference_same_issue() {
         ("src/api.rs", "// FIXME(alice): validate tokens #42\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "relate",
             "--root",
@@ -84,7 +84,7 @@ fn test_relate_cluster_output() {
         "// TODO: fix authentication\n// FIXME: broken authentication\nfn main() {}\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "relate",
             "--cluster",
@@ -103,7 +103,7 @@ fn test_relate_for_filter() {
         "// TODO: fix auth\n// FIXME: broken auth\n// NOTE: unrelated note far away\nfn a() {}\nfn b() {}\nfn c() {}\nfn d() {}\nfn e() {}\nfn f() {}\nfn g() {}\nfn h() {}\nfn i() {}\nfn j() {}\nfn k() {}\nfn l() {}\nfn m() {}\nfn n() {}\nfn o() {}\nfn p() {}\nfn q() {}\n// TODO: another unrelated thing\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "relate",
             "--for",
@@ -124,7 +124,7 @@ fn test_relate_min_score_threshold() {
     )]);
 
     // Very high min_score should filter out everything
-    todox()
+    todo_scan()
         .args([
             "relate",
             "--min-score",
@@ -144,7 +144,7 @@ fn test_relate_json_format() {
         "// TODO: fix authentication\n// FIXME: broken authentication\nfn main() {}\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "relate",
             "--format",
@@ -166,7 +166,7 @@ fn test_relate_no_relationships() {
         ("z.rs", "// NOTE: completely different topic zzz\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "relate",
             "--root",
@@ -183,7 +183,7 @@ fn test_relate_no_relationships() {
 fn test_relate_empty_scan() {
     let dir = setup_project(&[("main.rs", "fn main() {}\n")]);
 
-    todox()
+    todo_scan()
         .args(["relate", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -198,7 +198,7 @@ fn test_relate_proximity_threshold_flag() {
     )]);
 
     // Default proximity=10, items are 20 lines apart → no proximity
-    todox()
+    todo_scan()
         .args([
             "relate",
             "--root",
@@ -211,7 +211,7 @@ fn test_relate_proximity_threshold_flag() {
         .stdout(predicate::str::contains("No relationships found"));
 
     // Increase proximity to 25 → should detect
-    todox()
+    todo_scan()
         .args([
             "relate",
             "--proximity",

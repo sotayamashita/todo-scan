@@ -3,8 +3,8 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 fn setup_project(files: &[(&str, &str)]) -> TempDir {
@@ -23,7 +23,7 @@ fn setup_project(files: &[(&str, &str)]) -> TempDir {
 fn test_check_pass_under_max() {
     let dir = setup_project(&[("main.rs", "// TODO: one task\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--root",
@@ -43,7 +43,7 @@ fn test_check_fail_over_max() {
         "// TODO: one\n// TODO: two\n// TODO: three\n// TODO: four\n// TODO: five\n// TODO: six\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--root",
@@ -61,7 +61,7 @@ fn test_check_fail_over_max() {
 fn test_check_block_tags() {
     let dir = setup_project(&[("main.rs", "// BUG: critical issue\n// TODO: normal task\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--root",
@@ -79,7 +79,7 @@ fn test_check_block_tags() {
 fn test_check_pass_no_constraints() {
     let dir = setup_project(&[("main.rs", "// TODO: task\n")]);
 
-    todox()
+    todo_scan()
         .args(["check", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -90,7 +90,7 @@ fn test_check_pass_no_constraints() {
 fn test_check_json_format() {
     let dir = setup_project(&[("main.rs", "// TODO: task\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--root",
@@ -109,7 +109,7 @@ fn test_check_json_format() {
 fn test_check_fail_json_format() {
     let dir = setup_project(&[("main.rs", "// TODO: one\n// TODO: two\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--root",
@@ -129,7 +129,7 @@ fn test_check_fail_json_format() {
 fn test_check_github_actions_format_pass() {
     let dir = setup_project(&[("main.rs", "// TODO: task\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--root",
@@ -141,14 +141,14 @@ fn test_check_github_actions_format_pass() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("::notice::todox check: PASS"));
+        .stdout(predicate::str::contains("::notice::todo-scan check: PASS"));
 }
 
 #[test]
 fn test_check_github_actions_format_fail() {
     let dir = setup_project(&[("main.rs", "// TODO: one\n// TODO: two\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--root",
@@ -161,14 +161,14 @@ fn test_check_github_actions_format_fail() {
         .assert()
         .code(1)
         .stdout(predicate::str::contains("::error title=max::"))
-        .stdout(predicate::str::contains("::error::todox check: FAIL"));
+        .stdout(predicate::str::contains("::error::todo-scan check: FAIL"));
 }
 
 #[test]
 fn test_check_sarif_format() {
     let dir = setup_project(&[("main.rs", "// TODO: task\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--root",
@@ -188,7 +188,7 @@ fn test_check_sarif_format() {
 fn test_check_markdown_format_pass() {
     let dir = setup_project(&[("main.rs", "// TODO: task\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--root",
@@ -208,7 +208,7 @@ fn test_check_markdown_format_pass() {
 fn test_check_markdown_format_fail() {
     let dir = setup_project(&[("main.rs", "// TODO: one\n// TODO: two\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--root",
@@ -230,7 +230,7 @@ fn test_check_markdown_format_fail() {
 fn test_check_expired_deadline_fails() {
     let dir = setup_project(&[("main.rs", "// TODO(2020-01-01): this is overdue\n")]);
 
-    todox()
+    todo_scan()
         .args(["check", "--root", dir.path().to_str().unwrap(), "--expired"])
         .assert()
         .code(1)
@@ -243,7 +243,7 @@ fn test_check_expired_deadline_fails() {
 fn test_check_future_deadline_passes() {
     let dir = setup_project(&[("main.rs", "// TODO(2099-12-31): far future task\n")]);
 
-    todox()
+    todo_scan()
         .args(["check", "--root", dir.path().to_str().unwrap(), "--expired"])
         .assert()
         .success()
@@ -255,7 +255,7 @@ fn test_check_no_expired_flag_ignores_deadline() {
     let dir = setup_project(&[("main.rs", "// TODO(2020-01-01): this is overdue\n")]);
 
     // Without --expired flag, even old deadlines should pass
-    todox()
+    todo_scan()
         .args(["check", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -266,7 +266,7 @@ fn test_check_no_expired_flag_ignores_deadline() {
 fn test_check_expired_author_and_date() {
     let dir = setup_project(&[("main.rs", "// TODO(alice, 2020-06-01): overdue task\n")]);
 
-    todox()
+    todo_scan()
         .args(["check", "--root", dir.path().to_str().unwrap(), "--expired"])
         .assert()
         .code(1)
@@ -278,7 +278,7 @@ fn test_check_expired_author_and_date() {
 fn test_check_expired_quarter_format() {
     let dir = setup_project(&[("main.rs", "// TODO(2020-Q1): overdue quarter task\n")]);
 
-    todox()
+    todo_scan()
         .args(["check", "--root", dir.path().to_str().unwrap(), "--expired"])
         .assert()
         .code(1)
@@ -288,14 +288,14 @@ fn test_check_expired_quarter_format() {
 
 #[test]
 fn test_check_max_does_not_count_ignored() {
-    // 3 TODOs total, but 1 is ignored via todox:ignore
+    // 3 TODOs total, but 1 is ignored via todo-scan:ignore
     // So effective count is 2, which should pass --max 2
     let dir = setup_project(&[(
         "main.rs",
-        "// TODO: one\n// TODO: two\n// TODO: three todox:ignore\n",
+        "// TODO: one\n// TODO: two\n// TODO: three todo-scan:ignore\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--root",
@@ -310,10 +310,10 @@ fn test_check_max_does_not_count_ignored() {
 
 #[test]
 fn test_check_max_fails_without_ignore() {
-    // Same content but without todox:ignore - should fail --max 2
+    // Same content but without todo-scan:ignore - should fail --max 2
     let dir = setup_project(&[("main.rs", "// TODO: one\n// TODO: two\n// TODO: three\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--root",

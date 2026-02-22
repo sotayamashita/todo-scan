@@ -3,8 +3,8 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 fn setup_project(files: &[(&str, &str)]) -> TempDir {
@@ -26,7 +26,7 @@ fn test_no_cache_flag_produces_correct_output() {
         ("lib.rs", "// HACK: workaround\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["list", "--no-cache", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -50,7 +50,7 @@ fn test_consecutive_runs_produce_identical_results() {
     let root = dir.path().to_str().unwrap();
 
     // First run (cold cache)
-    let first = todox()
+    let first = todo_scan()
         .args(["list", "--format", "json", "--root", root])
         .output()
         .unwrap();
@@ -58,7 +58,7 @@ fn test_consecutive_runs_produce_identical_results() {
     let first_stdout = String::from_utf8(first.stdout).unwrap();
 
     // Second run (warm cache)
-    let second = todox()
+    let second = todo_scan()
         .args(["list", "--format", "json", "--root", root])
         .output()
         .unwrap();
@@ -99,7 +99,7 @@ fn test_json_output_identical_with_and_without_cache() {
     let root = dir.path().to_str().unwrap();
 
     // Run with --no-cache
-    let no_cache = todox()
+    let no_cache = todo_scan()
         .args(["list", "--format", "json", "--no-cache", "--root", root])
         .output()
         .unwrap();
@@ -107,13 +107,13 @@ fn test_json_output_identical_with_and_without_cache() {
     let no_cache_stdout = String::from_utf8(no_cache.stdout).unwrap();
 
     // Prime cache
-    todox()
+    todo_scan()
         .args(["list", "--format", "json", "--root", root])
         .output()
         .unwrap();
 
     // Run with cache
-    let with_cache = todox()
+    let with_cache = todo_scan()
         .args(["list", "--format", "json", "--root", root])
         .output()
         .unwrap();
@@ -150,7 +150,7 @@ fn test_cache_detects_modified_file() {
     let root = dir.path().to_str().unwrap();
 
     // First run to populate cache
-    let first = todox()
+    let first = todo_scan()
         .args(["list", "--format", "json", "--root", root])
         .output()
         .unwrap();
@@ -166,7 +166,7 @@ fn test_cache_detects_modified_file() {
     .unwrap();
 
     // Second run should detect the change
-    let second = todox()
+    let second = todo_scan()
         .args(["list", "--format", "json", "--root", root])
         .output()
         .unwrap();
@@ -183,13 +183,13 @@ fn test_check_command_works_with_cache() {
 
     let root = dir.path().to_str().unwrap();
 
-    todox()
+    todo_scan()
         .args(["check", "--max", "10", "--root", root])
         .assert()
         .success();
 
     // With --no-cache
-    todox()
+    todo_scan()
         .args(["check", "--max", "10", "--no-cache", "--root", root])
         .assert()
         .success();

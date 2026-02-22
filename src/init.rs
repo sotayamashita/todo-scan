@@ -55,15 +55,15 @@ fn collect_suggested_dirs(hints: &[ProjectHint]) -> Vec<&'static str> {
 }
 
 pub fn cmd_init(root: &Path, non_interactive: bool) -> Result<()> {
-    let config_path = root.join(".todox.toml");
+    let config_path = root.join(".todo-scan.toml");
 
     // Check for existing config
     if config_path.exists() {
         if non_interactive {
-            bail!(".todox.toml already exists. Use interactive mode to overwrite.");
+            bail!(".todo-scan.toml already exists. Use interactive mode to overwrite.");
         }
         let overwrite = Confirm::new()
-            .with_prompt(".todox.toml already exists. Overwrite?")
+            .with_prompt(".todo-scan.toml already exists. Overwrite?")
             .default(false)
             .interact()?;
         if !overwrite {
@@ -134,8 +134,8 @@ pub fn cmd_init(root: &Path, non_interactive: bool) -> Result<()> {
     let content = build_config_toml(&selected_tags, &selected_dirs, check_max);
     std::fs::write(&config_path, content)?;
 
-    eprintln!("Created .todox.toml");
-    eprintln!("Try it out: todox list");
+    eprintln!("Created .todo-scan.toml");
+    eprintln!("Try it out: todo-scan list");
     Ok(())
 }
 

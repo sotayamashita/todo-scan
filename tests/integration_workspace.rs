@@ -3,8 +3,8 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 fn setup_project(files: &[(&str, &str)]) -> TempDir {
@@ -38,7 +38,7 @@ members = ["crates/core", "crates/cli"]
         ("crates/cli/main.rs", "// TODO: implement cli\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["workspace", "list", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -59,7 +59,7 @@ fn workspace_list_npm() {
         ),
     ]);
 
-    todox()
+    todo_scan()
         .args(["workspace", "list", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -76,7 +76,7 @@ fn workspace_list_pnpm() {
         ("apps/web/index.ts", "// TODO: web feature\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["workspace", "list", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -95,7 +95,7 @@ fn workspace_list_go() {
         ("pkg/lib/lib.go", "// HACK: lib workaround\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["workspace", "list", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -118,7 +118,7 @@ members = ["crates/core"]
         ("crates/core/main.rs", "// TODO: implement\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "workspace",
             "list",
@@ -147,7 +147,7 @@ members = ["crates/core"]
         ("crates/core/main.rs", "// TODO: implement\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["ws", "ls", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -174,7 +174,7 @@ members = ["crates/core", "crates/cli"]
     ]);
 
     // Only core package
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -187,7 +187,7 @@ members = ["crates/core", "crates/cli"]
         .stdout(predicate::str::contains("2 items"));
 
     // Only cli package
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -213,7 +213,7 @@ members = ["crates/core"]
         ("crates/core/main.rs", "// TODO: task\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -239,7 +239,7 @@ members = ["crates/core", "crates/cli"]
 "#,
         ),
         (
-            ".todox.toml",
+            ".todo-scan.toml",
             r#"
 [workspace.packages.core]
 max = 10
@@ -252,7 +252,7 @@ max = 5
         ("crates/cli/main.rs", "// TODO: cli task\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--workspace",
@@ -275,7 +275,7 @@ members = ["crates/core"]
 "#,
         ),
         (
-            ".todox.toml",
+            ".todo-scan.toml",
             r#"
 [workspace.packages.core]
 max = 1
@@ -287,7 +287,7 @@ max = 1
         ),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--workspace",
@@ -311,7 +311,7 @@ members = ["crates/core"]
 "#,
         ),
         (
-            ".todox.toml",
+            ".todo-scan.toml",
             r#"
 [workspace.packages.core]
 block_tags = ["BUG"]
@@ -320,7 +320,7 @@ block_tags = ["BUG"]
         ("crates/core/main.rs", "// BUG: critical issue\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--workspace",
@@ -339,7 +339,7 @@ block_tags = ["BUG"]
 fn workspace_list_no_workspace() {
     let dir = setup_project(&[("main.rs", "// TODO: standalone\n")]);
 
-    todox()
+    todo_scan()
         .args(["workspace", "list", "--root", dir.path().to_str().unwrap()])
         .assert()
         .failure()
@@ -350,7 +350,7 @@ fn workspace_list_no_workspace() {
 fn check_workspace_no_workspace() {
     let dir = setup_project(&[("main.rs", "// TODO: standalone\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "check",
             "--workspace",

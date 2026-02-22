@@ -945,7 +945,7 @@ pub fn print_tasks(result: &TasksResult, format: &Format) {
             }
 
             for task in &result.tasks {
-                let priority_marker = match task.metadata.todox_priority.as_str() {
+                let priority_marker = match task.metadata.todo_scan_priority.as_str() {
                     "urgent" => "!!",
                     "high" => "!",
                     _ => " ",
@@ -954,9 +954,9 @@ pub fn print_tasks(result: &TasksResult, format: &Format) {
                 println!(
                     "  {:>2} {:6} {}:{} {}",
                     priority_marker,
-                    task.metadata.todox_tag,
-                    task.metadata.todox_file,
-                    task.metadata.todox_line,
+                    task.metadata.todo_scan_tag,
+                    task.metadata.todo_scan_file,
+                    task.metadata.todo_scan_line,
                     task.subject,
                 );
             }

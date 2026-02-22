@@ -121,10 +121,10 @@ pub struct ScanContentResult {
 }
 
 /// The inline suppression marker for the current line.
-const IGNORE_MARKER: &str = "todox:ignore";
+const IGNORE_MARKER: &str = "todo-scan:ignore";
 
 /// The inline suppression marker for the next line.
-const IGNORE_NEXT_LINE_MARKER: &str = "todox:ignore-next-line";
+const IGNORE_NEXT_LINE_MARKER: &str = "todo-scan:ignore-next-line";
 
 /// Scan text content line by line for TODO-style comments.
 ///
@@ -132,12 +132,12 @@ const IGNORE_NEXT_LINE_MARKER: &str = "todox:ignore-next-line";
 /// Returns a `ScanContentResult` with matched items and suppressed items separated.
 ///
 /// Suppression markers:
-/// - `todox:ignore` on the same line as a TODO suppresses that item
-/// - `todox:ignore-next-line` on any line suppresses the immediately following line
+/// - `todo-scan:ignore` on the same line as a TODO suppresses that item
+/// - `todo-scan:ignore-next-line` on any line suppresses the immediately following line
 pub fn scan_content(content: &str, file_path: &str, pattern: &Regex) -> ScanContentResult {
     let lines: Vec<&str> = content.lines().collect();
 
-    // Pre-scan for todox:ignore-next-line markers
+    // Pre-scan for todo-scan:ignore-next-line markers
     let mut suppressed_lines: HashSet<usize> = HashSet::new();
     for (idx, line) in lines.iter().enumerate() {
         if line.contains(IGNORE_NEXT_LINE_MARKER) {
@@ -156,6 +156,11 @@ pub fn scan_content(content: &str, file_path: &str, pattern: &Regex) -> ScanCont
         if let Some(caps) = pattern.captures(line) {
             let tag_match = caps.get(1).unwrap();
             if !is_in_comment(line, tag_match.start()) {
+                continue;
+            }
+
+            // Skip if the tag is immediately followed by a hyphen (e.g., "todo-scan:ignore")
+            if line.as_bytes().get(tag_match.end()) == Some(&b'-') {
                 continue;
             }
 
@@ -187,7 +192,7 @@ pub fn scan_content(content: &str, file_path: &str, pattern: &Regex) -> ScanCont
             let is_next_line_suppressed = suppressed_lines.contains(&line_idx);
             let is_suppressed = has_inline_ignore || is_next_line_suppressed;
 
-            // Strip trailing todox:ignore from message text
+            // Strip trailing todo-scan:ignore from message text
             if has_inline_ignore {
                 if let Some(pos) = message.find(IGNORE_MARKER) {
                     message = message[..pos].trim().to_string();
@@ -1329,12 +1334,12 @@ line four
         }
     }
 
-    // --- todox:ignore suppression tests ---
+    // --- todo-scan:ignore suppression tests ---
 
     #[test]
     fn test_ignore_inline_suppresses_item() {
         let pattern = default_pattern();
-        let content = "// TODO: keep this\n// TODO: suppress this todox:ignore\n";
+        let content = "// TODO: keep this\n// TODO: suppress this todo-scan:ignore\n";
         let result = scan_content(content, "test.rs", &pattern);
 
         assert_eq!(result.items.len(), 1);
@@ -1346,7 +1351,7 @@ line four
     #[test]
     fn test_ignore_next_line_suppresses_following_item() {
         let pattern = default_pattern();
-        let content = "// todox:ignore-next-line\n// TODO: suppressed by next-line\n// TODO: not suppressed\n";
+        let content = "// todo-scan:ignore-next-line\n// TODO: suppressed by next-line\n// TODO: not suppressed\n";
         let result = scan_content(content, "test.rs", &pattern);
 
         assert_eq!(result.items.len(), 1);
@@ -1358,7 +1363,8 @@ line four
     #[test]
     fn test_ignore_next_line_only_affects_immediate_next() {
         let pattern = default_pattern();
-        let content = "// todox:ignore-next-line\n// TODO: suppressed\n// TODO: not suppressed\n";
+        let content =
+            "// todo-scan:ignore-next-line\n// TODO: suppressed\n// TODO: not suppressed\n";
         let result = scan_content(content, "test.rs", &pattern);
 
         assert_eq!(result.items.len(), 1);
@@ -1369,7 +1375,7 @@ line four
     #[test]
     fn test_ignore_next_line_blank_line_between_does_not_suppress() {
         let pattern = default_pattern();
-        let content = "// todox:ignore-next-line\n\n// TODO: should not be suppressed\n";
+        let content = "// todo-scan:ignore-next-line\n\n// TODO: should not be suppressed\n";
         let result = scan_content(content, "test.rs", &pattern);
 
         assert_eq!(result.items.len(), 1);
@@ -1382,10 +1388,10 @@ line four
         let pattern = default_pattern();
         let content = "\
 // TODO: normal item
-// todox:ignore-next-line
+// todo-scan:ignore-next-line
 // FIXME: suppressed fixme
 // HACK: normal hack
-// BUG: suppressed bug todox:ignore
+// BUG: suppressed bug todo-scan:ignore
 ";
         let result = scan_content(content, "test.rs", &pattern);
 
@@ -1411,7 +1417,7 @@ line four
     #[test]
     fn test_ignore_strips_marker_from_message() {
         let pattern = default_pattern();
-        let content = "// TODO: fix this todox:ignore\n";
+        let content = "// TODO: fix this todo-scan:ignore\n";
         let result = scan_content(content, "test.rs", &pattern);
 
         assert_eq!(result.ignored_items.len(), 1);
@@ -1423,7 +1429,7 @@ line four
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
             dir.path().join("test.rs"),
-            "// TODO: visible\n// TODO: hidden todox:ignore\n",
+            "// TODO: visible\n// TODO: hidden todo-scan:ignore\n",
         )
         .unwrap();
 

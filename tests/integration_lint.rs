@@ -3,8 +3,8 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 fn setup_project(files: &[(&str, &str)]) -> TempDir {
@@ -25,7 +25,7 @@ fn setup_project(files: &[(&str, &str)]) -> TempDir {
 fn test_lint_pass_valid_todos() {
     let dir = setup_project(&[("main.rs", "// TODO: implement this feature\n")]);
 
-    todox()
+    todo_scan()
         .args(["lint", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -39,7 +39,7 @@ fn test_lint_pass_with_author_and_issue() {
         "// TODO(alice): fix issue #123\n// FIXME(bob): handle edge case JIRA-456\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -60,7 +60,7 @@ fn test_lint_pass_with_author_and_issue() {
 fn test_lint_fail_bare_tag() {
     let dir = setup_project(&[("main.rs", "// TODO:\n")]);
 
-    todox()
+    todo_scan()
         .args(["lint", "--root", dir.path().to_str().unwrap()])
         .assert()
         .code(1)
@@ -72,7 +72,7 @@ fn test_lint_fail_bare_tag() {
 fn test_lint_fail_bare_tag_no_colon() {
     let dir = setup_project(&[("main.rs", "// TODO\n")]);
 
-    todox()
+    todo_scan()
         .args(["lint", "--root", dir.path().to_str().unwrap()])
         .assert()
         .code(1)
@@ -85,7 +85,7 @@ fn test_lint_fail_bare_tag_no_colon() {
 fn test_lint_fail_lowercase_tag() {
     let dir = setup_project(&[("main.rs", "// todo: lowercase tag\n")]);
 
-    todox()
+    todo_scan()
         .args(["lint", "--root", dir.path().to_str().unwrap()])
         .assert()
         .code(1)
@@ -97,7 +97,7 @@ fn test_lint_fail_lowercase_tag() {
 fn test_lint_fail_mixed_case_tag() {
     let dir = setup_project(&[("main.rs", "// Todo: mixed case\n")]);
 
-    todox()
+    todo_scan()
         .args(["lint", "--root", dir.path().to_str().unwrap()])
         .assert()
         .code(1)
@@ -110,7 +110,7 @@ fn test_lint_fail_mixed_case_tag() {
 fn test_lint_fail_missing_colon() {
     let dir = setup_project(&[("main.rs", "// TODO fix without colon\n")]);
 
-    todox()
+    todo_scan()
         .args(["lint", "--root", dir.path().to_str().unwrap()])
         .assert()
         .code(1)
@@ -124,7 +124,7 @@ fn test_lint_fail_missing_colon() {
 fn test_lint_fail_missing_author() {
     let dir = setup_project(&[("main.rs", "// TODO: no author here\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -142,7 +142,7 @@ fn test_lint_fail_missing_author() {
 fn test_lint_pass_author_present() {
     let dir = setup_project(&[("main.rs", "// TODO(alice): has author\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -159,7 +159,7 @@ fn test_lint_pass_author_present() {
 fn test_lint_require_author_ignores_other_tags() {
     let dir = setup_project(&[("main.rs", "// NOTE: no author needed\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -178,7 +178,7 @@ fn test_lint_require_author_ignores_other_tags() {
 fn test_lint_fail_missing_issue_ref() {
     let dir = setup_project(&[("main.rs", "// BUG: no issue ref\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -196,7 +196,7 @@ fn test_lint_fail_missing_issue_ref() {
 fn test_lint_pass_issue_ref_present() {
     let dir = setup_project(&[("main.rs", "// BUG: fix crash #42\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -218,7 +218,7 @@ fn test_lint_fail_message_too_long() {
         "// TODO: this is a very long message that exceeds the limit\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -236,7 +236,7 @@ fn test_lint_fail_message_too_long() {
 fn test_lint_pass_message_within_limit() {
     let dir = setup_project(&[("main.rs", "// TODO: short\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -255,7 +255,7 @@ fn test_lint_pass_message_within_limit() {
 fn test_lint_json_format_pass() {
     let dir = setup_project(&[("main.rs", "// TODO: valid task\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -273,7 +273,7 @@ fn test_lint_json_format_pass() {
 fn test_lint_json_format_fail() {
     let dir = setup_project(&[("main.rs", "// todo: lowercase\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -291,7 +291,7 @@ fn test_lint_json_format_fail() {
 fn test_lint_github_actions_format_pass() {
     let dir = setup_project(&[("main.rs", "// TODO: valid task\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -301,14 +301,14 @@ fn test_lint_github_actions_format_pass() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("::notice::todox lint: PASS"));
+        .stdout(predicate::str::contains("::notice::todo-scan lint: PASS"));
 }
 
 #[test]
 fn test_lint_github_actions_format_fail() {
     let dir = setup_project(&[("main.rs", "// todo: lowercase\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -321,14 +321,14 @@ fn test_lint_github_actions_format_fail() {
         .stdout(predicate::str::contains(
             "::error file=main.rs,line=1,title=uppercase_tag",
         ))
-        .stdout(predicate::str::contains("::error::todox lint: FAIL"));
+        .stdout(predicate::str::contains("::error::todo-scan lint: FAIL"));
 }
 
 #[test]
 fn test_lint_sarif_format_pass() {
     let dir = setup_project(&[("main.rs", "// TODO: valid task\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -346,7 +346,7 @@ fn test_lint_sarif_format_pass() {
 fn test_lint_sarif_format_fail() {
     let dir = setup_project(&[("main.rs", "// todo: lowercase\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -356,7 +356,7 @@ fn test_lint_sarif_format_fail() {
         ])
         .assert()
         .code(1)
-        .stdout(predicate::str::contains("todox/lint/uppercase_tag"))
+        .stdout(predicate::str::contains("todo-scan/lint/uppercase_tag"))
         .stdout(predicate::str::contains("\"level\": \"error\""));
 }
 
@@ -364,7 +364,7 @@ fn test_lint_sarif_format_fail() {
 fn test_lint_markdown_format_pass() {
     let dir = setup_project(&[("main.rs", "// TODO: valid task\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -382,7 +382,7 @@ fn test_lint_markdown_format_pass() {
 fn test_lint_markdown_format_fail() {
     let dir = setup_project(&[("main.rs", "// todo: lowercase\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "lint",
             "--root",
@@ -403,7 +403,7 @@ fn test_lint_config_file_require_author() {
     let dir = setup_project(&[
         ("main.rs", "// TODO: no author\n"),
         (
-            ".todox.toml",
+            ".todo-scan.toml",
             r#"
 [lint]
 require_author = ["TODO"]
@@ -411,7 +411,7 @@ require_author = ["TODO"]
         ),
     ]);
 
-    todox()
+    todo_scan()
         .args(["lint", "--root", dir.path().to_str().unwrap()])
         .assert()
         .code(1)
@@ -423,7 +423,7 @@ fn test_lint_config_file_disable_defaults() {
     let dir = setup_project(&[
         ("main.rs", "// todo fix something\n"),
         (
-            ".todox.toml",
+            ".todo-scan.toml",
             r#"
 [lint]
 no_bare_tags = false
@@ -433,7 +433,7 @@ require_colon = false
         ),
     ]);
 
-    todox()
+    todo_scan()
         .args(["lint", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -449,7 +449,7 @@ fn test_lint_multiple_violations_same_file() {
         "// todo fix something\n// FIXME no colon either\n",
     )]);
 
-    todox()
+    todo_scan()
         .args(["lint", "--root", dir.path().to_str().unwrap()])
         .assert()
         .code(1)
@@ -462,7 +462,7 @@ fn test_lint_multiple_violations_same_file() {
 fn test_lint_exit_code_0_on_pass() {
     let dir = setup_project(&[("main.rs", "// TODO: valid task\n")]);
 
-    todox()
+    todo_scan()
         .args(["lint", "--root", dir.path().to_str().unwrap()])
         .assert()
         .code(0);
@@ -472,7 +472,7 @@ fn test_lint_exit_code_0_on_pass() {
 fn test_lint_exit_code_1_on_fail() {
     let dir = setup_project(&[("main.rs", "// todo: lowercase\n")]);
 
-    todox()
+    todo_scan()
         .args(["lint", "--root", dir.path().to_str().unwrap()])
         .assert()
         .code(1);
@@ -484,7 +484,7 @@ fn test_lint_exit_code_1_on_fail() {
 fn test_lint_empty_project() {
     let dir = setup_project(&[("main.rs", "fn main() {}\n")]);
 
-    todox()
+    todo_scan()
         .args(["lint", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -500,7 +500,7 @@ fn test_lint_multiple_files() {
         ("src/b.rs", "// TODO: valid in file b\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["lint", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()

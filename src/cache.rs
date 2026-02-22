@@ -152,14 +152,14 @@ fn system_time_to_parts(time: SystemTime) -> (u64, u32) {
 }
 
 /// Compute the cache file path for a given repo root.
-/// Returns `~/.cache/todox/<repo-hash>/scan-cache.bin` (or platform equivalent).
+/// Returns `~/.cache/todo-scan/<repo-hash>/scan-cache.bin` (or platform equivalent).
 fn cache_path(repo_root: &Path) -> Option<PathBuf> {
     let cache_dir = dirs::cache_dir()?;
     let repo_hash = blake3::hash(repo_root.to_string_lossy().as_bytes());
     let hex = format!("{}", repo_hash.to_hex());
     Some(
         cache_dir
-            .join("todox")
+            .join("todo-scan")
             .join(&hex[..16])
             .join("scan-cache.bin"),
     )

@@ -1,4 +1,4 @@
-# todox
+# todo-scan
 
 [![CI](https://github.com/sotayamashita/todox/actions/workflows/ci.yml/badge.svg)](https://github.com/sotayamashita/todox/actions/workflows/ci.yml) [![codecov](https://codecov.io/gh/sotayamashita/todox/graph/badge.svg)](https://codecov.io/gh/sotayamashita/todox) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/sotayamashita/todox)
 
@@ -54,32 +54,32 @@ TODO comments scatter across hundreds of files, making it hard to know what's ou
 
 🌱 **Solution**
 
-`todox list` scans your entire codebase and displays every TODO, FIXME, HACK, XXX, BUG, and NOTE comment with color-coded tags, flexible grouping (`--group-by file|tag|priority|author|dir`), and filtering by priority, author, path glob, and result limit.
+`todo-scan list` scans your entire codebase and displays every TODO, FIXME, HACK, XXX, BUG, and NOTE comment with color-coded tags, flexible grouping (`--group-by file|tag|priority|author|dir`), and filtering by priority, author, path glob, and result limit.
 
 🎁 **Outcome**
 
 One command gives you a complete, filterable inventory of all technical debt markers in your project.
 
 ```sh
-todox list --group-by tag --priority high
+todo-scan list --group-by tag --priority high
 ```
 
 ### Search TODOs
 
 🔥 **Problem**
 
-Scrolling through `todox list` output or manually grepping to find specific TODOs is impractical in large codebases with hundreds of items.
+Scrolling through `todo-scan list` output or manually grepping to find specific TODOs is impractical in large codebases with hundreds of items.
 
 🌱 **Solution**
 
-`todox search` filters TODO comments by message text or issue reference using case-insensitive substring matching, with `--exact` for case-sensitive searches and `-C` for context lines.
+`todo-scan search` filters TODO comments by message text or issue reference using case-insensitive substring matching, with `--exact` for case-sensitive searches and `-C` for context lines.
 
 🎁 **Outcome**
 
 You can instantly find relevant TODOs without scrolling through hundreds of items.
 
 ```sh
-todox search "migration" --author alice
+todo-scan search "migration" --author alice
 ```
 
 ### Inline Code Context
@@ -90,14 +90,14 @@ TODO lists show file:line references but lack surrounding code, forcing you to o
 
 🌱 **Solution**
 
-`todox context` displays the code around a specific line with related TODOs in the same file, and the `-C N` flag on `list` and `diff` adds inline context to every item.
+`todo-scan context` displays the code around a specific line with related TODOs in the same file, and the `-C N` flag on `list` and `diff` adds inline context to every item.
 
 🎁 **Outcome**
 
 You understand what each TODO refers to without leaving the terminal.
 
 ```sh
-todox context src/main.rs:25 -C 3
+todo-scan context src/main.rs:25 -C 3
 ```
 
 ### Progressive Detail Levels
@@ -112,11 +112,11 @@ Humans scanning a terminal need compact output, while AI agents need full metada
 
 🎁 **Outcome**
 
-One flag adapts todox output from quick human glances to rich machine-readable payloads without separate commands.
+One flag adapts todo-scan output from quick human glances to rich machine-readable payloads without separate commands.
 
 ```sh
-todox list --detail minimal
-todox search "migration" --detail full --format json
+todo-scan list --detail minimal
+todo-scan search "migration" --detail full --format json
 ```
 
 ### Diff Against Git Refs
@@ -127,14 +127,14 @@ New TODOs slip into pull requests unnoticed while resolved ones go unrecognized.
 
 🌱 **Solution**
 
-`todox diff` compares the current working tree against any git ref and shows exactly which TODOs were added or removed.
+`todo-scan diff` compares the current working tree against any git ref and shows exactly which TODOs were added or removed.
 
 🎁 **Outcome**
 
 Every PR review shows precisely what TODO debt changed, making it impossible to sneak in untracked work.
 
 ```sh
-todox diff main
+todo-scan diff main
 ```
 
 ### Dashboard & Statistics
@@ -145,14 +145,14 @@ A flat list of TODOs makes it hard to see the big picture — whether tech debt 
 
 🌱 **Solution**
 
-`todox stats` provides a dashboard summary with tag and author breakdowns, priority distribution, and top files by TODO count, with `--since <ref>` for trend analysis.
+`todo-scan stats` provides a dashboard summary with tag and author breakdowns, priority distribution, and top files by TODO count, with `--since <ref>` for trend analysis.
 
 🎁 **Outcome**
 
 You get an at-a-glance view of your project's technical debt health and trends.
 
 ```sh
-todox stats --since main
+todo-scan stats --since main
 ```
 
 ### Git Blame Integration
@@ -163,14 +163,14 @@ TODO comments lack accountability — you can't tell who wrote them or when with
 
 🌱 **Solution**
 
-`todox blame` enriches each TODO with git blame metadata including author, commit date, and age in days, and flags items older than a configurable threshold as stale.
+`todo-scan blame` enriches each TODO with git blame metadata including author, commit date, and age in days, and flags items older than a configurable threshold as stale.
 
 🎁 **Outcome**
 
 Every TODO has clear ownership and age, making it easy to prioritize and assign cleanup work.
 
 ```sh
-todox blame --sort age --min-age 90d
+todo-scan blame --sort age --min-age 90d
 ```
 
 ### Discover TODO Relationships
@@ -181,25 +181,25 @@ TODOs in large codebases form implicit dependency chains, but existing tools tre
 
 🌱 **Solution**
 
-`todox relate` discovers relationships between TODO comments using same-file proximity, shared keywords, cross-references (same issue or author), and tag similarity, scoring each pair on a 0–1 scale.
+`todo-scan relate` discovers relationships between TODO comments using same-file proximity, shared keywords, cross-references (same issue or author), and tag similarity, scoring each pair on a 0–1 scale.
 
 🎁 **Outcome**
 
 Related TODOs surface as actionable clusters, revealing hidden patterns in your technical debt.
 
 ```sh
-todox relate --cluster
+todo-scan relate --cluster
 ```
 
 ### Inline Suppression
 
 🔥 **Problem**
 
-Some TODO comments are intentional or false positives, but the only way to exclude them is file-level patterns in `.todox.toml`, which is too coarse.
+Some TODO comments are intentional or false positives, but the only way to exclude them is file-level patterns in `.todo-scan.toml`, which is too coarse.
 
 🌱 **Solution**
 
-Add `todox:ignore` at the end of a TODO line to suppress that specific item, or place `todox:ignore-next-line` on the line above to suppress the following TODO. Suppressed items are excluded from counts, checks, and output by default. Use `--show-ignored` to reveal them.
+Add `todo-scan:ignore` at the end of a TODO line to suppress that specific item, or place `todo-scan:ignore-next-line` on the line above to suppress the following TODO. Suppressed items are excluded from counts, checks, and output by default. Use `--show-ignored` to reveal them.
 
 🎁 **Outcome**
 
@@ -207,8 +207,8 @@ You get fine-grained, inline control over false positives without maintaining ex
 
 ```
 // TODO: this is tracked normally
-// TODO: known false positive todox:ignore
-// todox:ignore-next-line
+// TODO: known false positive todo-scan:ignore
+// todo-scan:ignore-next-line
 // FIXME: suppressed item
 ```
 
@@ -220,14 +220,14 @@ TODO comments in team codebases drift in format — inconsistent casing, missing
 
 🌱 **Solution**
 
-`todox lint` enforces configurable formatting rules (uppercase tags, colons, author attribution, issue references, message length) and exits with code 1 on violations, making it CI-ready out of the box.
+`todo-scan lint` enforces configurable formatting rules (uppercase tags, colons, author attribution, issue references, message length) and exits with code 1 on violations, making it CI-ready out of the box.
 
 🎁 **Outcome**
 
 Every TODO in your codebase follows consistent formatting, improving both machine parseability and human readability.
 
 ```sh
-todox lint --require-author TODO,FIXME
+todo-scan lint --require-author TODO,FIXME
 ```
 
 ### Clean Stale & Duplicate TODOs
@@ -238,14 +238,14 @@ TODOs accumulate faster than they resolve, and no amount of listing or linting r
 
 🌱 **Solution**
 
-`todox clean` identifies TODOs referencing closed GitHub issues (stale) and those with identical messages across files (duplicates).
+`todo-scan clean` identifies TODOs referencing closed GitHub issues (stale) and those with identical messages across files (duplicates).
 
 🎁 **Outcome**
 
 You get an actionable cleanup list that targets the lowest-hanging fruit first.
 
 ```sh
-todox clean --check
+todo-scan clean --check
 ```
 
 ### CI Quality Gate
@@ -256,14 +256,14 @@ Without enforcement, TODO debt grows silently until it becomes unmanageable.
 
 🌱 **Solution**
 
-`todox check` acts as a CI gate that fails the build when TODO counts exceed a threshold, forbidden tags appear, too many new TODOs are introduced, or deadlines have expired.
+`todo-scan check` acts as a CI gate that fails the build when TODO counts exceed a threshold, forbidden tags appear, too many new TODOs are introduced, or deadlines have expired.
 
 🎁 **Outcome**
 
 Your CI pipeline automatically prevents TODO debt from spiraling out of control.
 
 ```sh
-todox check --max 100 --block-tags BUG
+todo-scan check --max 100 --block-tags BUG
 ```
 
 ### Workspace-Aware Scanning
@@ -274,14 +274,14 @@ Monorepos lack per-package TODO visibility — you can't tell which packages are
 
 🌱 **Solution**
 
-`todox workspace list` auto-detects your workspace format (Cargo, npm, pnpm, Nx, Go workspaces), scans each package independently, and displays a summary table with TODO counts, configured thresholds, and pass/fail status.
+`todo-scan workspace list` auto-detects your workspace format (Cargo, npm, pnpm, Nx, Go workspaces), scans each package independently, and displays a summary table with TODO counts, configured thresholds, and pass/fail status.
 
 🎁 **Outcome**
 
 Every package's TODO health is visible at a glance, making it easy to spot where debt concentrates.
 
 ```sh
-todox workspace list
+todo-scan workspace list
 ```
 
 ### Per-Package CI Gate
@@ -292,14 +292,14 @@ A single global `--max` threshold doesn't work for monorepos where packages have
 
 🌱 **Solution**
 
-`todox check --workspace` evaluates per-package thresholds defined in `[workspace.packages.<name>]` config sections, failing the build if any package exceeds its individual limit or uses forbidden tags.
+`todo-scan check --workspace` evaluates per-package thresholds defined in `[workspace.packages.<name>]` config sections, failing the build if any package exceeds its individual limit or uses forbidden tags.
 
 🎁 **Outcome**
 
 Each package enforces its own TODO budget, matching reality instead of a one-size-fits-all limit.
 
 ```sh
-todox check --workspace
+todo-scan check --workspace
 ```
 
 ### Single Package Scope
@@ -317,7 +317,7 @@ The `--package` flag on `list`, `check`, and `diff` scopes the scan to a single 
 You get focused results for just the package you're working on.
 
 ```sh
-todox list --package core
+todo-scan list --package core
 ```
 
 ### HTML Report Generation
@@ -328,14 +328,14 @@ Presenting TODO metrics to stakeholders requires manual data collection and slid
 
 🌱 **Solution**
 
-`todox report` generates a self-contained HTML dashboard with summary cards, trend charts from git history, tag/priority/age distribution, author breakdowns, and a sortable items table — zero external dependencies.
+`todo-scan report` generates a self-contained HTML dashboard with summary cards, trend charts from git history, tag/priority/age distribution, author breakdowns, and a sortable items table — zero external dependencies.
 
 🎁 **Outcome**
 
 You get a shareable, presentation-ready report droppable into any CI pipeline as an artifact.
 
 ```sh
-todox report --output debt.html --history 20
+todo-scan report --output debt.html --history 20
 ```
 
 ### CI Output Formats
@@ -346,68 +346,68 @@ Plain text output requires extra tooling to integrate with CI dashboards and PR 
 
 🌱 **Solution**
 
-todox supports `--format github-actions` for inline PR annotations, `--format sarif` for GitHub's [Code Scanning](https://docs.github.com/en/code-security/code-scanning) tab via SARIF, and `--format markdown` for PR comment bot tables.
+todo-scan supports `--format github-actions` for inline PR annotations, `--format sarif` for GitHub's [Code Scanning](https://docs.github.com/en/code-security/code-scanning) tab via SARIF, and `--format markdown` for PR comment bot tables.
 
 🎁 **Outcome**
 
-todox integrates natively with your CI pipeline without any glue scripts.
+todo-scan integrates natively with your CI pipeline without any glue scripts.
 
 ```sh
-todox list --format github-actions
+todo-scan list --format github-actions
 ```
 
 ### Claude Code Task Export
 
 🔥 **Problem**
 
-Bridging TODO scanning with AI task orchestration requires manually parsing `todox list --format json` output and constructing TaskCreate calls.
+Bridging TODO scanning with AI task orchestration requires manually parsing `todo-scan list --format json` output and constructing TaskCreate calls.
 
 🌱 **Solution**
 
-`todox tasks` exports scanned TODOs as Claude Code Task-compatible JSON with action-verb subjects, code context in descriptions, and priority-based ordering.
+`todo-scan tasks` exports scanned TODOs as Claude Code Task-compatible JSON with action-verb subjects, code context in descriptions, and priority-based ordering.
 
 🎁 **Outcome**
 
 Your TODOs become AI-assignable tasks with a single command.
 
 ```sh
-todox tasks --dry-run
+todo-scan tasks --dry-run
 ```
 
 ### Real-time File Watching
 
 🔥 **Problem**
 
-Re-running `todox list` after every edit breaks flow when actively cleaning up TODO debt.
+Re-running `todo-scan list` after every edit breaks flow when actively cleaning up TODO debt.
 
 🌱 **Solution**
 
-`todox watch` monitors the filesystem and shows real-time TODO additions and removals as files change, with optional `--max` threshold warnings.
+`todo-scan watch` monitors the filesystem and shows real-time TODO additions and removals as files change, with optional `--max` threshold warnings.
 
 🎁 **Outcome**
 
 You see the impact of your cleanup work instantly without switching context.
 
 ```sh
-todox watch
+todo-scan watch
 ```
 
 ### Interactive Setup
 
 🔥 **Problem**
 
-New users must manually create `.todox.toml` from documentation, slowing onboarding.
+New users must manually create `.todo-scan.toml` from documentation, slowing onboarding.
 
 🌱 **Solution**
 
-`todox init` walks you through an interactive setup that detects your project type (Rust, Node, Go, Python), suggests appropriate exclude directories, and lets you choose which tags to track.
+`todo-scan init` walks you through an interactive setup that detects your project type (Rust, Node, Go, Python), suggests appropriate exclude directories, and lets you choose which tags to track.
 
 🎁 **Outcome**
 
 You go from zero to a working configuration in seconds, not minutes of documentation reading.
 
 ```sh
-todox init
+todo-scan init
 ```
 
 ### Shell Completions
@@ -418,14 +418,14 @@ Shell completions are table stakes for CLI tools but require manual setup.
 
 🌱 **Solution**
 
-`todox completions` generates completion scripts for bash, zsh, fish, elvish, and PowerShell and outputs them to stdout for easy installation.
+`todo-scan completions` generates completion scripts for bash, zsh, fish, elvish, and PowerShell and outputs them to stdout for easy installation.
 
 🎁 **Outcome**
 
 Tab completion works out of the box for every major shell.
 
 ```sh
-todox completions fish > ~/.config/fish/completions/todox.fish
+todo-scan completions fish > ~/.config/fish/completions/todo-scan.fish
 ```
 
 ### What it detects
@@ -440,8 +440,8 @@ Tags: `TODO`, `FIXME`, `HACK`, `XXX`, `BUG`, `NOTE` (case-insensitive)
 // HACK(bob): workaround for JIRA-456   ← author + issue ref
 // TODO(2025-06-01): migrate to v2 API   ← deadline (YYYY-MM-DD)
 // TODO(alice, 2025-Q2): refactor auth   ← author + deadline (quarter)
-// TODO: false positive todox:ignore     ← suppressed from output
-// todox:ignore-next-line                ← suppresses the line below
+// TODO: false positive todo-scan:ignore     ← suppressed from output
+// todo-scan:ignore-next-line                ← suppresses the line below
 // FIXME: suppressed item
 ```
 
@@ -462,11 +462,11 @@ The scanner uses line-based heuristic comment detection, not a language parser. 
 | `{-`   | Haskell (block) |
 | `%`    | LaTeX, Erlang, MATLAB |
 
-> **Note:** Detection is line-based. Multi-line constructs (Python docstrings, heredocs) are not supported. Tags must appear as standalone words — `todox` and `TODOS` will not match `TODO`.
+> **Note:** Detection is line-based. Multi-line constructs (Python docstrings, heredocs) are not supported. Tags must appear as standalone words — `todo-scan` and `TODOS` will not match `TODO`.
 
 ### Supported workspace formats
 
-todox auto-detects monorepo/workspace layouts by checking for these manifest files in order:
+todo-scan auto-detects monorepo/workspace layouts by checking for these manifest files in order:
 
 | Format | Manifest File | Member Field |
 |--------|--------------|--------------|
@@ -476,7 +476,7 @@ todox auto-detects monorepo/workspace layouts by checking for these manifest fil
 | Nx     | `workspace.json` | `"projects"` map |
 | Go     | `go.work` | `use` directives |
 
-Glob patterns in member lists (e.g., `packages/*`, `crates/*`) are expanded automatically. You can also define packages manually in `.todox.toml` with `[workspace]` configuration.
+Glob patterns in member lists (e.g., `packages/*`, `crates/*`) are expanded automatically. You can also define packages manually in `.todo-scan.toml` with `[workspace]` configuration.
 
 ## Installation
 
@@ -490,160 +490,160 @@ cargo install --path .
 
 ```bash
 # List all TODOs in current directory
-todox list
+todo-scan list
 
 # Short alias
-todox ls
+todo-scan ls
 
 # Filter by tag
-todox list --tag FIXME
-todox list --tag TODO --tag BUG
+todo-scan list --tag FIXME
+todo-scan list --tag TODO --tag BUG
 
 # Filter by priority, author, or path
-todox list --priority urgent
-todox list --author alice
-todox list --path "src/**"
+todo-scan list --priority urgent
+todo-scan list --author alice
+todo-scan list --path "src/**"
 
 # Combine filters
-todox list --priority urgent --author alice --path "src/**"
+todo-scan list --priority urgent --author alice --path "src/**"
 
 # Limit results
-todox list --limit 10
+todo-scan list --limit 10
 
 # Group by tag, priority, author, or directory (default: file)
-todox list --group-by tag
-todox list --group-by priority
-todox list --group-by author
-todox list --group-by dir
+todo-scan list --group-by tag
+todo-scan list --group-by priority
+todo-scan list --group-by author
+todo-scan list --group-by dir
 
 # Sort by priority or tag severity
-todox list --sort priority
-todox list --sort tag
+todo-scan list --sort priority
+todo-scan list --sort tag
 
 # JSON output
-todox list --format json
+todo-scan list --format json
 ```
 
 ### Search TODOs
 
 ```bash
 # Search by message text (case-insensitive)
-todox search "migration"
+todo-scan search "migration"
 
 # Short alias
-todox s "migration"
+todo-scan s "migration"
 
 # Case-sensitive exact match
-todox search "TODO" --exact
+todo-scan search "TODO" --exact
 
 # Search by issue reference
-todox search "#123"
+todo-scan search "#123"
 
 # Combine with filters
-todox search "fix" --author alice --tag FIXME --path "src/**"
+todo-scan search "fix" --author alice --tag FIXME --path "src/**"
 
 # Show context lines around matches
-todox search "bug" -C 3
+todo-scan search "bug" -C 3
 
 # JSON output with query metadata
-todox search "fix" --format json
+todo-scan search "fix" --format json
 ```
 
 ### Show context around TODOs
 
 ```bash
 # Show code context around a specific line (default: 5 lines)
-todox context src/main.rs:25
+todo-scan context src/main.rs:25
 
 # Custom context window
-todox context src/main.rs:25 -C 3
+todo-scan context src/main.rs:25 -C 3
 
 # JSON output with related TODOs
-todox context src/main.rs:25 --format json
+todo-scan context src/main.rs:25 --format json
 
 # Add context lines to list output
-todox list -C 3
-todox list -C 2 --format json
+todo-scan list -C 3
+todo-scan list -C 2 --format json
 
 # Add context lines to diff output
-todox diff main -C 2
+todo-scan diff main -C 2
 ```
 
 ### Diff against a git ref
 
 ```bash
 # Compare against main branch
-todox diff main
+todo-scan diff main
 
 # Compare against recent commits
-todox diff HEAD~3
+todo-scan diff HEAD~3
 
 # Filter diff by tag
-todox diff main --tag FIXME
+todo-scan diff main --tag FIXME
 
 # JSON output
-todox diff main --format json
+todo-scan diff main --format json
 ```
 
 ### Blame — TODO age and ownership
 
 ```bash
 # Show all TODOs with git blame metadata
-todox blame
+todo-scan blame
 
 # Sort by age (oldest first)
-todox blame --sort age
+todo-scan blame --sort age
 
 # Filter by author (substring match)
-todox blame --author alice
+todo-scan blame --author alice
 
 # Filter by minimum age
-todox blame --min-age 90d
+todo-scan blame --min-age 90d
 
 # Set stale threshold (default: 365 days)
-todox blame --stale-threshold 180d
+todo-scan blame --stale-threshold 180d
 
 # Filter by tag or path
-todox blame --tag TODO
-todox blame --path "src/**"
+todo-scan blame --tag TODO
+todo-scan blame --path "src/**"
 
 # JSON output
-todox blame --format json
+todo-scan blame --format json
 ```
 
 ### Stats dashboard
 
 ```bash
 # Show tag/priority/author/hotspot summary
-todox stats
+todo-scan stats
 
 # Show trend compared to a git ref
-todox stats --since main
+todo-scan stats --since main
 
 # JSON output
-todox stats --format json
+todo-scan stats --format json
 ```
 
 ### Lint TODO formatting
 
 ```bash
 # Check formatting with sensible defaults (uppercase, colon, no bare tags)
-todox lint
+todo-scan lint
 
 # Require author for specific tags
-todox lint --require-author TODO,FIXME
+todo-scan lint --require-author TODO,FIXME
 
 # Require issue reference for BUG tags
-todox lint --require-issue-ref BUG
+todo-scan lint --require-issue-ref BUG
 
 # Enforce max message length
-todox lint --max-message-length 120
+todo-scan lint --max-message-length 120
 
 # Combine rules
-todox lint --require-author TODO --require-issue-ref BUG --max-message-length 120
+todo-scan lint --require-author TODO --require-issue-ref BUG --max-message-length 120
 
 # JSON output
-todox lint --format json
+todo-scan lint --format json
 ```
 
 Exit codes: `0` = pass, `1` = fail, `2` = error.
@@ -652,16 +652,16 @@ Exit codes: `0` = pass, `1` = fail, `2` = error.
 
 ```bash
 # Dry-run: show stale and duplicate TODOs (always exit 0)
-todox clean
+todo-scan clean
 
 # CI gate: exit 1 if any violations found
-todox clean --check
+todo-scan clean --check
 
 # Only flag issues closed more than 30 days ago
-todox clean --since 30d
+todo-scan clean --since 30d
 
 # JSON output
-todox clean --format json
+todo-scan clean --format json
 ```
 
 Exit codes (with `--check`): `0` = pass, `1` = fail, `2` = error. Without `--check`, always exits `0`.
@@ -669,39 +669,39 @@ Exit codes (with `--check`): `0` = pass, `1` = fail, `2` = error. Without `--che
 ### HTML report
 
 ```bash
-# Generate report with default settings (todox-report.html)
-todox report
+# Generate report with default settings (todo-scan-report.html)
+todo-scan report
 
 # Custom output path
-todox report --output debt-report.html
+todo-scan report --output debt-report.html
 
 # Sample more commits for trend chart
-todox report --history 20
+todo-scan report --history 20
 
 # Skip history analysis (faster)
-todox report --history 0
+todo-scan report --history 0
 
 # Set stale threshold
-todox report --stale-threshold 180d
+todo-scan report --stale-threshold 180d
 ```
 
 ### CI gate
 
 ```bash
 # Fail if total TODOs exceed 100
-todox check --max 100
+todo-scan check --max 100
 
 # Fail if any FIXME or BUG tags exist
-todox check --block-tags FIXME,BUG
+todo-scan check --block-tags FIXME,BUG
 
 # Fail if new TODOs were added since main
-todox check --max-new 0 --since main
+todo-scan check --max-new 0 --since main
 
 # Fail if any TODOs have expired deadlines
-todox check --expired
+todo-scan check --expired
 
 # Combine rules
-todox check --max 50 --block-tags BUG --max-new 0 --since main --expired
+todo-scan check --max 50 --block-tags BUG --max-new 0 --since main --expired
 ```
 
 Exit codes: `0` = pass, `1` = fail, `2` = error.
@@ -710,69 +710,69 @@ Exit codes: `0` = pass, `1` = fail, `2` = error.
 
 ```bash
 # List all packages with TODO counts
-todox workspace list
+todo-scan workspace list
 
 # Short aliases
-todox ws ls
+todo-scan ws ls
 
 # JSON output
-todox workspace list --format json
+todo-scan workspace list --format json
 
 # Scope any command to a single package
-todox list --package core
-todox check --max 50 --package cli
-todox diff main --package core
+todo-scan list --package core
+todo-scan check --max 50 --package cli
+todo-scan diff main --package core
 
 # Per-package CI gate (uses [workspace.packages.*] config)
-todox check --workspace
+todo-scan check --workspace
 ```
 
 ### Relate — TODO relationships and clusters
 
 ```bash
 # Discover all relationships (text output)
-todox relate
+todo-scan relate
 
 # JSON output
-todox relate --format json
+todo-scan relate --format json
 
 # Group related TODOs into clusters
-todox relate --cluster
+todo-scan relate --cluster
 
 # Show TODOs related to a specific item
-todox relate --for src/auth.rs:42
+todo-scan relate --for src/auth.rs:42
 
 # Set minimum relationship score (default: 0.3)
-todox relate --min-score 0.5
+todo-scan relate --min-score 0.5
 
 # Adjust proximity threshold (default: 10 lines)
-todox relate --proximity 20
+todo-scan relate --proximity 20
 
 # Combine options
-todox relate --cluster --min-score 0.4 --format json
+todo-scan relate --cluster --min-score 0.4 --format json
 ```
 
 ### Export as Claude Code Tasks
 
 ```bash
 # Preview tasks as JSON to stdout
-todox tasks --dry-run
+todo-scan tasks --dry-run
 
 # Write individual task files to a directory
-todox tasks --output ~/.claude/tasks/my-sprint/
+todo-scan tasks --output ~/.claude/tasks/my-sprint/
 
 # Filter by tag, priority, author, or path
-todox tasks --dry-run --tag BUG --priority urgent
-todox tasks --dry-run --author alice --path "src/**"
+todo-scan tasks --dry-run --tag BUG --priority urgent
+todo-scan tasks --dry-run --author alice --path "src/**"
 
 # Only TODOs added since a git ref
-todox tasks --dry-run --since main
+todo-scan tasks --dry-run --since main
 
 # Control context lines in task descriptions (default: 3)
-todox tasks --dry-run -C 5
+todo-scan tasks --dry-run -C 5
 
 # JSON output
-todox tasks --dry-run --format json
+todo-scan tasks --dry-run --format json
 ```
 
 ### Global flags
@@ -781,49 +781,49 @@ todox tasks --dry-run --format json
 |---|---|
 | `--root <path>` | Set the project root directory (default: current directory) |
 | `--format <format>` | Output format: `text`, `json`, `github-actions`, `sarif`, `markdown` (default: text) |
-| `--config <path>` | Path to config file (default: auto-discover `.todox.toml`) |
-| `--show-ignored` | Show items suppressed by `todox:ignore` markers |
+| `--config <path>` | Path to config file (default: auto-discover `.todo-scan.toml`) |
+| `--show-ignored` | Show items suppressed by `todo-scan:ignore` markers |
 
 ### Output formats
 
 ```bash
 # GitHub Actions annotations — inline warnings/errors in PR diffs
-todox list --format github-actions
-todox check --max 100 --format github-actions
+todo-scan list --format github-actions
+todo-scan check --max 100 --format github-actions
 
 # SARIF — upload to GitHub Code Scanning / Security tab
-todox list --format sarif > results.sarif
+todo-scan list --format sarif > results.sarif
 
 # Markdown — tables for PR comment bots
-todox diff main --format markdown
+todo-scan diff main --format markdown
 ```
 
 ### Quick start
 
 ```bash
-# Interactive setup — generates .todox.toml
-todox init
+# Interactive setup — generates .todo-scan.toml
+todo-scan init
 
 # Non-interactive with defaults
-todox init --yes
+todo-scan init --yes
 ```
 
 ### Shell completions
 
 ```bash
 # Bash
-todox completions bash > ~/.local/share/bash-completion/completions/todox
+todo-scan completions bash > ~/.local/share/bash-completion/completions/todo-scan
 
 # Zsh
-todox completions zsh > ~/.zfunc/_todox
+todo-scan completions zsh > ~/.zfunc/_todo-scan
 
 # Fish
-todox completions fish > ~/.config/fish/completions/todox.fish
+todo-scan completions fish > ~/.config/fish/completions/todo-scan.fish
 ```
 
 ## Configuration
 
-Create a `.todox.toml` in your project root (or run `todox init`). The file is discovered by searching upward from the current directory.
+Create a `.todo-scan.toml` in your project root (or run `todo-scan init`). The file is discovered by searching upward from the current directory.
 
 ```toml
 # Tags to scan for (default: all supported tags)
@@ -896,7 +896,7 @@ require_colon = true
 
 All fields are optional. Unspecified values use sensible defaults.
 
-A machine-readable JSON Schema is available at [`schema/todox.schema.json`](schema/todox.schema.json) for editor validation and autocompletion (e.g., [Taplo](https://taplo.tamasfe.dev/), [Even Better TOML](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)).
+A machine-readable JSON Schema is available at [`schema/todo-scan.schema.json`](schema/todo-scan.schema.json) for editor validation and autocompletion (e.g., [Taplo](https://taplo.tamasfe.dev/), [Even Better TOML](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)).
 
 ### Configuration Reference
 
@@ -950,7 +950,7 @@ A machine-readable JSON Schema is available at [`schema/todox.schema.json`](sche
 
 #### `[workspace.packages.<name>]` section
 
-Per-package check thresholds for `todox check --workspace`.
+Per-package check thresholds for `todo-scan check --workspace`.
 
 | Field | Type | Default | Description |
 |---|---|---|---|
@@ -959,7 +959,7 @@ Per-package check thresholds for `todox check --workspace`.
 
 ## Agent Skill
 
-todox provides a [Claude Code skill](https://docs.anthropic.com/en/docs/claude-code/skills) that enables AI coding agents to automatically use todox commands for TODO tracking, CI gate configuration, and code quality checks.
+todo-scan provides a [Claude Code skill](https://docs.anthropic.com/en/docs/claude-code/skills) that enables AI coding agents to automatically use todo-scan commands for TODO tracking, CI gate configuration, and code quality checks.
 
 ### Install with [skills CLI](https://github.com/vercel-labs/skills)
 
@@ -970,7 +970,7 @@ npx skills add sotayamashita/todox
 ### Manual install
 
 ```bash
-cp -r .claude/skills/todox ~/.claude/skills/
+cp -r .claude/skills/todo-scan ~/.claude/skills/
 ```
 
 ## CI Integration
@@ -980,7 +980,7 @@ cp -r .claude/skills/todox ~/.claude/skills/
 ```yaml
 - name: Check TODOs
   run: |
-    todox check --max 100 --block-tags BUG,FIXME
+    todo-scan check --max 100 --block-tags BUG,FIXME
 ```
 
 ### GitHub Actions with inline annotations
@@ -988,48 +988,48 @@ cp -r .claude/skills/todox ~/.claude/skills/
 ```yaml
 - name: Check TODOs with annotations
   run: |
-    todox check --max 100 --format github-actions
+    todo-scan check --max 100 --format github-actions
 ```
 
 ### SARIF upload to Code Scanning
 
 ```yaml
 - name: Scan TODOs
-  run: todox list --format sarif > todox.sarif
+  run: todo-scan list --format sarif > todo-scan.sarif
 
 - name: Upload SARIF
   uses: github/codeql-action/upload-sarif@v3
   with:
-    sarif_file: todox.sarif
+    sarif_file: todo-scan.sarif
 ```
 
 ### HTML report artifact
 
 ```yaml
 - name: Generate TODO report
-  run: todox report --output todox-report.html
+  run: todo-scan report --output todo-scan-report.html
 
 - name: Upload TODO report
   uses: actions/upload-artifact@v4
   with:
-    name: todox-report
-    path: todox-report.html
+    name: todo-scan-report
+    path: todo-scan-report.html
 ```
 
 ### PR review with diff
 
-> **Note:** `todox diff` and `todox check --since` need access to the base ref's git history.
+> **Note:** `todo-scan diff` and `todo-scan check --since` need access to the base ref's git history.
 > `actions/checkout@v4` uses `fetch-depth: 1` (shallow clone) by default, which means the base
 > SHA is not available. Set `fetch-depth: 0` to fetch the full history.
 
 ```yaml
 - uses: actions/checkout@v4
   with:
-    fetch-depth: 0  # Required for todox to access the base ref
+    fetch-depth: 0  # Required for todo-scan to access the base ref
 
 - name: Check new TODOs
   run: |
-    todox check --max-new 0 --since origin/main
+    todo-scan check --max-new 0 --since origin/main
 ```
 
 ## Development

@@ -3,8 +3,8 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 fn setup_project(files: &[(&str, &str)]) -> TempDir {
@@ -29,7 +29,7 @@ fn test_list_finds_todos() {
         ("lib.rs", "// HACK: workaround\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["list", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -46,7 +46,7 @@ fn test_list_tag_filter() {
         "// TODO: task one\n// FIXME: task two\n// HACK: task three\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -64,7 +64,7 @@ fn test_list_tag_filter() {
 fn test_list_json_format() {
     let dir = setup_project(&[("main.rs", "// TODO: json test\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -82,7 +82,7 @@ fn test_list_json_format() {
 fn test_list_alias_ls() {
     let dir = setup_project(&[("main.rs", "// TODO: alias test\n")]);
 
-    todox()
+    todo_scan()
         .args(["ls", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -93,7 +93,7 @@ fn test_list_alias_ls() {
 fn test_list_empty_project() {
     let dir = setup_project(&[("main.rs", "fn main() {}\n")]);
 
-    todox()
+    todo_scan()
         .args(["list", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -104,7 +104,7 @@ fn test_list_empty_project() {
 fn test_list_with_author_and_issue() {
     let dir = setup_project(&[("main.rs", "// TODO(alice): fix issue #123\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -122,7 +122,7 @@ fn test_list_with_author_and_issue() {
 fn test_list_text_issue_ref_no_double_hash() {
     let dir = setup_project(&[("main.rs", "// TODO(alice): fix issue #123\n")]);
 
-    todox()
+    todo_scan()
         .args(["list", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -145,14 +145,14 @@ struct TodoItem { done: bool }
     )]);
 
     // Verify only 2 real comment items found (text output)
-    todox()
+    todo_scan()
         .args(["list", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
         .stdout(predicate::str::contains("2 items"));
 
     // Verify correct messages via JSON output
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -177,7 +177,7 @@ fn test_list_multi_language_comments() {
         ("page.html", "<!-- NOTE: html note -->\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["list", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -191,7 +191,7 @@ fn test_list_github_actions_format() {
         "// TODO: implement feature\n// BUG: critical issue\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -207,14 +207,16 @@ fn test_list_github_actions_format() {
         .stdout(predicate::str::contains(
             "::error file=main.rs,line=2,title=BUG::[BUG] critical issue",
         ))
-        .stdout(predicate::str::contains("::notice::todox: 2 items found"));
+        .stdout(predicate::str::contains(
+            "::notice::todo-scan: 2 items found",
+        ));
 }
 
 #[test]
 fn test_list_sarif_format() {
     let dir = setup_project(&[("main.rs", "// TODO: sarif test\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -225,7 +227,7 @@ fn test_list_sarif_format() {
         .assert()
         .success()
         .stdout(predicate::str::contains("\"version\": \"2.1.0\""))
-        .stdout(predicate::str::contains("\"ruleId\": \"todox/TODO\""))
+        .stdout(predicate::str::contains("\"ruleId\": \"todo-scan/TODO\""))
         .stdout(predicate::str::contains("\"text\": \"sarif test\""));
 }
 
@@ -233,7 +235,7 @@ fn test_list_sarif_format() {
 fn test_list_markdown_format() {
     let dir = setup_project(&[("main.rs", "// TODO(alice): implement feature #42\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -257,7 +259,7 @@ fn test_list_markdown_format() {
 fn test_list_deadline_in_json() {
     let dir = setup_project(&[("main.rs", "// TODO(2025-06-01): deadline task\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -274,7 +276,7 @@ fn test_list_deadline_in_json() {
 fn test_list_author_and_deadline_in_json() {
     let dir = setup_project(&[("main.rs", "// TODO(alice, 2025-06-01): task with both\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -292,7 +294,7 @@ fn test_list_author_and_deadline_in_json() {
 fn test_list_no_deadline_null_in_json() {
     let dir = setup_project(&[("main.rs", "// TODO: no deadline\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -309,7 +311,7 @@ fn test_list_no_deadline_null_in_json() {
 fn test_list_quarter_deadline_in_json() {
     let dir = setup_project(&[("main.rs", "// TODO(2025-Q2): quarter deadline\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -331,7 +333,7 @@ fn test_list_filter_priority() {
         "// TODO!!: urgent task\n// TODO!: high task\n// TODO: normal task\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -354,7 +356,7 @@ fn test_list_filter_author() {
         "// TODO(alice): alice task\n// TODO(bob): bob task\n// TODO: no author\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -377,7 +379,7 @@ fn test_list_filter_path() {
         ("tests/test.rs", "// TODO: in tests\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -399,7 +401,7 @@ fn test_list_limit() {
         "// TODO: first\n// TODO: second\n// TODO: third\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -421,7 +423,7 @@ fn test_list_group_by_tag() {
         "// TODO: task one\n// FIXME: task two\n// TODO: task three\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -443,7 +445,7 @@ fn test_list_group_by_priority() {
         "// TODO!!: urgent task\n// TODO!: high task\n// TODO: normal task\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -466,7 +468,7 @@ fn test_list_group_by_author() {
         "// TODO(alice): alice task\n// TODO(bob): bob task\n// TODO: no author\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -490,7 +492,7 @@ fn test_list_group_by_dir() {
         ("tests/test.rs", "// TODO: in tests\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -510,7 +512,7 @@ fn test_list_group_by_with_json() {
     let dir = setup_project(&[("main.rs", "// TODO!!: urgent task\n// TODO: normal task\n")]);
 
     // JSON output should be flat regardless of --group-by
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -536,7 +538,7 @@ fn test_list_filter_composition() {
     ]);
 
     // Combine: --priority urgent --author alice --path "src/**"
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -566,7 +568,7 @@ fn test_list_context_shows_surrounding_lines() {
         "fn main() {\n    let x = 1;\n    // TODO: fix this\n    let y = 2;\n    let z = 3;\n}\n",
     )]);
 
-    todox()
+    todo_scan()
         .args(["list", "--root", dir.path().to_str().unwrap(), "-C", "2"])
         .assert()
         .success()
@@ -582,7 +584,7 @@ fn test_list_context_json_includes_context_field() {
         "fn main() {\n    let x = 1;\n    // TODO: fix this\n    let y = 2;\n}\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -607,7 +609,7 @@ fn test_list_without_context_no_context_lines() {
     )]);
 
     // Without -C flag, no surrounding code should appear
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -620,16 +622,16 @@ fn test_list_without_context_no_context_lines() {
         .stdout(predicate::str::contains("\"context\"").not());
 }
 
-// --- todox:ignore suppression tests ---
+// --- todo-scan:ignore suppression tests ---
 
 #[test]
 fn test_list_excludes_ignored_items_by_default() {
     let dir = setup_project(&[(
         "main.rs",
-        "// TODO: visible item\n// TODO: hidden item todox:ignore\n",
+        "// TODO: visible item\n// TODO: hidden item todo-scan:ignore\n",
     )]);
 
-    todox()
+    todo_scan()
         .args(["list", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -643,10 +645,10 @@ fn test_list_excludes_ignored_items_by_default() {
 fn test_list_show_ignored_reveals_suppressed() {
     let dir = setup_project(&[(
         "main.rs",
-        "// TODO: visible item\n// TODO: hidden item todox:ignore\n",
+        "// TODO: visible item\n// TODO: hidden item todo-scan:ignore\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -665,10 +667,10 @@ fn test_list_show_ignored_reveals_suppressed() {
 fn test_list_ignore_next_line_works_e2e() {
     let dir = setup_project(&[(
         "main.rs",
-        "// todox:ignore-next-line\n// TODO: suppressed\n// TODO: visible\n",
+        "// todo-scan:ignore-next-line\n// TODO: suppressed\n// TODO: visible\n",
     )]);
 
-    todox()
+    todo_scan()
         .args(["list", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -682,7 +684,7 @@ fn test_list_ignore_next_line_works_e2e() {
 fn test_list_no_ignored_shows_no_suffix() {
     let dir = setup_project(&[("main.rs", "// TODO: just a normal todo\n")]);
 
-    todox()
+    todo_scan()
         .args(["list", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -692,9 +694,9 @@ fn test_list_no_ignored_shows_no_suffix() {
 
 #[test]
 fn test_list_ignore_strips_marker_from_message() {
-    let dir = setup_project(&[("main.rs", "// TODO: fix this todox:ignore\n")]);
+    let dir = setup_project(&[("main.rs", "// TODO: fix this todo-scan:ignore\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -706,7 +708,7 @@ fn test_list_ignore_strips_marker_from_message() {
         .assert()
         .success()
         .stdout(predicate::str::contains("\"message\": \"fix this\""))
-        .stdout(predicate::str::contains("todox:ignore").not());
+        .stdout(predicate::str::contains("todo-scan:ignore").not());
 }
 
 // --- Detail level tests ---
@@ -718,7 +720,7 @@ fn test_list_detail_minimal_hides_author_and_issue() {
         "// TODO(alice): fix issue #123\n// FIXME(bob): broken thing\n",
     )]);
 
-    let output = todox()
+    let output = todo_scan()
         .args([
             "list",
             "--root",
@@ -744,13 +746,13 @@ fn test_list_detail_default_is_normal() {
     let dir = setup_project(&[("main.rs", "// TODO(alice): fix issue #123\n")]);
 
     // Without --detail flag
-    let without = todox()
+    let without = todo_scan()
         .args(["list", "--root", dir.path().to_str().unwrap()])
         .output()
         .unwrap();
 
     // With --detail normal
-    let with_normal = todox()
+    let with_normal = todo_scan()
         .args([
             "list",
             "--root",
@@ -768,7 +770,7 @@ fn test_list_detail_default_is_normal() {
 fn test_list_detail_minimal_json_only_core_fields() {
     let dir = setup_project(&[("main.rs", "// TODO(alice): fix issue #123\n")]);
 
-    let output = todox()
+    let output = todo_scan()
         .args([
             "list",
             "--root",
@@ -814,7 +816,7 @@ fn test_list_detail_minimal_json_only_core_fields() {
 fn test_list_detail_full_json_includes_match_key() {
     let dir = setup_project(&[("main.rs", "// TODO(alice): fix issue #123\n")]);
 
-    let output = todox()
+    let output = todo_scan()
         .args([
             "list",
             "--root",
@@ -853,7 +855,7 @@ fn test_list_detail_full_text_auto_context() {
     )]);
 
     // Full detail without -C flag should still show context
-    todox()
+    todo_scan()
         .args([
             "list",
             "--root",
@@ -872,7 +874,7 @@ fn test_list_detail_full_text_auto_context() {
 fn test_list_json_contains_id_field_at_normal_detail() {
     let dir = setup_project(&[("main.rs", "// TODO: stable id test\n")]);
 
-    let output = todox()
+    let output = todo_scan()
         .args([
             "list",
             "--root",
@@ -895,7 +897,7 @@ fn test_list_json_contains_id_field_at_normal_detail() {
 fn test_list_json_contains_id_field_at_minimal_detail() {
     let dir = setup_project(&[("main.rs", "// TODO: minimal id test\n")]);
 
-    let output = todox()
+    let output = todo_scan()
         .args([
             "list",
             "--root",
@@ -921,7 +923,7 @@ fn test_list_json_contains_id_field_at_minimal_detail() {
 fn test_list_json_full_detail_has_both_id_and_match_key() {
     let dir = setup_project(&[("main.rs", "// TODO: full detail test\n")]);
 
-    let output = todox()
+    let output = todo_scan()
         .args([
             "list",
             "--root",

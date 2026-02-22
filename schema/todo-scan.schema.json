@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "todox Configuration",
-  "description": "Configuration for todox TODO tracking tool",
+  "title": "todo-scan Configuration",
+  "description": "Configuration for todo-scan TODO tracking tool",
   "type": "object",
   "properties": {
     "blame": {
