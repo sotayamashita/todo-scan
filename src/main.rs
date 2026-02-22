@@ -126,18 +126,17 @@ fn run() -> Result<()> {
                     stale_threshold,
                     tag,
                     path,
-                } => cmd_blame(
-                    &root,
-                    &config,
-                    &cli.format,
-                    sort,
-                    author,
-                    min_age,
-                    stale_threshold,
-                    tag,
-                    path,
-                    no_cache,
-                ),
+                } => {
+                    let opts = BlameOptions {
+                        sort,
+                        author,
+                        min_age,
+                        stale_threshold,
+                        tag,
+                        path,
+                    };
+                    cmd_blame(&root, &config, &cli.format, opts, no_cache)
+                }
                 Command::Search {
                     query,
                     exact,
@@ -211,16 +210,15 @@ fn run() -> Result<()> {
                     r#for: for_item,
                     min_score,
                     proximity,
-                } => cmd_relate(
-                    &root,
-                    &config,
-                    &cli.format,
-                    cluster,
-                    for_item,
-                    min_score,
-                    proximity,
-                    no_cache,
-                ),
+                } => {
+                    let opts = RelateOptions {
+                        cluster,
+                        for_item,
+                        min_score,
+                        proximity,
+                    };
+                    cmd_relate(&root, &config, &cli.format, opts, no_cache)
+                }
                 Command::Lint {
                     no_bare_tags,
                     max_message_length,
@@ -253,20 +251,19 @@ fn run() -> Result<()> {
                     priority,
                     author,
                     path,
-                } => cmd_tasks(
-                    &root,
-                    &config,
-                    &cli.format,
-                    tag,
-                    context,
-                    output,
-                    dry_run,
-                    since,
-                    priority,
-                    author,
-                    path,
-                    no_cache,
-                ),
+                } => {
+                    let opts = TasksOptions {
+                        tag,
+                        context,
+                        output,
+                        dry_run,
+                        since,
+                        priority,
+                        author,
+                        path,
+                    };
+                    cmd_tasks(&root, &config, &cli.format, opts, no_cache)
+                }
                 Command::Watch { tag, max, debounce } => {
                     watch::cmd_watch(&root, &config, &cli.format, &tag, max, debounce)
                 }
@@ -300,6 +297,33 @@ struct SearchOptions {
     path: Option<String>,
     sort: SortBy,
     group_by: GroupBy,
+}
+
+struct BlameOptions {
+    sort: BlameSortBy,
+    author: Option<String>,
+    min_age: Option<String>,
+    stale_threshold: Option<String>,
+    tag: Vec<String>,
+    path: Option<String>,
+}
+
+struct TasksOptions {
+    tag: Vec<String>,
+    context: usize,
+    output: Option<std::path::PathBuf>,
+    dry_run: bool,
+    since: Option<String>,
+    priority: Vec<PriorityFilter>,
+    author: Option<String>,
+    path: Option<String>,
+}
+
+struct RelateOptions {
+    cluster: bool,
+    for_item: Option<String>,
+    min_score: f64,
+    proximity: usize,
 }
 
 fn cmd_search(
@@ -660,23 +684,18 @@ fn cmd_report(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
 fn cmd_blame(
     root: &std::path::Path,
     config: &Config,
     format: &Format,
-    sort: BlameSortBy,
-    author_filter: Option<String>,
-    min_age: Option<String>,
-    stale_threshold_cli: Option<String>,
-    tag_filter: Vec<String>,
-    path_filter: Option<String>,
+    opts: BlameOptions,
     no_cache: bool,
 ) -> Result<()> {
     let scan = do_scan(root, config, no_cache)?;
 
     // Resolve stale threshold: CLI > config > default (365d)
-    let threshold_str = stale_threshold_cli
+    let threshold_str = opts
+        .stale_threshold
         .or_else(|| config.blame.stale_threshold.clone())
         .unwrap_or_else(|| "365d".to_string());
     let stale_threshold = blame::parse_duration_days(&threshold_str)?;
@@ -684,8 +703,9 @@ fn cmd_blame(
     let mut result = compute_blame(&scan, root, stale_threshold)?;
 
     // Apply tag filter
-    if !tag_filter.is_empty() {
-        let filter_tags: Vec<Tag> = tag_filter
+    if !opts.tag.is_empty() {
+        let filter_tags: Vec<Tag> = opts
+            .tag
             .iter()
             .filter_map(|s| s.parse::<Tag>().ok())
             .collect();
@@ -693,7 +713,7 @@ fn cmd_blame(
     }
 
     // Apply author filter (substring match)
-    if let Some(ref author) = author_filter {
+    if let Some(ref author) = opts.author {
         let lower = author.to_lowercase();
         result
             .entries
@@ -701,13 +721,13 @@ fn cmd_blame(
     }
 
     // Apply min-age filter
-    if let Some(ref age_str) = min_age {
+    if let Some(ref age_str) = opts.min_age {
         let min_days = blame::parse_duration_days(age_str)?;
         result.entries.retain(|e| e.blame.age_days >= min_days);
     }
 
     // Apply path filter
-    if let Some(ref pattern) = path_filter {
+    if let Some(ref pattern) = opts.path {
         let glob = globset::Glob::new(pattern)
             .context("invalid glob pattern")?
             .compile_matcher();
@@ -715,7 +735,7 @@ fn cmd_blame(
     }
 
     // Apply sort
-    match sort {
+    match opts.sort {
         BlameSortBy::File => result.entries.sort_by(|a, b| {
             a.item
                 .file
@@ -746,24 +766,16 @@ fn cmd_blame(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
 fn cmd_tasks(
     root: &std::path::Path,
     config: &Config,
     format: &Format,
-    tag_filter: Vec<String>,
-    context_lines: usize,
-    output_dir: Option<std::path::PathBuf>,
-    dry_run: bool,
-    since: Option<String>,
-    priority_filter: Vec<PriorityFilter>,
-    author_filter: Option<String>,
-    path_filter: Option<String>,
+    opts: TasksOptions,
     no_cache: bool,
 ) -> Result<()> {
     let scan = do_scan(root, config, no_cache)?;
 
-    let mut items = if let Some(ref base_ref) = since {
+    let mut items = if let Some(ref base_ref) = opts.since {
         // Only TODOs added since the git ref
         let diff = compute_diff(&scan, base_ref, root, config)?;
         diff.entries
@@ -776,8 +788,9 @@ fn cmd_tasks(
     };
 
     // Apply tag filter
-    if !tag_filter.is_empty() {
-        let filter_tags: Vec<Tag> = tag_filter
+    if !opts.tag.is_empty() {
+        let filter_tags: Vec<Tag> = opts
+            .tag
             .iter()
             .filter_map(|s| s.parse::<Tag>().ok())
             .collect();
@@ -785,19 +798,19 @@ fn cmd_tasks(
     }
 
     // Apply priority filter
-    if !priority_filter.is_empty() {
+    if !opts.priority.is_empty() {
         let priorities: Vec<model::Priority> =
-            priority_filter.iter().map(|p| p.to_priority()).collect();
+            opts.priority.iter().map(|p| p.to_priority()).collect();
         items.retain(|item| priorities.contains(&item.priority));
     }
 
     // Apply author filter
-    if let Some(ref author) = author_filter {
+    if let Some(ref author) = opts.author {
         items.retain(|item| item.author.as_deref() == Some(author.as_str()));
     }
 
     // Apply path filter
-    if let Some(ref pattern) = path_filter {
+    if let Some(ref pattern) = opts.path {
         let glob = globset::Glob::new(pattern)
             .context("invalid glob pattern")?
             .compile_matcher();
@@ -808,15 +821,15 @@ fn cmd_tasks(
     tasks::sort_by_priority(&mut items);
 
     // Collect context
-    let context_map = collect_context_map(root, &items, context_lines);
+    let context_map = collect_context_map(root, &items, opts.context);
 
     // Build tasks
     let claude_tasks = tasks::build_tasks(&items, &context_map);
     let total = claude_tasks.len();
 
     // Output
-    match output_dir {
-        Some(dir) if !dry_run => {
+    match opts.output {
+        Some(dir) if !opts.dry_run => {
             std::fs::create_dir_all(&dir)
                 .with_context(|| format!("cannot create output directory: {}", dir.display()))?;
 
@@ -849,26 +862,22 @@ fn cmd_tasks(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
 fn cmd_relate(
     root: &std::path::Path,
     config: &Config,
     format: &Format,
-    cluster: bool,
-    for_item: Option<String>,
-    min_score: f64,
-    proximity: usize,
+    opts: RelateOptions,
     no_cache: bool,
 ) -> Result<()> {
     let scan = do_scan(root, config, no_cache)?;
-    let mut result = relate::compute_relations(&scan, min_score, proximity);
+    let mut result = relate::compute_relations(&scan, opts.min_score, opts.proximity);
 
-    if let Some(ref location) = for_item {
+    if let Some(ref location) = opts.for_item {
         let (file, line) = parse_location(location)?;
         result = relate::filter_for_item(result, &file, line);
     }
 
-    if cluster {
+    if opts.cluster {
         let clusters = relate::build_clusters(&result.relationships, &scan.items);
         result.clusters = Some(clusters);
     }
