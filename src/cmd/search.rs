@@ -3,7 +3,7 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::cli::{Format, GroupBy, SortBy};
+use crate::cli::{DetailLevel, Format, GroupBy, SortBy};
 use crate::config::Config;
 use crate::context::collect_context_map;
 use crate::output::print_search;
@@ -21,6 +21,7 @@ pub struct SearchOptions {
     pub path: Option<String>,
     pub sort: SortBy,
     pub group_by: GroupBy,
+    pub detail: DetailLevel,
 }
 
 pub fn cmd_search(
@@ -75,10 +76,12 @@ pub fn cmd_search(
 
     let context_map = if let Some(n) = opts.context {
         collect_context_map(root, &result.items, n)
+    } else if opts.detail == DetailLevel::Full {
+        collect_context_map(root, &result.items, 3)
     } else {
         HashMap::new()
     };
 
-    print_search(&result, format, &opts.group_by, &context_map);
+    print_search(&result, format, &opts.group_by, &context_map, &opts.detail);
     Ok(())
 }

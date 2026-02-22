@@ -708,3 +708,162 @@ fn test_list_ignore_strips_marker_from_message() {
         .stdout(predicate::str::contains("\"message\": \"fix this\""))
         .stdout(predicate::str::contains("todox:ignore").not());
 }
+
+// --- Detail level tests ---
+
+#[test]
+fn test_list_detail_minimal_hides_author_and_issue() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO(alice): fix issue #123\n// FIXME(bob): broken thing\n",
+    )]);
+
+    let output = todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--detail",
+            "minimal",
+        ])
+        .assert()
+        .success();
+
+    // Minimal should NOT show (@author) or (#issue)
+    output
+        .stdout(predicate::str::contains("TODO"))
+        .stdout(predicate::str::contains("FIXME"))
+        .stdout(predicate::str::contains("(@alice)").not())
+        .stdout(predicate::str::contains("(@bob)").not())
+        .stdout(predicate::str::contains("(#123)").not());
+}
+
+#[test]
+fn test_list_detail_default_is_normal() {
+    // Omitting --detail should give the same as --detail normal
+    let dir = setup_project(&[("main.rs", "// TODO(alice): fix issue #123\n")]);
+
+    // Without --detail flag
+    let without = todox()
+        .args(["list", "--root", dir.path().to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    // With --detail normal
+    let with_normal = todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--detail",
+            "normal",
+        ])
+        .output()
+        .unwrap();
+
+    assert_eq!(without.stdout, with_normal.stdout);
+}
+
+#[test]
+fn test_list_detail_minimal_json_only_core_fields() {
+    let dir = setup_project(&[("main.rs", "// TODO(alice): fix issue #123\n")]);
+
+    let output = todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--detail",
+            "minimal",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let item = &json["items"][0];
+
+    // Core fields must be present
+    assert!(item["file"].is_string());
+    assert!(item["line"].is_number());
+    assert!(item["tag"].is_string());
+    assert!(item["message"].is_string());
+
+    // Non-core fields must be absent in minimal
+    assert!(
+        item.get("author").is_none(),
+        "author should not be in minimal JSON"
+    );
+    assert!(
+        item.get("issue_ref").is_none(),
+        "issue_ref should not be in minimal JSON"
+    );
+    assert!(
+        item.get("priority").is_none(),
+        "priority should not be in minimal JSON"
+    );
+    assert!(
+        item.get("deadline").is_none(),
+        "deadline should not be in minimal JSON"
+    );
+}
+
+#[test]
+fn test_list_detail_full_json_includes_match_key() {
+    let dir = setup_project(&[("main.rs", "// TODO(alice): fix issue #123\n")]);
+
+    let output = todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--detail",
+            "full",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let item = &json["items"][0];
+
+    // Full mode should include match_key
+    assert!(
+        item.get("match_key").is_some(),
+        "match_key should be present in full JSON"
+    );
+    assert!(item["match_key"].as_str().unwrap().contains("TODO"));
+
+    // Full mode should also include context even without -C flag
+    assert!(
+        item.get("context").is_some(),
+        "context should be auto-included in full JSON"
+    );
+}
+
+#[test]
+fn test_list_detail_full_text_auto_context() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "fn main() {\n    let x = 1;\n    // TODO: fix this\n    let y = 2;\n    let z = 3;\n}\n",
+    )]);
+
+    // Full detail without -C flag should still show context
+    todox()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--detail",
+            "full",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("let x = 1"))
+        .stdout(predicate::str::contains("TODO"))
+        .stdout(predicate::str::contains("let y = 2"));
+}

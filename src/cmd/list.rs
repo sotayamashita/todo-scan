@@ -3,7 +3,7 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::cli::{Format, GroupBy, PriorityFilter, SortBy};
+use crate::cli::{DetailLevel, Format, GroupBy, PriorityFilter, SortBy};
 use crate::config::Config;
 use crate::context::collect_context_map;
 use crate::output::print_list;
@@ -21,6 +21,7 @@ pub struct ListOptions {
     pub limit: Option<usize>,
     pub context: Option<usize>,
     pub show_ignored: bool,
+    pub detail: DetailLevel,
 }
 
 pub fn cmd_list(
@@ -72,6 +73,8 @@ pub fn cmd_list(
 
     let context_map = if let Some(n) = opts.context {
         collect_context_map(root, &result.items, n)
+    } else if opts.detail == DetailLevel::Full {
+        collect_context_map(root, &result.items, 3)
     } else {
         HashMap::new()
     };
@@ -83,6 +86,7 @@ pub fn cmd_list(
         &context_map,
         ignored_count,
         opts.show_ignored,
+        &opts.detail,
     );
     Ok(())
 }

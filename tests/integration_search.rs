@@ -235,3 +235,58 @@ fn test_search_alias_s() {
         .stdout(predicate::str::contains("alias test"))
         .stdout(predicate::str::contains("1 matches"));
 }
+
+#[test]
+fn test_search_detail_minimal_hides_author() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO(alice): fix the bug #123\n// FIXME(bob): another issue\n",
+    )]);
+
+    todox()
+        .args([
+            "search",
+            "fix",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--detail",
+            "minimal",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("fix the bug"))
+        .stdout(predicate::str::contains("(@alice)").not())
+        .stdout(predicate::str::contains("(#123)").not());
+}
+
+#[test]
+fn test_search_detail_minimal_json() {
+    let dir = setup_project(&[("main.rs", "// TODO(alice): fix the bug #123\n")]);
+
+    let output = todox()
+        .args([
+            "search",
+            "fix",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--detail",
+            "minimal",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let item = &json["items"][0];
+
+    assert!(
+        item.get("author").is_none(),
+        "author should not be in minimal search JSON"
+    );
+    assert!(
+        item.get("issue_ref").is_none(),
+        "issue_ref should not be in minimal search JSON"
+    );
+}

@@ -89,6 +89,7 @@ fn run() -> Result<()> {
                         limit,
                         context,
                         show_ignored: cli.show_ignored,
+                        detail: cli.detail.clone(),
                     };
                     let scan_root = resolve_package_root(&root, &config, package.as_deref())?;
                     cmd_list(&scan_root, &config, &cli.format, opts, no_cache)
@@ -130,6 +131,7 @@ fn run() -> Result<()> {
                         path,
                         sort,
                         group_by,
+                        detail: cli.detail.clone(),
                     };
                     cmd_search(&root, &config, &cli.format, opts, no_cache)
                 }
@@ -148,6 +150,7 @@ fn run() -> Result<()> {
                         &git_ref,
                         &tag,
                         context,
+                        &cli.detail,
                         no_cache,
                     )
                 }

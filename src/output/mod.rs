@@ -7,10 +7,45 @@ use std::collections::HashMap;
 
 use colored::*;
 
-use crate::cli::{Format, GroupBy};
+use crate::cli::{DetailLevel, Format, GroupBy};
 use crate::context::{ContextInfo, RichContext};
 use crate::model::*;
 use std::path::Path;
+
+/// Apply detail-level transformations to a flat JSON item (TodoItem-shaped object).
+/// - Minimal: remove author, issue_ref, priority, deadline
+/// - Full: inject match_key
+fn apply_detail_to_json_item(item_val: &mut serde_json::Value, detail: &DetailLevel) {
+    if *detail == DetailLevel::Minimal {
+        let obj = item_val.as_object_mut().unwrap();
+        obj.remove("author");
+        obj.remove("issue_ref");
+        obj.remove("priority");
+        obj.remove("deadline");
+    }
+    if *detail == DetailLevel::Full {
+        let file = item_val
+            .get("file")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let tag = item_val
+            .get("tag")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let message = item_val
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let match_key = format!("{}:{}:{}", file, tag, message.trim().to_lowercase());
+        item_val.as_object_mut().unwrap().insert(
+            "match_key".to_string(),
+            serde_json::Value::String(match_key),
+        );
+    }
+}
 
 fn colorize_tag(tag: &Tag) -> ColoredString {
     match tag {
@@ -99,6 +134,7 @@ pub fn print_list(
     context_map: &HashMap<String, ContextInfo>,
     ignored_count: usize,
     show_ignored: bool,
+    detail: &DetailLevel,
 ) {
     let has_context = !context_map.is_empty();
 
@@ -143,21 +179,23 @@ pub fn print_list(
                         )
                     };
 
-                    if let Some(ref author) = item.author {
-                        line.push_str(&format!(" (@{})", author));
-                    }
-                    if let Some(ref issue) = item.issue_ref {
-                        line.push_str(&format!(" ({})", issue));
-                    }
-                    if let Some(ref deadline) = item.deadline {
-                        let today = crate::deadline::today();
-                        if deadline.is_expired(&today) {
-                            line.push_str(&format!(
-                                " {}",
-                                format!("[expired: {}]", deadline).red()
-                            ));
-                        } else {
-                            line.push_str(&format!(" [deadline: {}]", deadline));
+                    if *detail != DetailLevel::Minimal {
+                        if let Some(ref author) = item.author {
+                            line.push_str(&format!(" (@{})", author));
+                        }
+                        if let Some(ref issue) = item.issue_ref {
+                            line.push_str(&format!(" ({})", issue));
+                        }
+                        if let Some(ref deadline) = item.deadline {
+                            let today = crate::deadline::today();
+                            if deadline.is_expired(&today) {
+                                line.push_str(&format!(
+                                    " {}",
+                                    format!("[expired: {}]", deadline).red()
+                                ));
+                            } else {
+                                line.push_str(&format!(" [deadline: {}]", deadline));
+                            }
                         }
                     }
 
@@ -231,14 +269,18 @@ pub fn print_list(
             }
         }
         Format::Json => {
-            if has_context {
-                let mut value: serde_json::Value =
-                    serde_json::to_value(result).expect("failed to serialize");
-                if let Some(items) = value.get_mut("items").and_then(|v| v.as_array_mut()) {
-                    for item_val in items.iter_mut() {
-                        let file = item_val.get("file").and_then(|v| v.as_str()).unwrap_or("");
-                        let line = item_val.get("line").and_then(|v| v.as_u64()).unwrap_or(0);
-                        let key = format!("{}:{}", file, line);
+            let mut value: serde_json::Value =
+                serde_json::to_value(result).expect("failed to serialize");
+            if let Some(items) = value.get_mut("items").and_then(|v| v.as_array_mut()) {
+                for item_val in items.iter_mut() {
+                    let file = item_val
+                        .get("file")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let line = item_val.get("line").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let key = format!("{}:{}", file, line);
+                    if has_context {
                         if let Some(ctx) = context_map.get(&key) {
                             let ctx_value =
                                 serde_json::to_value(ctx).expect("failed to serialize context");
@@ -248,13 +290,11 @@ pub fn print_list(
                                 .insert("context".to_string(), ctx_value);
                         }
                     }
+                    apply_detail_to_json_item(item_val, detail);
                 }
-                let json = serde_json::to_string_pretty(&value).expect("failed to serialize");
-                println!("{}", json);
-            } else {
-                let json = serde_json::to_string_pretty(result).expect("failed to serialize");
-                println!("{}", json);
             }
+            let json = serde_json::to_string_pretty(&value).expect("failed to serialize");
+            println!("{}", json);
         }
         Format::GithubActions => print!("{}", github_actions::format_list(result)),
         Format::Sarif => print!("{}", sarif::format_list(result)),
@@ -267,6 +307,7 @@ pub fn print_search(
     format: &Format,
     group_by: &GroupBy,
     context_map: &HashMap<String, ContextInfo>,
+    detail: &DetailLevel,
 ) {
     let has_context = !context_map.is_empty();
 
@@ -311,21 +352,23 @@ pub fn print_search(
                         )
                     };
 
-                    if let Some(ref author) = item.author {
-                        line.push_str(&format!(" (@{})", author));
-                    }
-                    if let Some(ref issue) = item.issue_ref {
-                        line.push_str(&format!(" ({})", issue));
-                    }
-                    if let Some(ref deadline) = item.deadline {
-                        let today = crate::deadline::today();
-                        if deadline.is_expired(&today) {
-                            line.push_str(&format!(
-                                " {}",
-                                format!("[expired: {}]", deadline).red()
-                            ));
-                        } else {
-                            line.push_str(&format!(" [deadline: {}]", deadline));
+                    if *detail != DetailLevel::Minimal {
+                        if let Some(ref author) = item.author {
+                            line.push_str(&format!(" (@{})", author));
+                        }
+                        if let Some(ref issue) = item.issue_ref {
+                            line.push_str(&format!(" ({})", issue));
+                        }
+                        if let Some(ref deadline) = item.deadline {
+                            let today = crate::deadline::today();
+                            if deadline.is_expired(&today) {
+                                line.push_str(&format!(
+                                    " {}",
+                                    format!("[expired: {}]", deadline).red()
+                                ));
+                            } else {
+                                line.push_str(&format!(" [deadline: {}]", deadline));
+                            }
                         }
                     }
 
@@ -362,14 +405,18 @@ pub fn print_search(
             }
         }
         Format::Json => {
-            if has_context {
-                let mut value: serde_json::Value =
-                    serde_json::to_value(result).expect("failed to serialize");
-                if let Some(items) = value.get_mut("items").and_then(|v| v.as_array_mut()) {
-                    for item_val in items.iter_mut() {
-                        let file = item_val.get("file").and_then(|v| v.as_str()).unwrap_or("");
-                        let line = item_val.get("line").and_then(|v| v.as_u64()).unwrap_or(0);
-                        let key = format!("{}:{}", file, line);
+            let mut value: serde_json::Value =
+                serde_json::to_value(result).expect("failed to serialize");
+            if let Some(items) = value.get_mut("items").and_then(|v| v.as_array_mut()) {
+                for item_val in items.iter_mut() {
+                    let file = item_val
+                        .get("file")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let line = item_val.get("line").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let key = format!("{}:{}", file, line);
+                    if has_context {
                         if let Some(ctx) = context_map.get(&key) {
                             let ctx_value =
                                 serde_json::to_value(ctx).expect("failed to serialize context");
@@ -379,13 +426,11 @@ pub fn print_search(
                                 .insert("context".to_string(), ctx_value);
                         }
                     }
+                    apply_detail_to_json_item(item_val, detail);
                 }
-                let json = serde_json::to_string_pretty(&value).expect("failed to serialize");
-                println!("{}", json);
-            } else {
-                let json = serde_json::to_string_pretty(result).expect("failed to serialize");
-                println!("{}", json);
             }
+            let json = serde_json::to_string_pretty(&value).expect("failed to serialize");
+            println!("{}", json);
         }
         Format::GithubActions => print!("{}", github_actions::format_search(result)),
         Format::Sarif => print!("{}", sarif::format_search(result)),
@@ -397,6 +442,7 @@ pub fn print_diff(
     result: &DiffResult,
     format: &Format,
     context_map: &HashMap<String, ContextInfo>,
+    detail: &DetailLevel,
 ) {
     let has_context = !context_map.is_empty();
 
@@ -446,16 +492,20 @@ pub fn print_diff(
             );
         }
         Format::Json => {
-            if has_context {
-                let mut value: serde_json::Value =
-                    serde_json::to_value(result).expect("failed to serialize");
-                if let Some(entries) = value.get_mut("entries").and_then(|v| v.as_array_mut()) {
-                    for entry_val in entries.iter_mut() {
-                        if let Some(item_val) = entry_val.get("item") {
-                            let file = item_val.get("file").and_then(|v| v.as_str()).unwrap_or("");
-                            let line = item_val.get("line").and_then(|v| v.as_u64()).unwrap_or(0);
-                            let key = format!("{}:{}", file, line);
-                            if let Some(ctx) = context_map.get(&key) {
+            let mut value: serde_json::Value =
+                serde_json::to_value(result).expect("failed to serialize");
+            if let Some(entries) = value.get_mut("entries").and_then(|v| v.as_array_mut()) {
+                for entry_val in entries.iter_mut() {
+                    // Read context key from item before mutation
+                    let ctx_key = entry_val.get("item").map(|item_val| {
+                        let file = item_val.get("file").and_then(|v| v.as_str()).unwrap_or("");
+                        let line = item_val.get("line").and_then(|v| v.as_u64()).unwrap_or(0);
+                        format!("{}:{}", file, line)
+                    });
+
+                    if let Some(ref key) = ctx_key {
+                        if has_context {
+                            if let Some(ctx) = context_map.get(key) {
                                 let ctx_value =
                                     serde_json::to_value(ctx).expect("failed to serialize context");
                                 entry_val
@@ -465,13 +515,14 @@ pub fn print_diff(
                             }
                         }
                     }
+
+                    if let Some(item_val) = entry_val.get_mut("item") {
+                        apply_detail_to_json_item(item_val, detail);
+                    }
                 }
-                let json = serde_json::to_string_pretty(&value).expect("failed to serialize");
-                println!("{}", json);
-            } else {
-                let json = serde_json::to_string_pretty(result).expect("failed to serialize");
-                println!("{}", json);
             }
+            let json = serde_json::to_string_pretty(&value).expect("failed to serialize");
+            println!("{}", json);
         }
         Format::GithubActions => print!("{}", github_actions::format_diff(result)),
         Format::Sarif => print!("{}", sarif::format_diff(result)),

@@ -3,7 +3,7 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::cli::Format;
+use crate::cli::{DetailLevel, Format};
 use crate::config::Config;
 use crate::context::collect_context_map;
 use crate::diff::compute_diff;
@@ -19,6 +19,7 @@ pub fn cmd_diff(
     git_ref: &str,
     tag_filter: &[String],
     context_lines: Option<usize>,
+    detail: &DetailLevel,
     no_cache: bool,
 ) -> Result<()> {
     let current = do_scan(root, config, no_cache)?;
@@ -48,10 +49,12 @@ pub fn cmd_diff(
     let items: Vec<_> = diff_result.entries.iter().map(|e| e.item.clone()).collect();
     let context_map = if let Some(n) = context_lines {
         collect_context_map(root, &items, n)
+    } else if *detail == DetailLevel::Full {
+        collect_context_map(root, &items, 3)
     } else {
         HashMap::new()
     };
 
-    print_diff(&diff_result, format, &context_map);
+    print_diff(&diff_result, format, &context_map, detail);
     Ok(())
 }

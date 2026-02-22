@@ -375,3 +375,44 @@ fn test_diff_with_context() {
         .stdout(predicate::str::contains("new feature"))
         .stdout(predicate::str::contains("let x = 1"));
 }
+
+#[test]
+fn test_diff_detail_minimal_json() {
+    let dir = setup_git_repo(&[("main.rs", "fn main() {}\n")]);
+    let cwd = dir.path();
+
+    fs::write(
+        cwd.join("main.rs"),
+        "// TODO(alice): new feature #42\nfn main() {}\n",
+    )
+    .unwrap();
+
+    let output = todox()
+        .args([
+            "diff",
+            "HEAD",
+            "--root",
+            cwd.to_str().unwrap(),
+            "--detail",
+            "minimal",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let entry = &json["entries"][0];
+    let item = &entry["item"];
+
+    // Minimal should strip non-core fields from diff items
+    assert!(
+        item.get("author").is_none(),
+        "author should not be in minimal diff JSON"
+    );
+    assert!(
+        item.get("issue_ref").is_none(),
+        "issue_ref should not be in minimal diff JSON"
+    );
+}

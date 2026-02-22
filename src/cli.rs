@@ -24,12 +24,23 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub no_cache: bool,
 
+    /// Control output detail level: minimal (compact), normal (default), full (enriched)
+    #[arg(long, global = true, value_enum, default_value = "normal")]
+    pub detail: DetailLevel,
+
     /// Show items suppressed by todox:ignore markers
     #[arg(long, global = true)]
     pub show_ignored: bool,
 
     #[command(subcommand)]
     pub command: Command,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, ValueEnum)]
+pub enum DetailLevel {
+    Minimal,
+    Normal,
+    Full,
 }
 
 #[derive(Clone, ValueEnum)]
