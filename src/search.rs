@@ -44,6 +44,7 @@ mod tests {
     fn make_scan(items: Vec<TodoItem>) -> ScanResult {
         ScanResult {
             files_scanned: 1,
+            ignored_items: vec![],
             items,
         }
     }

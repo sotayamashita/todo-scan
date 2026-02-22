@@ -114,6 +114,8 @@ impl TodoItem {
 #[derive(Debug, Serialize)]
 pub struct ScanResult {
     pub items: Vec<TodoItem>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub ignored_items: Vec<TodoItem>,
     pub files_scanned: usize,
 }
 

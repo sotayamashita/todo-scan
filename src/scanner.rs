@@ -114,14 +114,45 @@ pub(crate) fn is_in_comment(line: &str, tag_start: usize) -> bool {
     false
 }
 
+/// Result of scanning content, separating normal items from suppressed ones.
+pub struct ScanContentResult {
+    pub items: Vec<TodoItem>,
+    pub ignored_items: Vec<TodoItem>,
+}
+
+/// The inline suppression marker for the current line.
+const IGNORE_MARKER: &str = "todox:ignore";
+
+/// The inline suppression marker for the next line.
+const IGNORE_NEXT_LINE_MARKER: &str = "todox:ignore-next-line";
+
 /// Scan text content line by line for TODO-style comments.
 ///
 /// Pure function: takes content, a file path label, and a compiled regex.
-/// Returns a `Vec<TodoItem>` with all matches found.
-pub fn scan_content(content: &str, file_path: &str, pattern: &Regex) -> Vec<TodoItem> {
-    let mut items = Vec::new();
+/// Returns a `ScanContentResult` with matched items and suppressed items separated.
+///
+/// Suppression markers:
+/// - `todox:ignore` on the same line as a TODO suppresses that item
+/// - `todox:ignore-next-line` on any line suppresses the immediately following line
+pub fn scan_content(content: &str, file_path: &str, pattern: &Regex) -> ScanContentResult {
+    let lines: Vec<&str> = content.lines().collect();
 
-    for (line_idx, line) in content.lines().enumerate() {
+    // Pre-scan for todox:ignore-next-line markers
+    let mut suppressed_lines: HashSet<usize> = HashSet::new();
+    for (idx, line) in lines.iter().enumerate() {
+        if line.contains(IGNORE_NEXT_LINE_MARKER) {
+            // Only suppress the immediately next line (no blank lines between)
+            let next_idx = idx + 1;
+            if next_idx < lines.len() && !lines[next_idx].trim().is_empty() {
+                suppressed_lines.insert(next_idx);
+            }
+        }
+    }
+
+    let mut items = Vec::new();
+    let mut ignored_items = Vec::new();
+
+    for (line_idx, line) in lines.iter().enumerate() {
         if let Some(caps) = pattern.captures(line) {
             let tag_match = caps.get(1).unwrap();
             if !is_in_comment(line, tag_match.start()) {
@@ -145,14 +176,27 @@ pub fn scan_content(content: &str, file_path: &str, pattern: &Regex) -> Vec<Todo
                 _ => Priority::Normal,
             };
 
-            let message = caps
+            let mut message = caps
                 .get(4)
                 .map(|m| m.as_str().trim().to_string())
                 .unwrap_or_default();
 
+            // Check if this line is suppressed
+            let has_inline_ignore =
+                line.contains(IGNORE_MARKER) && !line.contains(IGNORE_NEXT_LINE_MARKER);
+            let is_next_line_suppressed = suppressed_lines.contains(&line_idx);
+            let is_suppressed = has_inline_ignore || is_next_line_suppressed;
+
+            // Strip trailing todox:ignore from message text
+            if has_inline_ignore {
+                if let Some(pos) = message.find(IGNORE_MARKER) {
+                    message = message[..pos].trim().to_string();
+                }
+            }
+
             let issue_ref = extract_issue_ref(&message);
 
-            items.push(TodoItem {
+            let item = TodoItem {
                 file: file_path.to_string(),
                 line: line_idx + 1,
                 tag,
@@ -161,11 +205,20 @@ pub fn scan_content(content: &str, file_path: &str, pattern: &Regex) -> Vec<Todo
                 issue_ref,
                 priority,
                 deadline,
-            });
+            };
+
+            if is_suppressed {
+                ignored_items.push(item);
+            } else {
+                items.push(item);
+            }
         }
     }
 
-    items
+    ScanContentResult {
+        items,
+        ignored_items,
+    }
 }
 
 /// Walk a directory tree and scan all files for TODO-style comments.
@@ -184,6 +237,7 @@ pub fn scan_directory(root: &Path, config: &Config) -> Result<ScanResult> {
         .collect();
 
     let items = Arc::new(Mutex::new(Vec::new()));
+    let ignored_items = Arc::new(Mutex::new(Vec::new()));
     let files_scanned = Arc::new(AtomicUsize::new(0));
     let exclude_dirs = Arc::new(config.exclude_dirs.clone());
     let exclude_regexes = Arc::new(exclude_regexes);
@@ -193,6 +247,7 @@ pub fn scan_directory(root: &Path, config: &Config) -> Result<ScanResult> {
 
     walker.run(|| {
         let items = Arc::clone(&items);
+        let ignored_items = Arc::clone(&ignored_items);
         let files_scanned = Arc::clone(&files_scanned);
         let exclude_dirs = Arc::clone(&exclude_dirs);
         let exclude_regexes = Arc::clone(&exclude_regexes);
@@ -239,9 +294,18 @@ pub fn scan_directory(root: &Path, config: &Config) -> Result<ScanResult> {
                 .to_string_lossy()
                 .to_string();
 
-            let found = scan_content(&content, &relative_path, &pattern);
-            if !found.is_empty() {
-                items.lock().expect("scan thread panicked").extend(found);
+            let result = scan_content(&content, &relative_path, &pattern);
+            if !result.items.is_empty() {
+                items
+                    .lock()
+                    .expect("scan thread panicked")
+                    .extend(result.items);
+            }
+            if !result.ignored_items.is_empty() {
+                ignored_items
+                    .lock()
+                    .expect("scan thread panicked")
+                    .extend(result.ignored_items);
             }
             files_scanned.fetch_add(1, Ordering::Relaxed);
 
@@ -253,10 +317,15 @@ pub fn scan_directory(root: &Path, config: &Config) -> Result<ScanResult> {
         .expect("all walker threads should have finished")
         .into_inner()
         .unwrap();
+    let ignored_items = Arc::try_unwrap(ignored_items)
+        .expect("all walker threads should have finished")
+        .into_inner()
+        .unwrap();
     let files_scanned = files_scanned.load(Ordering::Relaxed);
 
     Ok(ScanResult {
         items,
+        ignored_items,
         files_scanned,
     })
 }
@@ -290,6 +359,7 @@ pub fn scan_directory_cached(
         .collect();
 
     let mut items = Vec::new();
+    let mut ignored_items = Vec::new();
     let mut files_scanned: usize = 0;
     let mut cache_hits: usize = 0;
     let mut cache_misses: usize = 0;
@@ -338,9 +408,9 @@ pub fn scan_directory_cached(
             .modified()
             .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
 
-        if let Some(cached_items) = cache.check(&relative_path, mtime) {
-            let mut cloned: Vec<TodoItem> = cached_items.to_vec();
-            items.append(&mut cloned);
+        if let Some(cached) = cache.check(&relative_path, mtime) {
+            items.extend(cached.items.iter().cloned());
+            ignored_items.extend(cached.ignored_items.iter().cloned());
             files_scanned += 1;
             cache_hits += 1;
             continue;
@@ -357,14 +427,22 @@ pub fn scan_directory_cached(
 
         // Layer 2: content hash check
         let content_bytes = content.as_bytes();
-        if let Some(cached_items) = cache.check_with_content(&relative_path, content_bytes) {
+        if let Some(cached) = cache.check_with_content(&relative_path, content_bytes) {
             // Content unchanged (mtime was different, e.g. touched file)
             // Clone first to release the immutable borrow on cache
-            let cloned: Vec<TodoItem> = cached_items.to_vec();
+            let cloned_items: Vec<TodoItem> = cached.items.to_vec();
+            let cloned_ignored: Vec<TodoItem> = cached.ignored_items.to_vec();
             // Update mtime in cache so next time layer 1 hits
             let content_hash = *blake3::hash(content_bytes).as_bytes();
-            cache.insert(relative_path.clone(), content_hash, cloned.clone(), mtime);
-            items.extend(cloned);
+            cache.insert(
+                relative_path.clone(),
+                content_hash,
+                cloned_items.clone(),
+                cloned_ignored.clone(),
+                mtime,
+            );
+            items.extend(cloned_items);
+            ignored_items.extend(cloned_ignored);
             files_scanned += 1;
             cache_hits += 1;
             continue;
@@ -372,10 +450,17 @@ pub fn scan_directory_cached(
 
         // Cache miss: full scan
         let relative_str = relative_path.to_string_lossy().to_string();
-        let found = scan_content(&content, &relative_str, &pattern);
+        let result = scan_content(&content, &relative_str, &pattern);
         let content_hash = *blake3::hash(content_bytes).as_bytes();
-        cache.insert(relative_path, content_hash, found.clone(), mtime);
-        items.extend(found);
+        cache.insert(
+            relative_path,
+            content_hash,
+            result.items.clone(),
+            result.ignored_items.clone(),
+            mtime,
+        );
+        items.extend(result.items);
+        ignored_items.extend(result.ignored_items);
         files_scanned += 1;
         cache_misses += 1;
     }
@@ -386,6 +471,7 @@ pub fn scan_directory_cached(
     Ok(CachedScanResult {
         result: ScanResult {
             items,
+            ignored_items,
             files_scanned,
         },
         cache_hits,
@@ -406,78 +492,78 @@ mod tests {
     fn test_basic_todo_detection() {
         let pattern = default_pattern();
         let content = "// TODO: implement this feature\n";
-        let items = scan_content(content, "test.rs", &pattern);
+        let result = scan_content(content, "test.rs", &pattern);
 
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].tag, Tag::Todo);
-        assert_eq!(items[0].message, "implement this feature");
-        assert_eq!(items[0].file, "test.rs");
-        assert_eq!(items[0].line, 1);
-        assert_eq!(items[0].priority, Priority::Normal);
-        assert!(items[0].author.is_none());
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].tag, Tag::Todo);
+        assert_eq!(result.items[0].message, "implement this feature");
+        assert_eq!(result.items[0].file, "test.rs");
+        assert_eq!(result.items[0].line, 1);
+        assert_eq!(result.items[0].priority, Priority::Normal);
+        assert!(result.items[0].author.is_none());
     }
 
     #[test]
     fn test_fixme_with_author() {
         let pattern = default_pattern();
         let content = "// FIXME(alice): broken parsing logic\n";
-        let items = scan_content(content, "lib.rs", &pattern);
+        let result = scan_content(content, "lib.rs", &pattern);
 
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].tag, Tag::Fixme);
-        assert_eq!(items[0].author.as_deref(), Some("alice"));
-        assert_eq!(items[0].message, "broken parsing logic");
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].tag, Tag::Fixme);
+        assert_eq!(result.items[0].author.as_deref(), Some("alice"));
+        assert_eq!(result.items[0].message, "broken parsing logic");
     }
 
     #[test]
     fn test_priority_high() {
         let pattern = default_pattern();
         let content = "# TODO: ! fix memory leak\n";
-        let items = scan_content(content, "main.py", &pattern);
+        let result = scan_content(content, "main.py", &pattern);
 
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].priority, Priority::High);
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].priority, Priority::High);
     }
 
     #[test]
     fn test_priority_urgent() {
         let pattern = default_pattern();
         let content = "// BUG: !! crashes on empty input\n";
-        let items = scan_content(content, "app.rs", &pattern);
+        let result = scan_content(content, "app.rs", &pattern);
 
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].tag, Tag::Bug);
-        assert_eq!(items[0].priority, Priority::Urgent);
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].tag, Tag::Bug);
+        assert_eq!(result.items[0].priority, Priority::Urgent);
     }
 
     #[test]
     fn test_issue_ref_hash() {
         let pattern = default_pattern();
         let content = "// TODO: fix layout issue #123\n";
-        let items = scan_content(content, "ui.rs", &pattern);
+        let result = scan_content(content, "ui.rs", &pattern);
 
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].issue_ref.as_deref(), Some("#123"));
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].issue_ref.as_deref(), Some("#123"));
     }
 
     #[test]
     fn test_issue_ref_jira() {
         let pattern = default_pattern();
         let content = "// FIXME: address JIRA-456 regression\n";
-        let items = scan_content(content, "api.rs", &pattern);
+        let result = scan_content(content, "api.rs", &pattern);
 
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].issue_ref.as_deref(), Some("JIRA-456"));
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].issue_ref.as_deref(), Some("JIRA-456"));
     }
 
     #[test]
     fn test_case_insensitivity() {
         let pattern = default_pattern();
         let content = "// todo: lowercase tag\n// Todo: mixed case\n// TODO: uppercase\n";
-        let items = scan_content(content, "test.rs", &pattern);
+        let result = scan_content(content, "test.rs", &pattern);
 
-        assert_eq!(items.len(), 3);
-        for item in &items {
+        assert_eq!(result.items.len(), 3);
+        for item in &result.items {
             assert_eq!(item.tag, Tag::Todo);
         }
     }
@@ -492,14 +578,14 @@ fn foo() {}
 // HACK: workaround for upstream bug
 // NOTE: remember to update docs
 ";
-        let items = scan_content(content, "multi.rs", &pattern);
+        let result = scan_content(content, "multi.rs", &pattern);
 
-        assert_eq!(items.len(), 4);
-        assert_eq!(items[0].tag, Tag::Todo);
-        assert_eq!(items[1].tag, Tag::Fixme);
-        assert_eq!(items[1].author.as_deref(), Some("bob"));
-        assert_eq!(items[2].tag, Tag::Hack);
-        assert_eq!(items[3].tag, Tag::Note);
+        assert_eq!(result.items.len(), 4);
+        assert_eq!(result.items[0].tag, Tag::Todo);
+        assert_eq!(result.items[1].tag, Tag::Fixme);
+        assert_eq!(result.items[1].author.as_deref(), Some("bob"));
+        assert_eq!(result.items[2].tag, Tag::Hack);
+        assert_eq!(result.items[3].tag, Tag::Note);
     }
 
     #[test]
@@ -512,40 +598,40 @@ line three
 line four
 // FIXME: on line five
 ";
-        let items = scan_content(content, "lines.rs", &pattern);
+        let result = scan_content(content, "lines.rs", &pattern);
 
-        assert_eq!(items.len(), 2);
-        assert_eq!(items[0].line, 2);
-        assert_eq!(items[1].line, 5);
+        assert_eq!(result.items.len(), 2);
+        assert_eq!(result.items[0].line, 2);
+        assert_eq!(result.items[1].line, 5);
     }
 
     #[test]
     fn test_xxx_tag() {
         let pattern = default_pattern();
         let content = "// XXX: dangerous code path\n";
-        let items = scan_content(content, "danger.rs", &pattern);
+        let result = scan_content(content, "danger.rs", &pattern);
 
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].tag, Tag::Xxx);
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].tag, Tag::Xxx);
     }
 
     #[test]
     fn test_no_match_on_plain_text() {
         let pattern = default_pattern();
         let content = "This is just a regular comment with no tags.\n";
-        let items = scan_content(content, "plain.rs", &pattern);
+        let result = scan_content(content, "plain.rs", &pattern);
 
-        assert!(items.is_empty());
+        assert!(result.items.is_empty());
     }
 
     #[test]
     fn test_author_with_special_chars() {
         let pattern = default_pattern();
         let content = "// TODO(user@domain.com): email-style author\n";
-        let items = scan_content(content, "test.rs", &pattern);
+        let result = scan_content(content, "test.rs", &pattern);
 
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].author.as_deref(), Some("user@domain.com"));
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].author.as_deref(), Some("user@domain.com"));
     }
 
     #[test]
@@ -564,25 +650,31 @@ line four
     fn test_no_match_in_identifier() {
         let pattern = default_pattern();
         let content = "let service = TodoService::new();\n";
-        let items = scan_content(content, "test.rs", &pattern);
-        assert!(items.is_empty(), "should not match TODO inside identifier");
+        let result = scan_content(content, "test.rs", &pattern);
+        assert!(
+            result.items.is_empty(),
+            "should not match TODO inside identifier"
+        );
     }
 
     #[test]
     fn test_no_match_in_camel_case() {
         let pattern = default_pattern();
         let content = "if isTodoCompleted() { return; }\n";
-        let items = scan_content(content, "test.rs", &pattern);
-        assert!(items.is_empty(), "should not match Todo in camelCase");
+        let result = scan_content(content, "test.rs", &pattern);
+        assert!(
+            result.items.is_empty(),
+            "should not match Todo in camelCase"
+        );
     }
 
     #[test]
     fn test_no_match_in_string_literal() {
         let pattern = default_pattern();
         let content = "let msg = \"TODO: not a real comment\";\n";
-        let items = scan_content(content, "test.rs", &pattern);
+        let result = scan_content(content, "test.rs", &pattern);
         assert!(
-            items.is_empty(),
+            result.items.is_empty(),
             "should not match TODO inside string literal"
         );
     }
@@ -591,33 +683,42 @@ line four
     fn test_no_match_in_plain_code() {
         let pattern = default_pattern();
         let content = "let todo_count = get_todos().len();\n";
-        let items = scan_content(content, "test.rs", &pattern);
-        assert!(items.is_empty(), "should not match todo in variable name");
+        let result = scan_content(content, "test.rs", &pattern);
+        assert!(
+            result.items.is_empty(),
+            "should not match todo in variable name"
+        );
     }
 
     #[test]
     fn test_no_match_enum_variant() {
         let pattern = default_pattern();
         let content = "enum State { Todo, InProgress, Done }\n";
-        let items = scan_content(content, "test.rs", &pattern);
-        assert!(items.is_empty(), "should not match Todo enum variant");
+        let result = scan_content(content, "test.rs", &pattern);
+        assert!(
+            result.items.is_empty(),
+            "should not match Todo enum variant"
+        );
     }
 
     #[test]
     fn test_no_match_struct_name() {
         let pattern = default_pattern();
         let content = "struct TodoItem { title: String }\n";
-        let items = scan_content(content, "test.rs", &pattern);
-        assert!(items.is_empty(), "should not match Todo in struct name");
+        let result = scan_content(content, "test.rs", &pattern);
+        assert!(
+            result.items.is_empty(),
+            "should not match Todo in struct name"
+        );
     }
 
     #[test]
     fn test_no_match_comment_prefix_in_string_literal() {
         let pattern = default_pattern();
         let content = r#"let s = "// TODO: not real";"#;
-        let items = scan_content(content, "test.rs", &pattern);
+        let result = scan_content(content, "test.rs", &pattern);
         assert!(
-            items.is_empty(),
+            result.items.is_empty(),
             "should not match TODO when // is inside a string literal"
         );
     }
@@ -626,9 +727,9 @@ line four
     fn test_no_match_hash_prefix_in_string_literal() {
         let pattern = default_pattern();
         let content = r##"let s = "# TODO: not real";"##;
-        let items = scan_content(content, "test.py", &pattern);
+        let result = scan_content(content, "test.py", &pattern);
         assert!(
-            items.is_empty(),
+            result.items.is_empty(),
             "should not match TODO when # is inside a string literal"
         );
     }
@@ -637,13 +738,13 @@ line four
     fn test_match_real_comment_after_quoted_prefix() {
         let pattern = default_pattern();
         let content = r#""//"; // TODO: fix this"#;
-        let items = scan_content(content, "test.rs", &pattern);
+        let result = scan_content(content, "test.rs", &pattern);
         assert_eq!(
-            items.len(),
+            result.items.len(),
             1,
             "should match the real comment after quoted prefix"
         );
-        assert_eq!(items[0].message, "fix this");
+        assert_eq!(result.items[0].message, "fix this");
     }
 
     // --- Comment detection tests (various languages) ---
@@ -652,97 +753,97 @@ line four
     fn test_comment_double_slash() {
         let pattern = default_pattern();
         let content = "// TODO: rust/js/c++ style comment\n";
-        let items = scan_content(content, "test.rs", &pattern);
-        assert_eq!(items.len(), 1);
+        let result = scan_content(content, "test.rs", &pattern);
+        assert_eq!(result.items.len(), 1);
     }
 
     #[test]
     fn test_comment_hash() {
         let pattern = default_pattern();
         let content = "# TODO: python/ruby/shell style comment\n";
-        let items = scan_content(content, "test.py", &pattern);
-        assert_eq!(items.len(), 1);
+        let result = scan_content(content, "test.py", &pattern);
+        assert_eq!(result.items.len(), 1);
     }
 
     #[test]
     fn test_comment_block_start() {
         let pattern = default_pattern();
         let content = "/* TODO: c-style block comment */\n";
-        let items = scan_content(content, "test.c", &pattern);
-        assert_eq!(items.len(), 1);
+        let result = scan_content(content, "test.c", &pattern);
+        assert_eq!(result.items.len(), 1);
     }
 
     #[test]
     fn test_comment_block_middle_star() {
         let pattern = default_pattern();
         let content = " * TODO: middle of block comment\n";
-        let items = scan_content(content, "test.java", &pattern);
-        assert_eq!(items.len(), 1);
+        let result = scan_content(content, "test.java", &pattern);
+        assert_eq!(result.items.len(), 1);
     }
 
     #[test]
     fn test_comment_double_dash() {
         let pattern = default_pattern();
         let content = "-- TODO: sql/haskell style comment\n";
-        let items = scan_content(content, "test.sql", &pattern);
-        assert_eq!(items.len(), 1);
+        let result = scan_content(content, "test.sql", &pattern);
+        assert_eq!(result.items.len(), 1);
     }
 
     #[test]
     fn test_comment_percent() {
         let pattern = default_pattern();
         let content = "% TODO: latex/erlang style comment\n";
-        let items = scan_content(content, "test.erl", &pattern);
-        assert_eq!(items.len(), 1);
+        let result = scan_content(content, "test.erl", &pattern);
+        assert_eq!(result.items.len(), 1);
     }
 
     #[test]
     fn test_comment_html() {
         let pattern = default_pattern();
         let content = "<!-- TODO: html comment -->\n";
-        let items = scan_content(content, "test.html", &pattern);
-        assert_eq!(items.len(), 1);
+        let result = scan_content(content, "test.html", &pattern);
+        assert_eq!(result.items.len(), 1);
     }
 
     #[test]
     fn test_comment_semicolon() {
         let pattern = default_pattern();
         let content = "; TODO: lisp/asm style comment\n";
-        let items = scan_content(content, "test.lisp", &pattern);
-        assert_eq!(items.len(), 1);
+        let result = scan_content(content, "test.lisp", &pattern);
+        assert_eq!(result.items.len(), 1);
     }
 
     #[test]
     fn test_comment_ocaml_paren_star() {
         let pattern = default_pattern();
         let content = "(* TODO: ocaml/pascal style comment *)\n";
-        let items = scan_content(content, "test.ml", &pattern);
-        assert_eq!(items.len(), 1);
+        let result = scan_content(content, "test.ml", &pattern);
+        assert_eq!(result.items.len(), 1);
     }
 
     #[test]
     fn test_comment_haskell_brace_dash() {
         let pattern = default_pattern();
         let content = "{- TODO: haskell block comment -}\n";
-        let items = scan_content(content, "test.hs", &pattern);
-        assert_eq!(items.len(), 1);
+        let result = scan_content(content, "test.hs", &pattern);
+        assert_eq!(result.items.len(), 1);
     }
 
     #[test]
     fn test_indented_comment() {
         let pattern = default_pattern();
         let content = "    // TODO: indented with spaces\n\t# FIXME: indented with tab\n";
-        let items = scan_content(content, "test.rs", &pattern);
-        assert_eq!(items.len(), 2);
+        let result = scan_content(content, "test.rs", &pattern);
+        assert_eq!(result.items.len(), 2);
     }
 
     #[test]
     fn test_inline_comment() {
         let pattern = default_pattern();
         let content = "let x = 42; // TODO: fix this value\n";
-        let items = scan_content(content, "test.rs", &pattern);
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].message, "fix this value");
+        let result = scan_content(content, "test.rs", &pattern);
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].message, "fix this value");
     }
 
     // --- is_in_comment() direct tests ---
@@ -949,27 +1050,27 @@ line four
     fn test_scan_todo_with_date() {
         let pattern = default_pattern();
         let content = "// TODO(2025-06-01): finish this by June\n";
-        let items = scan_content(content, "test.rs", &pattern);
+        let result = scan_content(content, "test.rs", &pattern);
 
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].tag, Tag::Todo);
-        assert!(items[0].author.is_none());
-        let d = items[0].deadline.unwrap();
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].tag, Tag::Todo);
+        assert!(result.items[0].author.is_none());
+        let d = result.items[0].deadline.unwrap();
         assert_eq!(d.year, 2025);
         assert_eq!(d.month, 6);
         assert_eq!(d.day, 1);
-        assert_eq!(items[0].message, "finish this by June");
+        assert_eq!(result.items[0].message, "finish this by June");
     }
 
     #[test]
     fn test_scan_todo_with_author_and_date() {
         let pattern = default_pattern();
         let content = "// TODO(alice, 2025-06-01): finish this\n";
-        let items = scan_content(content, "test.rs", &pattern);
+        let result = scan_content(content, "test.rs", &pattern);
 
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].author.as_deref(), Some("alice"));
-        let d = items[0].deadline.unwrap();
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].author.as_deref(), Some("alice"));
+        let d = result.items[0].deadline.unwrap();
         assert_eq!(d.year, 2025);
         assert_eq!(d.month, 6);
         assert_eq!(d.day, 1);
@@ -979,11 +1080,11 @@ line four
     fn test_scan_todo_with_quarter() {
         let pattern = default_pattern();
         let content = "// TODO(2025-Q4): year-end cleanup\n";
-        let items = scan_content(content, "test.rs", &pattern);
+        let result = scan_content(content, "test.rs", &pattern);
 
-        assert_eq!(items.len(), 1);
-        assert!(items[0].author.is_none());
-        let d = items[0].deadline.unwrap();
+        assert_eq!(result.items.len(), 1);
+        assert!(result.items[0].author.is_none());
+        let d = result.items[0].deadline.unwrap();
         assert_eq!(d.year, 2025);
         assert_eq!(d.month, 12);
         assert_eq!(d.day, 31);
@@ -993,22 +1094,22 @@ line four
     fn test_scan_todo_author_only_still_works() {
         let pattern = default_pattern();
         let content = "// TODO(bob): no date here\n";
-        let items = scan_content(content, "test.rs", &pattern);
+        let result = scan_content(content, "test.rs", &pattern);
 
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].author.as_deref(), Some("bob"));
-        assert!(items[0].deadline.is_none());
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].author.as_deref(), Some("bob"));
+        assert!(result.items[0].deadline.is_none());
     }
 
     #[test]
     fn test_scan_todo_no_parens_no_deadline() {
         let pattern = default_pattern();
         let content = "// TODO: plain task\n";
-        let items = scan_content(content, "test.rs", &pattern);
+        let result = scan_content(content, "test.rs", &pattern);
 
-        assert_eq!(items.len(), 1);
-        assert!(items[0].author.is_none());
-        assert!(items[0].deadline.is_none());
+        assert_eq!(result.items.len(), 1);
+        assert!(result.items[0].author.is_none());
+        assert!(result.items[0].deadline.is_none());
     }
 
     // --- Word boundary after tag: false-positive rejection ---
@@ -1017,9 +1118,9 @@ line four
     fn test_no_match_todox_in_comment() {
         let pattern = default_pattern();
         let content = "// todox report generates HTML\n";
-        let items = scan_content(content, "test.rs", &pattern);
+        let result = scan_content(content, "test.rs", &pattern);
         assert!(
-            items.is_empty(),
+            result.items.is_empty(),
             "should not match TODO as prefix of 'todox'"
         );
     }
@@ -1028,9 +1129,9 @@ line four
     fn test_no_match_todos_in_comment() {
         let pattern = default_pattern();
         let content = "// TODOS remaining in the backlog\n";
-        let items = scan_content(content, "test.rs", &pattern);
+        let result = scan_content(content, "test.rs", &pattern);
         assert!(
-            items.is_empty(),
+            result.items.is_empty(),
             "should not match TODO as prefix of 'TODOS'"
         );
     }
@@ -1039,9 +1140,9 @@ line four
     fn test_no_match_noted_in_comment() {
         let pattern = default_pattern();
         let content = "# NOTEd this for future reference\n";
-        let items = scan_content(content, "test.rs", &pattern);
+        let result = scan_content(content, "test.rs", &pattern);
         assert!(
-            items.is_empty(),
+            result.items.is_empty(),
             "should not match NOTE as prefix of 'NOTEd'"
         );
     }
@@ -1050,9 +1151,9 @@ line four
     fn test_no_match_fixme_suffix_in_comment() {
         let pattern = default_pattern();
         let content = "// FIXMEd the issue yesterday\n";
-        let items = scan_content(content, "test.rs", &pattern);
+        let result = scan_content(content, "test.rs", &pattern);
         assert!(
-            items.is_empty(),
+            result.items.is_empty(),
             "should not match FIXME as prefix of 'FIXMEd'"
         );
     }
@@ -1063,32 +1164,36 @@ line four
     fn test_still_matches_todo_colon() {
         let pattern = default_pattern();
         let content = "// TODO: fix this\n";
-        let items = scan_content(content, "test.rs", &pattern);
-        assert_eq!(items.len(), 1, "TODO: should still match");
+        let result = scan_content(content, "test.rs", &pattern);
+        assert_eq!(result.items.len(), 1, "TODO: should still match");
     }
 
     #[test]
     fn test_still_matches_todo_paren() {
         let pattern = default_pattern();
         let content = "// TODO(alice): fix this\n";
-        let items = scan_content(content, "test.rs", &pattern);
-        assert_eq!(items.len(), 1, "TODO(author) should still match");
+        let result = scan_content(content, "test.rs", &pattern);
+        assert_eq!(result.items.len(), 1, "TODO(author) should still match");
     }
 
     #[test]
     fn test_still_matches_todo_space() {
         let pattern = default_pattern();
         let content = "// TODO fix this\n";
-        let items = scan_content(content, "test.rs", &pattern);
-        assert_eq!(items.len(), 1, "TODO followed by space should still match");
+        let result = scan_content(content, "test.rs", &pattern);
+        assert_eq!(
+            result.items.len(),
+            1,
+            "TODO followed by space should still match"
+        );
     }
 
     #[test]
     fn test_still_matches_todo_bang() {
         let pattern = default_pattern();
         let content = "// TODO! fix this\n";
-        let items = scan_content(content, "test.rs", &pattern);
-        assert_eq!(items.len(), 1, "TODO! should still match");
+        let result = scan_content(content, "test.rs", &pattern);
+        assert_eq!(result.items.len(), 1, "TODO! should still match");
     }
 
     // --- scan_directory_cached tests ---
@@ -1222,5 +1327,112 @@ line four
             assert_eq!(u.issue_ref, c.issue_ref);
             assert_eq!(u.priority, c.priority);
         }
+    }
+
+    // --- todox:ignore suppression tests ---
+
+    #[test]
+    fn test_ignore_inline_suppresses_item() {
+        let pattern = default_pattern();
+        let content = "// TODO: keep this\n// TODO: suppress this todox:ignore\n";
+        let result = scan_content(content, "test.rs", &pattern);
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].message, "keep this");
+        assert_eq!(result.ignored_items.len(), 1);
+        assert_eq!(result.ignored_items[0].message, "suppress this");
+    }
+
+    #[test]
+    fn test_ignore_next_line_suppresses_following_item() {
+        let pattern = default_pattern();
+        let content = "// todox:ignore-next-line\n// TODO: suppressed by next-line\n// TODO: not suppressed\n";
+        let result = scan_content(content, "test.rs", &pattern);
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].message, "not suppressed");
+        assert_eq!(result.ignored_items.len(), 1);
+        assert_eq!(result.ignored_items[0].message, "suppressed by next-line");
+    }
+
+    #[test]
+    fn test_ignore_next_line_only_affects_immediate_next() {
+        let pattern = default_pattern();
+        let content = "// todox:ignore-next-line\n// TODO: suppressed\n// TODO: not suppressed\n";
+        let result = scan_content(content, "test.rs", &pattern);
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].message, "not suppressed");
+        assert_eq!(result.ignored_items.len(), 1);
+    }
+
+    #[test]
+    fn test_ignore_next_line_blank_line_between_does_not_suppress() {
+        let pattern = default_pattern();
+        let content = "// todox:ignore-next-line\n\n// TODO: should not be suppressed\n";
+        let result = scan_content(content, "test.rs", &pattern);
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].message, "should not be suppressed");
+        assert!(result.ignored_items.is_empty());
+    }
+
+    #[test]
+    fn test_ignore_mixed_items() {
+        let pattern = default_pattern();
+        let content = "\
+// TODO: normal item
+// todox:ignore-next-line
+// FIXME: suppressed fixme
+// HACK: normal hack
+// BUG: suppressed bug todox:ignore
+";
+        let result = scan_content(content, "test.rs", &pattern);
+
+        assert_eq!(result.items.len(), 2);
+        assert_eq!(result.items[0].message, "normal item");
+        assert_eq!(result.items[1].message, "normal hack");
+
+        assert_eq!(result.ignored_items.len(), 2);
+        assert_eq!(result.ignored_items[0].message, "suppressed fixme");
+        assert_eq!(result.ignored_items[1].message, "suppressed bug");
+    }
+
+    #[test]
+    fn test_ignore_no_items_affected_when_no_markers() {
+        let pattern = default_pattern();
+        let content = "// TODO: first\n// FIXME: second\n";
+        let result = scan_content(content, "test.rs", &pattern);
+
+        assert_eq!(result.items.len(), 2);
+        assert!(result.ignored_items.is_empty());
+    }
+
+    #[test]
+    fn test_ignore_strips_marker_from_message() {
+        let pattern = default_pattern();
+        let content = "// TODO: fix this todox:ignore\n";
+        let result = scan_content(content, "test.rs", &pattern);
+
+        assert_eq!(result.ignored_items.len(), 1);
+        assert_eq!(result.ignored_items[0].message, "fix this");
+    }
+
+    #[test]
+    fn test_ignore_directory_scan_separates_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("test.rs"),
+            "// TODO: visible\n// TODO: hidden todox:ignore\n",
+        )
+        .unwrap();
+
+        let config = Config::default();
+        let result = scan_directory(dir.path(), &config).unwrap();
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].message, "visible");
+        assert_eq!(result.ignored_items.len(), 1);
+        assert_eq!(result.ignored_items[0].message, "hidden");
     }
 }

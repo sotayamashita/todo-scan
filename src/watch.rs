@@ -55,7 +55,8 @@ impl TodoIndex {
         let content = std::fs::read_to_string(&abs_path)
             .with_context(|| format!("failed to read {}", abs_path.display()))?;
 
-        let new_items = scan_content(&content, relative_path, &self.pattern);
+        let scan_result = scan_content(&content, relative_path, &self.pattern);
+        let new_items = scan_result.items;
         let old_items = self.items.remove(relative_path).unwrap_or_default();
 
         let old_keys: HashMap<String, &TodoItem> =

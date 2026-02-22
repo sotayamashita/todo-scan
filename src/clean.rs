@@ -328,6 +328,7 @@ mod tests {
                 "#42",
             )],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let checker =
             MockIssueChecker::new(vec![(42, Some(IssueState::Closed { closed_at: None }))]);
@@ -349,6 +350,7 @@ mod tests {
                 "#42",
             )],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let checker = MockIssueChecker::new(vec![(42, Some(IssueState::Open))]);
         let result = run_clean(&scan, &default_config(), Some(&checker), None);
@@ -375,6 +377,7 @@ mod tests {
                 "#42",
             )],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let checker = MockIssueChecker::new(vec![(
             42,
@@ -408,6 +411,7 @@ mod tests {
                 "#42",
             )],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let checker = MockIssueChecker::new(vec![(
             42,
@@ -430,6 +434,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![item],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let checker = MockIssueChecker::new(vec![]);
         let result = run_clean(&scan, &default_config(), Some(&checker), None);
@@ -448,6 +453,7 @@ mod tests {
                 "#42",
             )],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let result = run_clean(&scan, &default_config(), None, None);
         assert!(result.passed);
@@ -464,6 +470,7 @@ mod tests {
                 make_item("b.rs", 5, Tag::Todo, "implement feature"),
             ],
             files_scanned: 2,
+            ignored_items: vec![],
         };
         let result = run_clean(&scan, &default_config(), None, None);
         assert!(!result.passed);
@@ -479,6 +486,7 @@ mod tests {
                 make_item("b.rs", 5, Tag::Todo, "implement feature"),
             ],
             files_scanned: 2,
+            ignored_items: vec![],
         };
         let result = run_clean(&scan, &default_config(), None, None);
         assert!(!result.passed);
@@ -493,6 +501,7 @@ mod tests {
                 make_item("b.rs", 5, Tag::Todo, "implement feature"),
             ],
             files_scanned: 2,
+            ignored_items: vec![],
         };
         let result = run_clean(&scan, &default_config(), None, None);
         assert!(!result.passed);
@@ -507,6 +516,7 @@ mod tests {
                 make_item("b.rs", 5, Tag::Todo, "implement feature B"),
             ],
             files_scanned: 2,
+            ignored_items: vec![],
         };
         let result = run_clean(&scan, &default_config(), None, None);
         assert!(result.passed);
@@ -521,6 +531,7 @@ mod tests {
                 make_item("b.rs", 5, Tag::Todo, ""),
             ],
             files_scanned: 2,
+            ignored_items: vec![],
         };
         let result = run_clean(&scan, &default_config(), None, None);
         assert!(result.passed);
@@ -532,6 +543,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("a.rs", 1, Tag::Todo, "unique message")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let result = run_clean(&scan, &default_config(), None, None);
         assert!(result.passed);
@@ -569,6 +581,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item_with_issue("a.rs", 1, Tag::Todo, "fix #42", "#42")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let checker =
             MockIssueChecker::new(vec![(42, Some(IssueState::Closed { closed_at: None }))]);
@@ -586,6 +599,7 @@ mod tests {
                 make_item("b.rs", 2, Tag::Todo, "same message"),
             ],
             files_scanned: 2,
+            ignored_items: vec![],
         };
         let mut config = default_config();
         config.clean.duplicates = Some(false);

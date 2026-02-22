@@ -13,8 +13,16 @@ use crate::model::TodoItem;
 pub struct CacheEntry {
     pub content_hash: [u8; 32],
     pub items: Vec<TodoItem>,
+    #[serde(default)]
+    pub ignored_items: Vec<TodoItem>,
     pub mtime_secs: u64,
     pub mtime_nanos: u32,
+}
+
+/// Result returned by cache check methods, containing both items and ignored items.
+pub struct CacheCheckResult<'a> {
+    pub items: &'a [TodoItem],
+    pub ignored_items: &'a [TodoItem],
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -78,24 +86,30 @@ impl ScanCache {
     }
 
     /// Check if we have a cached entry for this path with matching mtime.
-    /// Returns the cached items if mtime matches (layer 1 hit).
-    pub fn check(&self, path: &Path, mtime: SystemTime) -> Option<&[TodoItem]> {
+    /// Returns the cached items and ignored items if mtime matches (layer 1 hit).
+    pub fn check(&self, path: &Path, mtime: SystemTime) -> Option<CacheCheckResult<'_>> {
         let entry = self.entries.get(path)?;
         let (secs, nanos) = system_time_to_parts(mtime);
         if entry.mtime_secs == secs && entry.mtime_nanos == nanos {
-            Some(&entry.items)
+            Some(CacheCheckResult {
+                items: &entry.items,
+                ignored_items: &entry.ignored_items,
+            })
         } else {
             None
         }
     }
 
     /// Check if we have a cached entry for this path with matching content hash.
-    /// Returns the cached items if hash matches (layer 2 hit).
-    pub fn check_with_content(&self, path: &Path, content: &[u8]) -> Option<&[TodoItem]> {
+    /// Returns the cached items and ignored items if hash matches (layer 2 hit).
+    pub fn check_with_content(&self, path: &Path, content: &[u8]) -> Option<CacheCheckResult<'_>> {
         let entry = self.entries.get(path)?;
         let hash = blake3::hash(content);
         if entry.content_hash == *hash.as_bytes() {
-            Some(&entry.items)
+            Some(CacheCheckResult {
+                items: &entry.items,
+                ignored_items: &entry.ignored_items,
+            })
         } else {
             None
         }
@@ -107,6 +121,7 @@ impl ScanCache {
         path: PathBuf,
         content_hash: [u8; 32],
         items: Vec<TodoItem>,
+        ignored_items: Vec<TodoItem>,
         mtime: SystemTime,
     ) {
         let (secs, nanos) = system_time_to_parts(mtime);
@@ -115,6 +130,7 @@ impl ScanCache {
             CacheEntry {
                 content_hash,
                 items,
+                ignored_items,
                 mtime_secs: secs,
                 mtime_nanos: nanos,
             },
@@ -229,6 +245,7 @@ mod tests {
             PathBuf::from("src/main.rs"),
             *hash.as_bytes(),
             vec![make_item("src/main.rs", 1, Tag::Todo, "test task")],
+            vec![],
             mtime,
         );
 
@@ -257,6 +274,7 @@ mod tests {
             PathBuf::from("src/lib.rs"),
             *hash.as_bytes(),
             vec![make_item_with_deadline("src/lib.rs", "deadline task")],
+            vec![],
             mtime,
         );
 
@@ -307,13 +325,15 @@ mod tests {
             path.clone(),
             *hash.as_bytes(),
             vec![make_item("test.rs", 1, Tag::Todo, "cached")],
+            vec![],
             mtime,
         );
 
         let result = cache.check(&path, mtime);
         assert!(result.is_some());
-        assert_eq!(result.unwrap().len(), 1);
-        assert_eq!(result.unwrap()[0].message, "cached");
+        let cached = result.unwrap();
+        assert_eq!(cached.items.len(), 1);
+        assert_eq!(cached.items[0].message, "cached");
     }
 
     #[test]
@@ -329,6 +349,7 @@ mod tests {
             path.clone(),
             *hash.as_bytes(),
             vec![make_item("test.rs", 1, Tag::Todo, "cached")],
+            vec![],
             mtime,
         );
 
@@ -348,12 +369,13 @@ mod tests {
             path.clone(),
             *hash.as_bytes(),
             vec![make_item("test.rs", 1, Tag::Todo, "test content")],
+            vec![],
             mtime,
         );
 
         let result = cache.check_with_content(&path, content);
         assert!(result.is_some());
-        assert_eq!(result.unwrap()[0].message, "test content");
+        assert_eq!(result.unwrap().items[0].message, "test content");
     }
 
     #[test]
@@ -369,6 +391,7 @@ mod tests {
             path.clone(),
             *hash.as_bytes(),
             vec![make_item("test.rs", 1, Tag::Todo, "original")],
+            vec![],
             mtime,
         );
 
@@ -388,12 +411,14 @@ mod tests {
             PathBuf::from("keep.rs"),
             *hash.as_bytes(),
             vec![make_item("keep.rs", 1, Tag::Todo, "keep")],
+            vec![],
             mtime,
         );
         cache.insert(
             PathBuf::from("delete.rs"),
             *hash.as_bytes(),
             vec![make_item("delete.rs", 1, Tag::Todo, "delete")],
+            vec![],
             mtime,
         );
 

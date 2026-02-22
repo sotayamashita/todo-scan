@@ -184,6 +184,7 @@ mod tests {
         let result = ScanResult {
             items: vec![sample_item(Tag::Todo, "implement feature")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let output = format_list(&result);
         assert!(output
@@ -199,6 +200,7 @@ mod tests {
                 sample_item(Tag::Note, "a note"),
             ],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let output = format_list(&result);
         assert!(output.contains("::error file=src/main.rs,line=10,title=BUG::[BUG] critical bug"));
@@ -219,6 +221,7 @@ mod tests {
                 deadline: None,
             }],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let output = format_list(&result);
         assert!(output.contains("::error file=lib.rs,line=5,title=TODO::[TODO] urgent task"));
@@ -229,6 +232,7 @@ mod tests {
         let result = ScanResult {
             items: vec![sample_item(Tag::Todo, "fix 100% of bugs\nline2")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let output = format_list(&result);
         assert!(output.contains("fix 100%25 of bugs%0Aline2"));

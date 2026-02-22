@@ -90,6 +90,7 @@ mod tests {
                 make_item("b.rs", 1, Tag::Fixme, "fix this"),
             ],
             files_scanned: 2,
+            ignored_items: vec![],
         };
 
         let result = compute_stats(&scan, None);
@@ -112,6 +113,7 @@ mod tests {
         let scan = ScanResult {
             items,
             files_scanned: 1,
+            ignored_items: vec![],
         };
 
         let result = compute_stats(&scan, None);
@@ -133,6 +135,7 @@ mod tests {
         let scan = ScanResult {
             items,
             files_scanned: 1,
+            ignored_items: vec![],
         };
 
         let result = compute_stats(&scan, None);
@@ -148,6 +151,7 @@ mod tests {
         let scan = ScanResult {
             items,
             files_scanned: 10,
+            ignored_items: vec![],
         };
 
         let result = compute_stats(&scan, None);
@@ -159,6 +163,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![make_item("a.rs", 1, Tag::Todo, "task")],
             files_scanned: 1,
+            ignored_items: vec![],
         };
         let diff = DiffResult {
             entries: vec![],
@@ -180,6 +185,7 @@ mod tests {
         let scan = ScanResult {
             items: vec![],
             files_scanned: 0,
+            ignored_items: vec![],
         };
 
         let result = compute_stats(&scan, None);

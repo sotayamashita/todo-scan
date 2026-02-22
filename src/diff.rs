@@ -83,8 +83,8 @@ pub fn compute_diff(
             Err(_) => continue, // skip binary or inaccessible files
         };
 
-        let items = scan_content(&content, path, &re);
-        base_items.extend(items);
+        let result = scan_content(&content, path, &re);
+        base_items.extend(result.items);
     }
 
     // Only compare current items from changed files

@@ -20,6 +20,7 @@ pub struct ListOptions {
     pub path: Option<String>,
     pub limit: Option<usize>,
     pub context: Option<usize>,
+    pub show_ignored: bool,
 }
 
 pub fn cmd_list(
@@ -30,6 +31,8 @@ pub fn cmd_list(
     no_cache: bool,
 ) -> Result<()> {
     let mut result = do_scan(root, config, no_cache)?;
+
+    let ignored_count = result.ignored_items.len();
 
     apply_filters(
         &mut result.items,
@@ -73,6 +76,13 @@ pub fn cmd_list(
         HashMap::new()
     };
 
-    print_list(&result, format, &opts.group_by, &context_map);
+    print_list(
+        &result,
+        format,
+        &opts.group_by,
+        &context_map,
+        ignored_count,
+        opts.show_ignored,
+    );
     Ok(())
 }

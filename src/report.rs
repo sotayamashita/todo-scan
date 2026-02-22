@@ -127,7 +127,7 @@ pub fn compute_history(
                 Err(_) => continue,
             };
 
-            count += scan_content(&content, file_path, &pattern).len();
+            count += scan_content(&content, file_path, &pattern).items.len();
         }
 
         history.push(HistoryPoint {
