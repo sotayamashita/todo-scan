@@ -19,17 +19,32 @@ Track TODO/FIXME/HACK comments in your codebase with git-aware diff and CI gate.
 ## Features
 
 1. **Discover**
-     - [Scan & List TODOs](#scan--list-todos) · [Search TODOs](#search-todos) · [Inline Code Context](#inline-code-context) · [Progressive Detail Levels](#progressive-detail-levels)
+     - [Scan & List TODOs](#scan--list-todos)
+     - [Search TODOs](#search-todos)
+     - [Inline Code Context](#inline-code-context)
+     - [Progressive Detail Levels](#progressive-detail-levels)
 2. **Analyze**
-     - [Diff Against Git Refs](#diff-against-git-refs) · [Dashboard & Statistics](#dashboard--statistics) · [Git Blame Integration](#git-blame-integration) · [Discover TODO Relationships](#discover-todo-relationships)
+     - [Diff Against Git Refs](#diff-against-git-refs)
+     - [Dashboard & Statistics](#dashboard--statistics)
+     - [Git Blame Integration](#git-blame-integration)
+     - [Discover TODO Relationships](#discover-todo-relationships)
 3. **Enforce**
-     - [Inline Suppression](#inline-suppression) · [Lint TODO Format](#lint-todo-format) · [Clean Stale & Duplicate TODOs](#clean-stale--duplicate-todos) · [CI Quality Gate](#ci-quality-gate)
+     - [Inline Suppression](#inline-suppression)
+     - [Lint TODO Format](#lint-todo-format)
+     - [Clean Stale & Duplicate TODOs](#clean-stale--duplicate-todos)
+     - [CI Quality Gate](#ci-quality-gate)
 4. **Scale**
-     - [Workspace-Aware Scanning](#workspace-aware-scanning) · [Per-Package CI Gate](#per-package-ci-gate) · [Single Package Scope](#single-package-scope)
+     - [Workspace-Aware Scanning](#workspace-aware-scanning)
+     - [Per-Package CI Gate](#per-package-ci-gate)
+     - [Single Package Scope](#single-package-scope)
 5. **Report & Integrate**
-     - [HTML Report Generation](#html-report-generation) · [CI Output Formats](#ci-output-formats) · [Claude Code Task Export](#claude-code-task-export)
+     - [HTML Report Generation](#html-report-generation)
+     - [CI Output Formats](#ci-output-formats)
+     - [Claude Code Task Export](#claude-code-task-export)
 6. **Productivity**
-     - [Real-time File Watching](#real-time-file-watching) · [Interactive Setup](#interactive-setup) · [Shell Completions](#shell-completions)
+     - [Real-time File Watching](#real-time-file-watching)
+     - [Interactive Setup](#interactive-setup)
+     - [Shell Completions](#shell-completions)
 
 ### Scan & List TODOs
 
