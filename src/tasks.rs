@@ -115,13 +115,13 @@ pub fn build_tasks(
                 description: build_description(item, context),
                 active_form: build_active_form(item),
                 metadata: ClaudeTaskMetadata {
-                    todox_file: item.file.clone(),
-                    todox_line: item.line,
-                    todox_tag: item.tag.as_str().to_string(),
-                    todox_priority: format!("{:?}", item.priority).to_lowercase(),
-                    todox_author: item.author.clone(),
-                    todox_issue_ref: item.issue_ref.clone(),
-                    todox_match_key: item.match_key(),
+                    todo_scan_file: item.file.clone(),
+                    todo_scan_line: item.line,
+                    todo_scan_tag: item.tag.as_str().to_string(),
+                    todo_scan_priority: format!("{:?}", item.priority).to_lowercase(),
+                    todo_scan_author: item.author.clone(),
+                    todo_scan_issue_ref: item.issue_ref.clone(),
+                    todo_scan_match_key: item.match_key(),
                 },
             }
         })
@@ -244,12 +244,12 @@ mod tests {
 
         let task = &tasks[0];
         assert_eq!(task.subject, "Fix fix crash");
-        assert_eq!(task.metadata.todox_file, "src/main.rs");
-        assert_eq!(task.metadata.todox_line, 10);
-        assert_eq!(task.metadata.todox_tag, "BUG");
-        assert_eq!(task.metadata.todox_priority, "normal");
-        assert_eq!(task.metadata.todox_author, Some("bob".to_string()));
-        assert_eq!(task.metadata.todox_issue_ref, Some("#99".to_string()));
+        assert_eq!(task.metadata.todo_scan_file, "src/main.rs");
+        assert_eq!(task.metadata.todo_scan_line, 10);
+        assert_eq!(task.metadata.todo_scan_tag, "BUG");
+        assert_eq!(task.metadata.todo_scan_priority, "normal");
+        assert_eq!(task.metadata.todo_scan_author, Some("bob".to_string()));
+        assert_eq!(task.metadata.todo_scan_issue_ref, Some("#99".to_string()));
     }
 
     #[test]

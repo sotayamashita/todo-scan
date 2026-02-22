@@ -3,8 +3,8 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 fn setup_project(files: &[(&str, &str)]) -> TempDir {
@@ -29,7 +29,7 @@ fn test_stats_basic_output() {
         ("lib.rs", "// HACK: workaround\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["stats", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -47,7 +47,7 @@ fn test_stats_priority_counts() {
         "// TODO!!: urgent task\n// TODO!: high task\n// TODO: normal task\n",
     )]);
 
-    todox()
+    todo_scan()
         .args(["stats", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -63,7 +63,7 @@ fn test_stats_with_authors() {
         "// TODO(alice): alice task\n// TODO(bob): bob task\n// TODO: no author\n",
     )]);
 
-    todox()
+    todo_scan()
         .args(["stats", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -80,7 +80,7 @@ fn test_stats_hotspot_files() {
         ("lib.rs", "// TODO: single\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["stats", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -93,7 +93,7 @@ fn test_stats_hotspot_files() {
 fn test_stats_json_format() {
     let dir = setup_project(&[("main.rs", "// TODO: json test\n// FIXME: another\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "stats",
             "--root",
@@ -113,7 +113,7 @@ fn test_stats_json_format() {
 fn test_stats_empty_project() {
     let dir = setup_project(&[("main.rs", "fn main() {}\n")]);
 
-    todox()
+    todo_scan()
         .args(["stats", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -124,7 +124,7 @@ fn test_stats_empty_project() {
 fn test_stats_bar_chart_present() {
     let dir = setup_project(&[("main.rs", "// TODO: one\n// TODO: two\n// FIXME: three\n")]);
 
-    todox()
+    todo_scan()
         .args(["stats", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()

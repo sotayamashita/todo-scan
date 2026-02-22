@@ -4,8 +4,8 @@ use std::fs;
 use std::process;
 use tempfile::TempDir;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 fn setup_git_repo(files: &[(&str, &str)]) -> TempDir {
@@ -58,7 +58,7 @@ fn test_blame_basic_output() {
     let dir = setup_git_repo(&[("main.rs", "// TODO: implement feature\nfn main() {}\n")]);
     let cwd = dir.path();
 
-    todox()
+    todo_scan()
         .args(["blame", "--root", cwd.to_str().unwrap()])
         .assert()
         .success()
@@ -76,7 +76,7 @@ fn test_blame_sort_by_age() {
     ]);
     let cwd = dir.path();
 
-    todox()
+    todo_scan()
         .args(["blame", "--root", cwd.to_str().unwrap(), "--sort", "age"])
         .assert()
         .success()
@@ -90,7 +90,7 @@ fn test_blame_filter_by_author() {
     let cwd = dir.path();
 
     // Filter by "Test Author" (our git config user)
-    todox()
+    todo_scan()
         .args([
             "blame",
             "--root",
@@ -104,7 +104,7 @@ fn test_blame_filter_by_author() {
         .stdout(predicate::str::contains("task two"));
 
     // Filter by non-existent author
-    todox()
+    todo_scan()
         .args([
             "blame",
             "--root",
@@ -124,14 +124,14 @@ fn test_blame_filter_by_min_age() {
     let cwd = dir.path();
 
     // Min-age 0d should include everything
-    todox()
+    todo_scan()
         .args(["blame", "--root", cwd.to_str().unwrap(), "--min-age", "0d"])
         .assert()
         .success()
         .stdout(predicate::str::contains("recent task"));
 
     // Min-age 99999d should exclude everything
-    todox()
+    todo_scan()
         .args([
             "blame",
             "--root",
@@ -149,7 +149,7 @@ fn test_blame_json_format() {
     let dir = setup_git_repo(&[("main.rs", "// TODO: test json\nfn main() {}\n")]);
     let cwd = dir.path();
 
-    todox()
+    todo_scan()
         .args(["blame", "--root", cwd.to_str().unwrap(), "--format", "json"])
         .assert()
         .success()
@@ -164,7 +164,7 @@ fn test_blame_markdown_format() {
     let dir = setup_git_repo(&[("main.rs", "// TODO: markdown test\n")]);
     let cwd = dir.path();
 
-    todox()
+    todo_scan()
         .args([
             "blame",
             "--root",
@@ -185,7 +185,7 @@ fn test_blame_github_actions_format() {
     let dir = setup_git_repo(&[("main.rs", "// TODO: ga test\n")]);
     let cwd = dir.path();
 
-    todox()
+    todo_scan()
         .args([
             "blame",
             "--root",
@@ -196,7 +196,7 @@ fn test_blame_github_actions_format() {
         .assert()
         .success()
         .stdout(predicate::str::contains("::notice"))
-        .stdout(predicate::str::contains("todox blame:"));
+        .stdout(predicate::str::contains("todo-scan blame:"));
 }
 
 #[test]
@@ -204,7 +204,7 @@ fn test_blame_sarif_format() {
     let dir = setup_git_repo(&[("main.rs", "// TODO: sarif test\n")]);
     let cwd = dir.path();
 
-    todox()
+    todo_scan()
         .args([
             "blame",
             "--root",
@@ -225,7 +225,7 @@ fn test_blame_stale_marker() {
     let cwd = dir.path();
 
     // With a threshold of 0 days, everything is stale
-    todox()
+    todo_scan()
         .args([
             "blame",
             "--root",
@@ -243,7 +243,7 @@ fn test_blame_summary_line() {
     let dir = setup_git_repo(&[("a.rs", "// TODO: first\n"), ("b.rs", "// FIXME: second\n")]);
     let cwd = dir.path();
 
-    todox()
+    todo_scan()
         .args(["blame", "--root", cwd.to_str().unwrap()])
         .assert()
         .success()
@@ -257,7 +257,7 @@ fn test_blame_tag_filter() {
     let dir = setup_git_repo(&[("main.rs", "// TODO: keep\n// FIXME: filter out\n")]);
     let cwd = dir.path();
 
-    todox()
+    todo_scan()
         .args(["blame", "--root", cwd.to_str().unwrap(), "--tag", "TODO"])
         .assert()
         .success()
@@ -270,7 +270,7 @@ fn test_blame_empty_repo() {
     let dir = setup_git_repo(&[("main.rs", "fn main() {}\n")]);
     let cwd = dir.path();
 
-    todox()
+    todo_scan()
         .args(["blame", "--root", cwd.to_str().unwrap()])
         .assert()
         .success()
@@ -282,7 +282,7 @@ fn test_blame_json_contains_id_field() {
     let dir = setup_git_repo(&[("main.rs", "// TODO: blame id test\nfn main() {}\n")]);
     let cwd = dir.path();
 
-    let output = todox()
+    let output = todo_scan()
         .args(["blame", "--root", cwd.to_str().unwrap(), "--format", "json"])
         .output()
         .unwrap();

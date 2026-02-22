@@ -3,10 +3,10 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
-/// Configuration for todox TODO tracking tool
+/// Configuration for todo-scan TODO tracking tool
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(default)]
-#[schemars(deny_unknown_fields, title = "todox Configuration")]
+#[schemars(deny_unknown_fields, title = "todo-scan Configuration")]
 pub struct Config {
     /// Tags to scan for (e.g., TODO, FIXME, HACK)
     pub tags: Vec<String>,
@@ -133,7 +133,7 @@ impl Config {
         format!(r"(?i)\b({tags})\b(?:\(([^)]+)\))?:?\s*(!{{1,2}})?\s*(.*)$")
     }
 
-    /// Load config from .todox.toml, searching up from the given directory
+    /// Load config from .todo-scan.toml, searching up from the given directory
     pub fn load(start_dir: &Path) -> Result<Self> {
         if let Some(path) = find_config_file(start_dir) {
             let content = std::fs::read_to_string(&path)
@@ -147,11 +147,11 @@ impl Config {
     }
 }
 
-/// Search for .todox.toml from start_dir upward
+/// Search for .todo-scan.toml from start_dir upward
 fn find_config_file(start_dir: &Path) -> Option<PathBuf> {
     let mut dir = start_dir.to_path_buf();
     loop {
-        let candidate = dir.join(".todox.toml");
+        let candidate = dir.join(".todo-scan.toml");
         if candidate.is_file() {
             return Some(candidate);
         }
@@ -230,7 +230,7 @@ max = 10
         assert!(config.workspace.packages.is_empty());
     }
 
-    /// Validates that schema/todox.schema.json matches the current Config structs.
+    /// Validates that schema/todo-scan.schema.json matches the current Config structs.
     ///
     /// To regenerate the schema after changing Config:
     ///   UPDATE_SCHEMA=1 cargo test schema_is_up_to_date
@@ -240,7 +240,7 @@ max = 10
         let generated = serde_json::to_string_pretty(&schema).unwrap() + "\n";
 
         let schema_path =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("schema/todox.schema.json");
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("schema/todo-scan.schema.json");
 
         if std::env::var("UPDATE_SCHEMA").is_ok() {
             std::fs::create_dir_all(schema_path.parent().unwrap()).unwrap();
@@ -249,7 +249,7 @@ max = 10
         }
 
         let committed = std::fs::read_to_string(&schema_path).expect(
-            "schema/todox.schema.json not found. Run `UPDATE_SCHEMA=1 cargo test schema_is_up_to_date` to generate it.",
+            "schema/todo-scan.schema.json not found. Run `UPDATE_SCHEMA=1 cargo test schema_is_up_to_date` to generate it.",
         );
         assert_eq!(
             generated, committed,

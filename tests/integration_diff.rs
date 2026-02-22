@@ -4,8 +4,8 @@ use std::fs;
 use std::process;
 use tempfile::TempDir;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 fn setup_git_repo(initial_files: &[(&str, &str)]) -> TempDir {
@@ -63,7 +63,7 @@ fn test_diff_shows_added_todos() {
     // Add a TODO after the initial commit
     fs::write(cwd.join("main.rs"), "// TODO: new feature\nfn main() {}\n").unwrap();
 
-    todox()
+    todo_scan()
         .args(["diff", "HEAD", "--root", cwd.to_str().unwrap()])
         .assert()
         .success()
@@ -80,7 +80,7 @@ fn test_diff_shows_removed_todos() {
     // Remove the TODO
     fs::write(cwd.join("main.rs"), "fn main() {}\n").unwrap();
 
-    todox()
+    todo_scan()
         .args(["diff", "HEAD", "--root", cwd.to_str().unwrap()])
         .assert()
         .success()
@@ -95,7 +95,7 @@ fn test_diff_json_format() {
 
     fs::write(cwd.join("main.rs"), "// FIXME: urgent fix\nfn main() {}\n").unwrap();
 
-    todox()
+    todo_scan()
         .args([
             "diff",
             "HEAD",
@@ -116,7 +116,7 @@ fn test_diff_no_changes() {
     let cwd = dir.path();
 
     // Don't modify files - diff should show nothing
-    todox()
+    todo_scan()
         .args(["diff", "HEAD", "--root", cwd.to_str().unwrap()])
         .assert()
         .success()
@@ -138,7 +138,7 @@ fn test_diff_with_multiple_files_only_one_changed() {
     )
     .unwrap();
 
-    todox()
+    todo_scan()
         .args([
             "diff",
             "HEAD",
@@ -169,7 +169,7 @@ fn test_diff_deleted_file() {
     // Delete the file
     fs::remove_file(cwd.join("removeme.rs")).unwrap();
 
-    todox()
+    todo_scan()
         .args(["diff", "HEAD", "--root", cwd.to_str().unwrap()])
         .assert()
         .success()
@@ -189,7 +189,7 @@ fn test_diff_new_untracked_file() {
     )
     .unwrap();
 
-    todox()
+    todo_scan()
         .args(["diff", "HEAD", "--root", cwd.to_str().unwrap()])
         .assert()
         .success()
@@ -207,7 +207,7 @@ fn test_diff_unchanged_files_no_false_positives() {
     let cwd = dir.path();
 
     // Don't modify any files
-    todox()
+    todo_scan()
         .args(["diff", "HEAD", "--root", cwd.to_str().unwrap()])
         .assert()
         .success()
@@ -225,7 +225,7 @@ fn test_diff_renamed_file() {
     // Rename the file (without git mv, just filesystem rename)
     fs::rename(cwd.join("old_name.rs"), cwd.join("new_name.rs")).unwrap();
 
-    todox()
+    todo_scan()
         .args([
             "diff",
             "HEAD",
@@ -263,7 +263,7 @@ fn test_diff_mixed_changes() {
     // add.rs: new file
     fs::write(cwd.join("add.rs"), "// BUG: found a bug\nfn add() {}\n").unwrap();
 
-    todox()
+    todo_scan()
         .args([
             "diff",
             "HEAD",
@@ -291,7 +291,7 @@ fn test_diff_github_actions_format() {
 
     fs::write(cwd.join("main.rs"), "// TODO: new feature\nfn main() {}\n").unwrap();
 
-    todox()
+    todo_scan()
         .args([
             "diff",
             "HEAD",
@@ -305,7 +305,7 @@ fn test_diff_github_actions_format() {
         .stdout(predicate::str::contains(
             "::warning file=main.rs,line=1,title=TODO::[TODO] new feature",
         ))
-        .stdout(predicate::str::contains("::notice::todox diff: +1 -0"));
+        .stdout(predicate::str::contains("::notice::todo-scan diff: +1 -0"));
 }
 
 #[test]
@@ -315,7 +315,7 @@ fn test_diff_sarif_format() {
 
     fs::write(cwd.join("main.rs"), "// FIXME: urgent fix\nfn main() {}\n").unwrap();
 
-    todox()
+    todo_scan()
         .args([
             "diff",
             "HEAD",
@@ -328,7 +328,7 @@ fn test_diff_sarif_format() {
         .success()
         .stdout(predicate::str::contains("\"version\": \"2.1.0\""))
         .stdout(predicate::str::contains("\"diffStatus\": \"added\""))
-        .stdout(predicate::str::contains("\"ruleId\": \"todox/FIXME\""));
+        .stdout(predicate::str::contains("\"ruleId\": \"todo-scan/FIXME\""));
 }
 
 #[test]
@@ -338,7 +338,7 @@ fn test_diff_markdown_format() {
 
     fs::write(cwd.join("main.rs"), "// TODO: new task\nfn main() {}\n").unwrap();
 
-    todox()
+    todo_scan()
         .args([
             "diff",
             "HEAD",
@@ -367,7 +367,7 @@ fn test_diff_with_context() {
     )
     .unwrap();
 
-    todox()
+    todo_scan()
         .args(["diff", "HEAD", "--root", cwd.to_str().unwrap(), "-C", "1"])
         .assert()
         .success()
@@ -387,7 +387,7 @@ fn test_diff_detail_minimal_json() {
     )
     .unwrap();
 
-    let output = todox()
+    let output = todo_scan()
         .args([
             "diff",
             "HEAD",
@@ -428,7 +428,7 @@ fn test_diff_json_contains_id_field() {
     )
     .unwrap();
 
-    let output = todox()
+    let output = todo_scan()
         .args([
             "diff",
             "HEAD",

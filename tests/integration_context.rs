@@ -3,8 +3,8 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 fn setup_project(files: &[(&str, &str)]) -> TempDir {
@@ -26,7 +26,7 @@ fn test_context_text_output() {
         "fn main() {\n    let x = 1;\n    // TODO: fix this\n    let y = 2;\n    let z = 3;\n}\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "context",
             "main.rs:3",
@@ -48,7 +48,7 @@ fn test_context_json_output() {
         "fn main() {\n    let x = 1;\n    // TODO: fix this\n    let y = 2;\n}\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "context",
             "main.rs:3",
@@ -73,7 +73,7 @@ fn test_context_related_todos() {
         "// TODO: first todo\nfn main() {\n    // TODO: second todo\n    let x = 1;\n}\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "context",
             "main.rs:3",
@@ -94,7 +94,7 @@ fn test_context_related_todos() {
 fn test_context_invalid_format() {
     let dir = setup_project(&[("main.rs", "fn main() {}\n")]);
 
-    todox()
+    todo_scan()
         .args(["context", "main.rs", "--root", dir.path().to_str().unwrap()])
         .assert()
         .failure()
@@ -105,7 +105,7 @@ fn test_context_invalid_format() {
 fn test_context_file_not_found() {
     let dir = setup_project(&[("main.rs", "fn main() {}\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "context",
             "nonexistent.rs:1",
@@ -124,7 +124,7 @@ fn test_context_custom_window() {
         "line1\nline2\nline3\n// TODO: target\nline5\nline6\nline7\nline8\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "context",
             "main.rs:4",
@@ -152,7 +152,7 @@ fn test_context_resolves_stable_id() {
     )]);
 
     // Use the stable ID format instead of file:line
-    todox()
+    todo_scan()
         .args([
             "context",
             "main.rs:TODO:fix this",

@@ -1,6 +1,6 @@
 # Issue-Driven Development Workflow
 
-This document defines the development workflow for the todox project. All development follows an issue-driven approach using `gh` CLI for GitHub operations.
+This document defines the development workflow for the todo-scan project. All development follows an issue-driven approach using `gh` CLI for GitHub operations.
 
 ## Workflow Overview
 
@@ -193,19 +193,19 @@ Each feature entry must follow this format:
 Example:
 
 ```markdown
-**`todox check`**
+**`todo-scan check`**
 
 Without enforcement, TODO debt grows silently until it becomes unmanageable.
-`todox check` acts as a CI gate that fails the build when TODO counts exceed
+`todo-scan check` acts as a CI gate that fails the build when TODO counts exceed
 a threshold, forbidden tags appear, or too many new TODOs are introduced.
-Run `todox check --max 100 --block-tags BUG` in your CI pipeline.
+Run `todo-scan check --max 100 --block-tags BUG` in your CI pipeline.
 ```
 
 ### 5b. Update docs/HOOKS.md (if hooks or CI integration changed)
 
 When a change affects CLI flags, hook behavior, or CI integration patterns, update `docs/HOOKS.md` to keep the recipes accurate.
 
-- **When to update**: new/renamed CLI flags used in recipes, new hook event types, changed `todox check`/`todox lint` behavior
+- **When to update**: new/renamed CLI flags used in recipes, new hook event types, changed `todo-scan check`/`todo-scan lint` behavior
 - **When to skip**: internal refactoring, changes unrelated to hooks or CI
 
 ### 6. Commit

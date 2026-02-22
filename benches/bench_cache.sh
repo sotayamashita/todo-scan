@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BINARY="./target/release/todox"
+BINARY="./target/release/todo-scan"
 CORPUS_DIR=$(mktemp -d)
 NUM_FILES=1000
 RUNS=5
@@ -41,7 +41,7 @@ done
 cold_avg=$(python3 -c "print(f'{($cold_total / $RUNS)*1000:.1f}')")
 
 # Warm cache creation (clear any existing cache first)
-rm -rf ~/.cache/todox
+rm -rf ~/.cache/todo-scan
 $BINARY list --root "$CORPUS_DIR" > /dev/null
 
 # Warm scan (cache hit)

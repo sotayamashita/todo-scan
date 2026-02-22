@@ -7,7 +7,7 @@ fn build_sarif_envelope(results: Vec<serde_json::Value>, rules: Vec<serde_json::
         "runs": [{
             "tool": {
                 "driver": {
-                    "name": "todox",
+                    "name": "todo-scan",
                     "version": env!("CARGO_PKG_VERSION"),
                     "rules": rules
                 }
@@ -19,7 +19,7 @@ fn build_sarif_envelope(results: Vec<serde_json::Value>, rules: Vec<serde_json::
 }
 
 fn rule_id(tag: &Tag) -> String {
-    format!("todox/{}", tag.as_str())
+    format!("todo-scan/{}", tag.as_str())
 }
 
 fn collect_rules(items: &[&TodoItem]) -> Vec<serde_json::Value> {
@@ -153,7 +153,7 @@ pub fn format_lint(result: &LintResult) -> String {
         .iter()
         .map(|v| {
             let mut r = serde_json::json!({
-                "ruleId": format!("todox/lint/{}", v.rule),
+                "ruleId": format!("todo-scan/lint/{}", v.rule),
                 "level": "error",
                 "message": {
                     "text": v.message
@@ -190,7 +190,7 @@ pub fn format_lint(result: &LintResult) -> String {
         .violations
         .iter()
         .filter_map(|v| {
-            let id = format!("todox/lint/{}", v.rule);
+            let id = format!("todo-scan/lint/{}", v.rule);
             if seen.insert(id.clone()) {
                 Some(serde_json::json!({
                     "id": id,
@@ -206,7 +206,7 @@ pub fn format_lint(result: &LintResult) -> String {
 
     let final_results = if result.passed && results.is_empty() {
         vec![serde_json::json!({
-            "ruleId": "todox/lint/summary",
+            "ruleId": "todo-scan/lint/summary",
             "level": "note",
             "message": {
                 "text": format!("All lint checks passed ({} items)", result.total_items)
@@ -218,9 +218,9 @@ pub fn format_lint(result: &LintResult) -> String {
 
     let final_rules = if result.passed && rules.is_empty() {
         vec![serde_json::json!({
-            "id": "todox/lint/summary",
+            "id": "todo-scan/lint/summary",
             "shortDescription": {
-                "text": "todox lint summary"
+                "text": "todo-scan lint summary"
             }
         })]
     } else {
@@ -238,7 +238,7 @@ pub fn format_check(result: &CheckResult) -> String {
         .iter()
         .map(|v| {
             serde_json::json!({
-                "ruleId": format!("todox/check/{}", v.rule),
+                "ruleId": format!("todo-scan/check/{}", v.rule),
                 "level": if result.passed { "note" } else { "error" },
                 "message": {
                     "text": v.message
@@ -252,7 +252,7 @@ pub fn format_check(result: &CheckResult) -> String {
         .iter()
         .map(|v| {
             serde_json::json!({
-                "id": format!("todox/check/{}", v.rule),
+                "id": format!("todo-scan/check/{}", v.rule),
                 "shortDescription": {
                     "text": format!("{} check", v.rule)
                 }
@@ -263,7 +263,7 @@ pub fn format_check(result: &CheckResult) -> String {
     // If passed with no violations, add a summary result
     let final_results = if result.passed && results.is_empty() {
         vec![serde_json::json!({
-            "ruleId": "todox/check/summary",
+            "ruleId": "todo-scan/check/summary",
             "level": "note",
             "message": {
                 "text": format!("All checks passed ({} items total)", result.total)
@@ -275,9 +275,9 @@ pub fn format_check(result: &CheckResult) -> String {
 
     let final_rules = if result.passed && rules.is_empty() {
         vec![serde_json::json!({
-            "id": "todox/check/summary",
+            "id": "todo-scan/check/summary",
             "shortDescription": {
-                "text": "todox check summary"
+                "text": "todo-scan check summary"
             }
         })]
     } else {
@@ -295,7 +295,7 @@ pub fn format_clean(result: &CleanResult) -> String {
         .iter()
         .map(|v| {
             let mut r = serde_json::json!({
-                "ruleId": format!("todox/clean/{}", v.rule),
+                "ruleId": format!("todo-scan/clean/{}", v.rule),
                 "level": "error",
                 "message": {
                     "text": v.message
@@ -338,7 +338,7 @@ pub fn format_clean(result: &CleanResult) -> String {
         .violations
         .iter()
         .filter_map(|v| {
-            let id = format!("todox/clean/{}", v.rule);
+            let id = format!("todo-scan/clean/{}", v.rule);
             if seen.insert(id.clone()) {
                 Some(serde_json::json!({
                     "id": id,
@@ -354,7 +354,7 @@ pub fn format_clean(result: &CleanResult) -> String {
 
     let final_results = if result.passed && results.is_empty() {
         vec![serde_json::json!({
-            "ruleId": "todox/clean/summary",
+            "ruleId": "todo-scan/clean/summary",
             "level": "note",
             "message": {
                 "text": format!("All clean checks passed ({} items)", result.total_items)
@@ -366,9 +366,9 @@ pub fn format_clean(result: &CleanResult) -> String {
 
     let final_rules = if result.passed && rules.is_empty() {
         vec![serde_json::json!({
-            "id": "todox/clean/summary",
+            "id": "todo-scan/clean/summary",
             "shortDescription": {
-                "text": "todox clean summary"
+                "text": "todo-scan clean summary"
             }
         })]
     } else {
@@ -408,11 +408,11 @@ mod tests {
         let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
 
         assert_eq!(sarif["version"], "2.1.0");
-        assert_eq!(sarif["runs"][0]["tool"]["driver"]["name"], "todox");
+        assert_eq!(sarif["runs"][0]["tool"]["driver"]["name"], "todo-scan");
 
         let results = sarif["runs"][0]["results"].as_array().unwrap();
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0]["ruleId"], "todox/TODO");
+        assert_eq!(results[0]["ruleId"], "todo-scan/TODO");
         assert_eq!(results[0]["level"], "warning");
         assert_eq!(results[0]["message"]["text"], "implement feature");
         assert_eq!(
@@ -509,7 +509,7 @@ mod tests {
         let output = format_check(&result);
         let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
         let results = sarif["runs"][0]["results"].as_array().unwrap();
-        assert_eq!(results[0]["ruleId"], "todox/check/max");
+        assert_eq!(results[0]["ruleId"], "todo-scan/check/max");
         assert_eq!(results[0]["level"], "error");
     }
 }

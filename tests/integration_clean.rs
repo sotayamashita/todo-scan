@@ -3,8 +3,8 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 fn setup_project(files: &[(&str, &str)]) -> TempDir {
@@ -28,7 +28,7 @@ fn test_clean_pass_no_duplicates() {
         ("b.rs", "// TODO: implement feature B\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["clean", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -42,7 +42,7 @@ fn test_clean_fail_duplicates() {
         ("b.rs", "// TODO: implement feature\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["clean", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success() // No --check, so always exit 0
@@ -57,7 +57,7 @@ fn test_clean_duplicates_case_insensitive() {
         ("b.rs", "// TODO: implement feature\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["clean", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -71,7 +71,7 @@ fn test_clean_duplicates_whitespace_normalized() {
         ("b.rs", "// TODO: implement feature\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["clean", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -84,7 +84,7 @@ fn test_clean_duplicates_whitespace_normalized() {
 fn test_clean_check_exit_0_no_violations() {
     let dir = setup_project(&[("a.rs", "// TODO: unique message\n")]);
 
-    todox()
+    todo_scan()
         .args(["clean", "--check", "--root", dir.path().to_str().unwrap()])
         .assert()
         .code(0);
@@ -97,7 +97,7 @@ fn test_clean_check_exit_1_with_violations() {
         ("b.rs", "// TODO: same message\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["clean", "--check", "--root", dir.path().to_str().unwrap()])
         .assert()
         .code(1);
@@ -110,7 +110,7 @@ fn test_clean_no_check_exit_0_even_with_violations() {
         ("b.rs", "// TODO: same message\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["clean", "--root", dir.path().to_str().unwrap()])
         .assert()
         .code(0);
@@ -122,7 +122,7 @@ fn test_clean_no_check_exit_0_even_with_violations() {
 fn test_clean_json_format_pass() {
     let dir = setup_project(&[("a.rs", "// TODO: unique task\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "clean",
             "--root",
@@ -144,7 +144,7 @@ fn test_clean_json_format_fail() {
         ("b.rs", "// TODO: same task\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "clean",
             "--root",
@@ -162,7 +162,7 @@ fn test_clean_json_format_fail() {
 fn test_clean_github_actions_format_pass() {
     let dir = setup_project(&[("a.rs", "// TODO: unique task\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "clean",
             "--root",
@@ -172,7 +172,7 @@ fn test_clean_github_actions_format_pass() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("::notice::todox clean: PASS"));
+        .stdout(predicate::str::contains("::notice::todo-scan clean: PASS"));
 }
 
 #[test]
@@ -182,7 +182,7 @@ fn test_clean_github_actions_format_fail() {
         ("b.rs", "// TODO: same task\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "clean",
             "--root",
@@ -193,14 +193,14 @@ fn test_clean_github_actions_format_fail() {
         .assert()
         .success()
         .stdout(predicate::str::contains("::error"))
-        .stdout(predicate::str::contains("todox clean: FAIL"));
+        .stdout(predicate::str::contains("todo-scan clean: FAIL"));
 }
 
 #[test]
 fn test_clean_sarif_format_pass() {
     let dir = setup_project(&[("a.rs", "// TODO: unique task\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "clean",
             "--root",
@@ -221,7 +221,7 @@ fn test_clean_sarif_format_fail() {
         ("b.rs", "// TODO: same task\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "clean",
             "--root",
@@ -231,7 +231,7 @@ fn test_clean_sarif_format_fail() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("todox/clean/duplicate"))
+        .stdout(predicate::str::contains("todo-scan/clean/duplicate"))
         .stdout(predicate::str::contains("\"level\": \"error\""));
 }
 
@@ -239,7 +239,7 @@ fn test_clean_sarif_format_fail() {
 fn test_clean_markdown_format_pass() {
     let dir = setup_project(&[("a.rs", "// TODO: unique task\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "clean",
             "--root",
@@ -260,7 +260,7 @@ fn test_clean_markdown_format_fail() {
         ("b.rs", "// TODO: same task\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "clean",
             "--root",
@@ -280,7 +280,7 @@ fn test_clean_markdown_format_fail() {
 fn test_clean_empty_project() {
     let dir = setup_project(&[("main.rs", "fn main() {}\n")]);
 
-    todox()
+    todo_scan()
         .args(["clean", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -293,7 +293,7 @@ fn test_clean_empty_project() {
 fn test_clean_no_issue_refs_no_stale() {
     let dir = setup_project(&[("a.rs", "// TODO: no issue reference here\n")]);
 
-    todox()
+    todo_scan()
         .args(["clean", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -308,7 +308,7 @@ fn test_clean_config_disables_duplicates() {
         ("a.rs", "// TODO: same message\n"),
         ("b.rs", "// TODO: same message\n"),
         (
-            ".todox.toml",
+            ".todo-scan.toml",
             r#"
 [clean]
 duplicates = false
@@ -316,7 +316,7 @@ duplicates = false
         ),
     ]);
 
-    todox()
+    todo_scan()
         .args(["clean", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()

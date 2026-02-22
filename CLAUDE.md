@@ -22,7 +22,7 @@ cargo llvm-cov --html                  # Generate HTML coverage report in target
 
 ## Architecture
 
-todox is a Rust CLI tool that scans codebases for TODO/FIXME/HACK/XXX/BUG/NOTE comments and provides listing, diffing, and CI gating capabilities.
+todo-scan is a Rust CLI tool that scans codebases for TODO/FIXME/HACK/XXX/BUG/NOTE comments and provides listing, diffing, and CI gating capabilities.
 
 ### Module Responsibilities
 
@@ -30,7 +30,7 @@ todox is a Rust CLI tool that scans codebases for TODO/FIXME/HACK/XXX/BUG/NOTE c
 - **cli.rs** - CLI argument definitions using clap derive macros (three subcommands: list, diff, check)
 - **model.rs** - Core data types: `Tag`, `TodoItem`, `ScanResult`, `DiffResult`, `CheckResult`, `DiffEntry`
 - **scanner.rs** - Directory walking (via `ignore` crate for .gitignore support), file reading, regex matching to extract TODO items
-- **config.rs** - Loads `.todox.toml` config, provides defaults, builds the scan regex pattern
+- **config.rs** - Loads `.todo-scan.toml` config, provides defaults, builds the scan regex pattern
 - **diff.rs** - Retrieves file contents at a git ref via `git show`/`git ls-tree`, computes added/removed/modified TODOs using `match_key()`
 - **check.rs** - Validates against thresholds: `--max` (total count), `--block-tags` (forbidden tags), `--max-new` (new items limit)
 - **output.rs** - Text (colored, grouped by file) and JSON (serde) output formatting

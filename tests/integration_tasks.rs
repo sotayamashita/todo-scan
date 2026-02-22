@@ -3,8 +3,8 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 fn setup_project(files: &[(&str, &str)]) -> TempDir {
@@ -23,7 +23,7 @@ fn setup_project(files: &[(&str, &str)]) -> TempDir {
 fn test_tasks_dry_run_outputs_json() {
     let dir = setup_project(&[("main.rs", "// TODO: implement feature\n// BUG: fix crash\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "tasks",
             "--root",
@@ -47,7 +47,7 @@ fn test_tasks_subject_action_verb_prefix() {
         "// BUG: crash on startup\n// TODO: add logging\n// HACK: temp workaround\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "tasks",
             "--root",
@@ -71,7 +71,7 @@ fn test_tasks_tag_filter() {
         ("hack.rs", "// HACK: quick hack\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "tasks",
             "--root",
@@ -96,7 +96,7 @@ fn test_tasks_priority_ordering() {
         "// TODO: normal task\n// TODO!!: urgent task\n// TODO!: high task\n",
     )]);
 
-    let output = todox()
+    let output = todo_scan()
         .args([
             "tasks",
             "--root",
@@ -114,9 +114,9 @@ fn test_tasks_priority_ordering() {
     let json: serde_json::Value = serde_json::from_slice(&output).unwrap();
     let tasks = json["tasks"].as_array().unwrap();
 
-    assert_eq!(tasks[0]["metadata"]["todox_priority"], "urgent");
-    assert_eq!(tasks[1]["metadata"]["todox_priority"], "high");
-    assert_eq!(tasks[2]["metadata"]["todox_priority"], "normal");
+    assert_eq!(tasks[0]["metadata"]["todo_scan_priority"], "urgent");
+    assert_eq!(tasks[1]["metadata"]["todo_scan_priority"], "high");
+    assert_eq!(tasks[2]["metadata"]["todo_scan_priority"], "normal");
 }
 
 #[test]
@@ -126,7 +126,7 @@ fn test_tasks_context_in_description() {
         "fn main() {\n    let x = 1;\n    // TODO: fix this\n    let y = 2;\n    let z = 3;\n}\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "tasks",
             "--root",
@@ -149,7 +149,7 @@ fn test_tasks_output_writes_files() {
 
     let output_dir = dir.path().join("tasks-output");
 
-    todox()
+    todo_scan()
         .args([
             "tasks",
             "--root",
@@ -176,7 +176,7 @@ fn test_tasks_output_writes_files() {
 fn test_tasks_empty_project() {
     let dir = setup_project(&[("main.rs", "fn main() {}\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "tasks",
             "--root",
@@ -195,7 +195,7 @@ fn test_tasks_empty_project() {
 fn test_tasks_metadata_fields() {
     let dir = setup_project(&[("main.rs", "// TODO(alice): fix issue #123\n")]);
 
-    let output = todox()
+    let output = todo_scan()
         .args([
             "tasks",
             "--root",
@@ -213,12 +213,12 @@ fn test_tasks_metadata_fields() {
     let json: serde_json::Value = serde_json::from_slice(&output).unwrap();
     let meta = &json["tasks"][0]["metadata"];
 
-    assert_eq!(meta["todox_file"], "main.rs");
-    assert_eq!(meta["todox_line"], 1);
-    assert_eq!(meta["todox_tag"], "TODO");
-    assert_eq!(meta["todox_author"], "alice");
-    assert_eq!(meta["todox_issue_ref"], "#123");
-    assert!(meta.get("todox_match_key").is_some());
+    assert_eq!(meta["todo_scan_file"], "main.rs");
+    assert_eq!(meta["todo_scan_line"], 1);
+    assert_eq!(meta["todo_scan_tag"], "TODO");
+    assert_eq!(meta["todo_scan_author"], "alice");
+    assert_eq!(meta["todo_scan_issue_ref"], "#123");
+    assert!(meta.get("todo_scan_match_key").is_some());
 }
 
 #[test]
@@ -227,7 +227,7 @@ fn test_tasks_dry_run_skips_file_write() {
 
     let output_dir = dir.path().join("tasks-output");
 
-    todox()
+    todo_scan()
         .args([
             "tasks",
             "--root",
@@ -253,7 +253,7 @@ fn test_tasks_text_format() {
         "// TODO: implement feature\n// BUG: critical crash\n",
     )]);
 
-    todox()
+    todo_scan()
         .args(["tasks", "--root", dir.path().to_str().unwrap(), "--dry-run"])
         .assert()
         .success()
@@ -269,7 +269,7 @@ fn test_tasks_filter_by_author() {
         ("bob.rs", "// TODO(bob): bob task\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "tasks",
             "--root",
@@ -294,7 +294,7 @@ fn test_tasks_filter_by_path() {
         ("tests/test.rs", "// TODO: in tests\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "tasks",
             "--root",

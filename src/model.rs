@@ -320,15 +320,15 @@ pub struct ClaudeTask {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ClaudeTaskMetadata {
-    pub todox_file: String,
-    pub todox_line: usize,
-    pub todox_tag: String,
-    pub todox_priority: String,
+    pub todo_scan_file: String,
+    pub todo_scan_line: usize,
+    pub todo_scan_tag: String,
+    pub todo_scan_priority: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub todox_author: Option<String>,
+    pub todo_scan_author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub todox_issue_ref: Option<String>,
-    pub todox_match_key: String,
+    pub todo_scan_issue_ref: Option<String>,
+    pub todo_scan_match_key: String,
 }
 
 #[derive(Debug, Serialize)]

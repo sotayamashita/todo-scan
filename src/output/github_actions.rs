@@ -30,7 +30,7 @@ fn format_item_annotation(item: &TodoItem) -> String {
 pub fn format_list(result: &ScanResult) -> String {
     let mut lines: Vec<String> = result.items.iter().map(format_item_annotation).collect();
     lines.push(format!(
-        "::notice::todox: {} items found",
+        "::notice::todo-scan: {} items found",
         result.items.len()
     ));
     lines.push(String::new());
@@ -40,7 +40,7 @@ pub fn format_list(result: &ScanResult) -> String {
 pub fn format_search(result: &SearchResult) -> String {
     let mut lines: Vec<String> = result.items.iter().map(format_item_annotation).collect();
     lines.push(format!(
-        "::notice::todox search: {} matches (query: \"{}\")",
+        "::notice::todo-scan search: {} matches (query: \"{}\")",
         result.match_count, result.query
     ));
     lines.push(String::new());
@@ -66,7 +66,7 @@ pub fn format_diff(result: &DiffResult) -> String {
         }
     }
     lines.push(format!(
-        "::notice::todox diff: +{} -{}",
+        "::notice::todo-scan diff: +{} -{}",
         result.added_count, result.removed_count
     ));
     lines.push(String::new());
@@ -96,7 +96,7 @@ pub fn format_blame(result: &BlameResult) -> String {
     }
 
     lines.push(format!(
-        "::notice::todox blame: {} items, {} stale",
+        "::notice::todo-scan blame: {} items, {} stale",
         result.total, result.stale_count,
     ));
     lines.push(String::new());
@@ -106,7 +106,7 @@ pub fn format_blame(result: &BlameResult) -> String {
 pub fn format_lint(result: &LintResult) -> String {
     let mut lines: Vec<String> = Vec::new();
     if result.passed {
-        lines.push("::notice::todox lint: PASS".to_string());
+        lines.push("::notice::todo-scan lint: PASS".to_string());
     } else {
         for violation in &result.violations {
             let file = escape_property(&violation.file);
@@ -117,7 +117,7 @@ pub fn format_lint(result: &LintResult) -> String {
             ));
         }
         lines.push(format!(
-            "::error::todox lint: FAIL ({} violations)",
+            "::error::todo-scan lint: FAIL ({} violations)",
             result.violation_count
         ));
     }
@@ -128,13 +128,13 @@ pub fn format_lint(result: &LintResult) -> String {
 pub fn format_check(result: &CheckResult) -> String {
     let mut lines: Vec<String> = Vec::new();
     if result.passed {
-        lines.push("::notice::todox check: PASS".to_string());
+        lines.push("::notice::todo-scan check: PASS".to_string());
     } else {
         for violation in &result.violations {
             let msg = escape_message(&violation.message);
             lines.push(format!("::error title={}::{msg}", violation.rule));
         }
-        lines.push("::error::todox check: FAIL".to_string());
+        lines.push("::error::todo-scan check: FAIL".to_string());
     }
     lines.push(String::new());
     lines.join("\n")
@@ -143,7 +143,7 @@ pub fn format_check(result: &CheckResult) -> String {
 pub fn format_clean(result: &CleanResult) -> String {
     let mut lines: Vec<String> = Vec::new();
     if result.passed {
-        lines.push("::notice::todox clean: PASS".to_string());
+        lines.push("::notice::todo-scan clean: PASS".to_string());
     } else {
         for violation in &result.violations {
             let file = escape_property(&violation.file);
@@ -154,7 +154,7 @@ pub fn format_clean(result: &CleanResult) -> String {
             ));
         }
         lines.push(format!(
-            "::error::todox clean: FAIL ({} stale, {} duplicates)",
+            "::error::todo-scan clean: FAIL ({} stale, {} duplicates)",
             result.stale_count, result.duplicate_count
         ));
     }
@@ -189,7 +189,7 @@ mod tests {
         let output = format_list(&result);
         assert!(output
             .contains("::warning file=src/main.rs,line=10,title=TODO::[TODO] implement feature"));
-        assert!(output.contains("::notice::todox: 1 items found"));
+        assert!(output.contains("::notice::todo-scan: 1 items found"));
     }
 
     #[test]
@@ -259,7 +259,7 @@ mod tests {
         assert!(output.contains("::error file=src/main.rs,line=10,title=FIXME::[FIXME] new fix"));
         assert!(output
             .contains("::notice file=src/main.rs,line=10,title=Removed TODO::[TODO] old task"));
-        assert!(output.contains("::notice::todox diff: +1 -1"));
+        assert!(output.contains("::notice::todo-scan diff: +1 -1"));
     }
 
     #[test]
@@ -270,7 +270,7 @@ mod tests {
             violations: vec![],
         };
         let output = format_check(&result);
-        assert!(output.contains("::notice::todox check: PASS"));
+        assert!(output.contains("::notice::todo-scan check: PASS"));
         assert!(!output.contains("::error"));
     }
 
@@ -286,6 +286,6 @@ mod tests {
         };
         let output = format_check(&result);
         assert!(output.contains("::error title=max::10 exceeds max 5"));
-        assert!(output.contains("::error::todox check: FAIL"));
+        assert!(output.contains("::error::todo-scan check: FAIL"));
     }
 }

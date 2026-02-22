@@ -3,8 +3,8 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 fn setup_project(files: &[(&str, &str)]) -> TempDir {
@@ -54,7 +54,7 @@ fn test_report_creates_html_file() {
     let dir = setup_project(&[("main.rs", "// TODO: test report\n")]);
     let output_path = dir.path().join("report.html");
 
-    todox()
+    todo_scan()
         .args([
             "report",
             "--root",
@@ -76,14 +76,14 @@ fn test_report_creates_html_file() {
 fn test_report_default_output_path() {
     let dir = setup_project(&[("main.rs", "// TODO: test default\n")]);
 
-    todox()
+    todo_scan()
         .current_dir(dir.path())
         .args(["report", "--history", "0"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("todox-report.html"));
+        .stdout(predicate::str::contains("todo-scan-report.html"));
 
-    let default_path = dir.path().join("todox-report.html");
+    let default_path = dir.path().join("todo-scan-report.html");
     assert!(default_path.exists(), "default report file should exist");
 }
 
@@ -92,7 +92,7 @@ fn test_report_custom_output_path() {
     let dir = setup_project(&[("main.rs", "// TODO: custom path\n")]);
     let custom_path = dir.path().join("my-report.html");
 
-    todox()
+    todo_scan()
         .args([
             "report",
             "--root",
@@ -116,7 +116,7 @@ fn test_report_contains_all_sections() {
     )]);
     let output_path = dir.path().join("report.html");
 
-    todox()
+    todo_scan()
         .args([
             "report",
             "--root",
@@ -167,7 +167,7 @@ fn test_report_with_history() {
 
     let output_path = dir.path().join("report.html");
 
-    todox()
+    todo_scan()
         .args([
             "report",
             "--root",
@@ -190,7 +190,7 @@ fn test_report_empty_project() {
     let dir = setup_project(&[("main.rs", "fn main() {}\n")]);
     let output_path = dir.path().join("report.html");
 
-    todox()
+    todo_scan()
         .args([
             "report",
             "--root",
@@ -217,7 +217,7 @@ fn test_report_embedded_json_valid() {
     )]);
     let output_path = dir.path().join("report.html");
 
-    todox()
+    todo_scan()
         .args([
             "report",
             "--root",

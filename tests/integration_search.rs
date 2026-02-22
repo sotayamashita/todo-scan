@@ -3,8 +3,8 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
-fn todox() -> Command {
-    assert_cmd::cargo_bin_cmd!("todox")
+fn todo_scan() -> Command {
+    assert_cmd::cargo_bin_cmd!("todo-scan")
 }
 
 fn setup_project(files: &[(&str, &str)]) -> TempDir {
@@ -26,7 +26,7 @@ fn test_search_basic_substring_case_insensitive() {
         "// TODO: Implement Feature\n// FIXME: broken thing\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "search",
             "implement",
@@ -47,7 +47,7 @@ fn test_search_exact_flag() {
     )]);
 
     // With --exact, case matters
-    todox()
+    todo_scan()
         .args([
             "search",
             "Implement",
@@ -69,7 +69,7 @@ fn test_search_issue_ref() {
         "// TODO(alice): fix issue #123\n// TODO: other\n",
     )]);
 
-    todox()
+    todo_scan()
         .args(["search", "#123", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -84,7 +84,7 @@ fn test_search_author_filter() {
         "// TODO(alice): alice task fix\n// TODO(bob): bob task fix\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "search",
             "fix",
@@ -107,7 +107,7 @@ fn test_search_tag_filter() {
         "// TODO: todo task\n// FIXME: fixme task\n// BUG: bug task\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "search",
             "task",
@@ -131,7 +131,7 @@ fn test_search_path_filter() {
         ("tests/test.rs", "// TODO: fix test\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args([
             "search",
             "fix",
@@ -151,7 +151,7 @@ fn test_search_path_filter() {
 fn test_search_no_matches() {
     let dir = setup_project(&[("main.rs", "// TODO: something\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "search",
             "nonexistent",
@@ -170,7 +170,7 @@ fn test_search_summary_line_format() {
         ("b.rs", "// TODO: fix beta\n"),
     ]);
 
-    todox()
+    todo_scan()
         .args(["search", "fix", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -186,7 +186,7 @@ fn test_search_context_lines() {
         "fn main() {\n    let x = 1;\n    // TODO: fix this\n    let y = 2;\n    let z = 3;\n}\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "search",
             "fix",
@@ -206,7 +206,7 @@ fn test_search_context_lines() {
 fn test_search_json_format() {
     let dir = setup_project(&[("main.rs", "// TODO: fix the bug\n// TODO: other thing\n")]);
 
-    todox()
+    todo_scan()
         .args([
             "search",
             "fix",
@@ -228,7 +228,7 @@ fn test_search_json_format() {
 fn test_search_alias_s() {
     let dir = setup_project(&[("main.rs", "// TODO: alias test\n")]);
 
-    todox()
+    todo_scan()
         .args(["s", "alias", "--root", dir.path().to_str().unwrap()])
         .assert()
         .success()
@@ -243,7 +243,7 @@ fn test_search_detail_minimal_hides_author() {
         "// TODO(alice): fix the bug #123\n// FIXME(bob): another issue\n",
     )]);
 
-    todox()
+    todo_scan()
         .args([
             "search",
             "fix",
@@ -263,7 +263,7 @@ fn test_search_detail_minimal_hides_author() {
 fn test_search_detail_minimal_json() {
     let dir = setup_project(&[("main.rs", "// TODO(alice): fix the bug #123\n")]);
 
-    let output = todox()
+    let output = todo_scan()
         .args([
             "search",
             "fix",
@@ -295,7 +295,7 @@ fn test_search_detail_minimal_json() {
 fn test_search_json_contains_id_field() {
     let dir = setup_project(&[("main.rs", "// TODO: search id test\n// FIXME: other\n")]);
 
-    let output = todox()
+    let output = todo_scan()
         .args([
             "search",
             "search id",
