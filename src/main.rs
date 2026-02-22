@@ -17,6 +17,7 @@ mod report;
 mod scanner;
 mod search;
 mod stats;
+mod tasks;
 mod watch;
 
 use std::process;
@@ -34,7 +35,7 @@ use lint::{run_lint, LintOverrides};
 use model::Tag;
 use output::{
     print_blame, print_check, print_clean, print_context, print_diff, print_lint, print_list,
-    print_report, print_search, print_stats,
+    print_report, print_search, print_stats, print_tasks,
 };
 use scanner::scan_directory;
 use search::search_items;
@@ -213,6 +214,29 @@ fn run() -> Result<()> {
                     history,
                     stale_threshold,
                 } => cmd_report(&root, &config, &output, history, stale_threshold, no_cache),
+                Command::Tasks {
+                    tag,
+                    context,
+                    output,
+                    dry_run,
+                    since,
+                    priority,
+                    author,
+                    path,
+                } => cmd_tasks(
+                    &root,
+                    &config,
+                    &cli.format,
+                    tag,
+                    context,
+                    output,
+                    dry_run,
+                    since,
+                    priority,
+                    author,
+                    path,
+                    no_cache,
+                ),
                 Command::Watch { tag, max, debounce } => {
                     watch::cmd_watch(&root, &config, &cli.format, &tag, max, debounce)
                 }
@@ -684,5 +708,105 @@ fn cmd_blame(
     };
 
     print_blame(&result, format);
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn cmd_tasks(
+    root: &std::path::Path,
+    config: &Config,
+    format: &Format,
+    tag_filter: Vec<String>,
+    context_lines: usize,
+    output_dir: Option<std::path::PathBuf>,
+    dry_run: bool,
+    since: Option<String>,
+    priority_filter: Vec<PriorityFilter>,
+    author_filter: Option<String>,
+    path_filter: Option<String>,
+    no_cache: bool,
+) -> Result<()> {
+    let scan = do_scan(root, config, no_cache)?;
+
+    let mut items = if let Some(ref base_ref) = since {
+        // Only TODOs added since the git ref
+        let diff = compute_diff(&scan, base_ref, root, config)?;
+        diff.entries
+            .into_iter()
+            .filter(|e| matches!(e.status, model::DiffStatus::Added))
+            .map(|e| e.item)
+            .collect()
+    } else {
+        scan.items
+    };
+
+    // Apply tag filter
+    if !tag_filter.is_empty() {
+        let filter_tags: Vec<Tag> = tag_filter
+            .iter()
+            .filter_map(|s| s.parse::<Tag>().ok())
+            .collect();
+        items.retain(|item| filter_tags.contains(&item.tag));
+    }
+
+    // Apply priority filter
+    if !priority_filter.is_empty() {
+        let priorities: Vec<model::Priority> =
+            priority_filter.iter().map(|p| p.to_priority()).collect();
+        items.retain(|item| priorities.contains(&item.priority));
+    }
+
+    // Apply author filter
+    if let Some(ref author) = author_filter {
+        items.retain(|item| item.author.as_deref() == Some(author.as_str()));
+    }
+
+    // Apply path filter
+    if let Some(ref pattern) = path_filter {
+        let glob = globset::Glob::new(pattern)
+            .context("invalid glob pattern")?
+            .compile_matcher();
+        items.retain(|item| glob.is_match(&item.file));
+    }
+
+    // Sort by priority
+    tasks::sort_by_priority(&mut items);
+
+    // Collect context
+    let context_map = collect_context_map(root, &items, context_lines);
+
+    // Build tasks
+    let claude_tasks = tasks::build_tasks(&items, &context_map);
+    let total = claude_tasks.len();
+
+    // Output
+    if dry_run || output_dir.is_none() {
+        let result = model::TasksResult {
+            tasks: claude_tasks,
+            total,
+            output_dir: None,
+        };
+        print_tasks(&result, format);
+    } else {
+        let dir = output_dir.unwrap();
+        std::fs::create_dir_all(&dir)
+            .with_context(|| format!("cannot create output directory: {}", dir.display()))?;
+
+        for (i, task) in claude_tasks.iter().enumerate() {
+            let filename = format!("task-{:04}.json", i + 1);
+            let path = dir.join(&filename);
+            let json = serde_json::to_string_pretty(task).context("failed to serialize task")?;
+            std::fs::write(&path, json)
+                .with_context(|| format!("cannot write task file: {}", path.display()))?;
+        }
+
+        let result = model::TasksResult {
+            tasks: claude_tasks,
+            total,
+            output_dir: Some(dir.to_string_lossy().to_string()),
+        };
+        print_tasks(&result, format);
+    }
+
     Ok(())
 }

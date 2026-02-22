@@ -70,6 +70,10 @@ Re-running `todox list` after every edit breaks flow when actively cleaning up T
 
 Presenting TODO metrics to stakeholders requires manual data collection and slide preparation. `todox report` generates a self-contained HTML dashboard with summary cards, trend charts from git history, tag/priority/age distribution, author breakdowns, and a sortable items table — zero external dependencies, droppable into any CI pipeline as an artifact. Run `todox report` to generate `todox-report.html`, or `todox report --output debt.html --history 20` to customize.
 
+**`todox tasks`** (Claude Code integration)
+
+Bridging TODO scanning with AI task orchestration requires manually parsing `todox list --format json` output and constructing TaskCreate calls. `todox tasks` automates this translation, exporting scanned TODOs as Claude Code Task-compatible JSON with action-verb subjects, code context in descriptions, and priority-based ordering. Run `todox tasks --output ~/.claude/tasks/my-sprint/` to generate task files, or `todox tasks --dry-run` to preview. Note: This feature uses Claude Code's proprietary Tasks API and is not compatible with other coding agents.
+
 **CI-ready output formats**
 
 Plain text output requires extra tooling to integrate with CI dashboards and PR workflows. todox supports `--format github-actions` for inline PR annotations, `--format sarif` for GitHub's [Code Scanning](https://docs.github.com/en/code-security/code-scanning) tab via SARIF (Static Analysis Results Interchange Format), and `--format markdown` for PR comment bot tables. Add `--format github-actions` to any command to get started.
@@ -334,6 +338,29 @@ todox check --max 50 --block-tags BUG --max-new 0 --since main --expired
 ```
 
 Exit codes: `0` = pass, `1` = fail, `2` = error.
+
+### Export as Claude Code Tasks
+
+```bash
+# Preview tasks as JSON to stdout
+todox tasks --dry-run
+
+# Write individual task files to a directory
+todox tasks --output ~/.claude/tasks/my-sprint/
+
+# Filter by tag, priority, author, or path
+todox tasks --dry-run --tag BUG --priority urgent
+todox tasks --dry-run --author alice --path "src/**"
+
+# Only TODOs added since a git ref
+todox tasks --dry-run --since main
+
+# Control context lines in task descriptions (default: 3)
+todox tasks --dry-run -C 5
+
+# JSON output
+todox tasks --dry-run --format json
+```
 
 ### Global flags
 

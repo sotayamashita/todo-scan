@@ -822,6 +822,43 @@ pub fn print_watch_event(event: &WatchEvent, format: &Format, max: Option<usize>
     }
 }
 
+pub fn print_tasks(result: &TasksResult, format: &Format) {
+    match format {
+        Format::Text => {
+            if result.tasks.is_empty() {
+                println!("No tasks to export.");
+                return;
+            }
+
+            for task in &result.tasks {
+                let priority_marker = match task.metadata.todox_priority.as_str() {
+                    "urgent" => "!!",
+                    "high" => "!",
+                    _ => " ",
+                };
+
+                println!(
+                    "  {:>2} {:6} {}:{} {}",
+                    priority_marker,
+                    task.metadata.todox_tag,
+                    task.metadata.todox_file,
+                    task.metadata.todox_line,
+                    task.subject,
+                );
+            }
+
+            println!("\n{} tasks exported", result.total);
+            if let Some(ref dir) = result.output_dir {
+                println!("Output: {}", dir);
+            }
+        }
+        _ => {
+            let json = serde_json::to_string_pretty(result).expect("failed to serialize");
+            println!("{}", json);
+        }
+    }
+}
+
 pub fn print_report(report: &ReportResult, output_path: &str) -> std::io::Result<()> {
     let content = html::render_html(report);
     std::fs::write(output_path, content)?;

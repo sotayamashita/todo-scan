@@ -216,6 +216,41 @@ pub enum Command {
         stale_threshold: Option<String>,
     },
 
+    /// Export TODOs as Claude Code Tasks (Claude Code-specific; not compatible with other coding agents)
+    Tasks {
+        /// Filter by tag (repeatable)
+        #[arg(long)]
+        tag: Vec<String>,
+
+        /// Number of context lines in description
+        #[arg(short = 'C', long, default_value = "3")]
+        context: usize,
+
+        /// Output directory path for task JSON files
+        #[arg(long)]
+        output: Option<std::path::PathBuf>,
+
+        /// Preview to stdout only (no file writes)
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Only TODOs added since this git ref
+        #[arg(long)]
+        since: Option<String>,
+
+        /// Filter by priority (repeatable)
+        #[arg(long, value_enum)]
+        priority: Vec<PriorityFilter>,
+
+        /// Filter by author
+        #[arg(long)]
+        author: Option<String>,
+
+        /// Filter by file glob
+        #[arg(long)]
+        path: Option<String>,
+    },
+
     /// Lint TODO comment formatting against configurable rules
     Lint {
         /// Reject TODOs with empty message

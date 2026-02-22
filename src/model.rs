@@ -279,6 +279,36 @@ pub struct AgeBucket {
     pub count: usize,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ClaudeTask {
+    pub subject: String,
+    pub description: String,
+    #[serde(rename = "activeForm")]
+    pub active_form: String,
+    pub metadata: ClaudeTaskMetadata,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ClaudeTaskMetadata {
+    pub todox_file: String,
+    pub todox_line: usize,
+    pub todox_tag: String,
+    pub todox_priority: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub todox_author: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub todox_issue_ref: Option<String>,
+    pub todox_match_key: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TasksResult {
+    pub tasks: Vec<ClaudeTask>,
+    pub total: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_dir: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
     Error,
