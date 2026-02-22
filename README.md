@@ -19,7 +19,7 @@ Track TODO/FIXME/HACK comments in your codebase with git-aware diff and CI gate.
 ## Features
 
 1. **Discover**
-     - [Scan & List TODOs](#scan--list-todos) · [Search TODOs](#search-todos) · [Inline Code Context](#inline-code-context)
+     - [Scan & List TODOs](#scan--list-todos) · [Search TODOs](#search-todos) · [Inline Code Context](#inline-code-context) · [Progressive Detail Levels](#progressive-detail-levels)
 2. **Analyze**
      - [Diff Against Git Refs](#diff-against-git-refs) · [Dashboard & Statistics](#dashboard--statistics) · [Git Blame Integration](#git-blame-integration) · [Discover TODO Relationships](#discover-todo-relationships)
 3. **Enforce**
@@ -83,6 +83,17 @@ You understand what each TODO refers to without leaving the terminal.
 
 ```sh
 todox context src/main.rs:25 -C 3
+```
+
+### Progressive Detail Levels
+
+Different consumers need different levels of detail — a quick terminal glance needs compact output, while an AI agent needs full metadata.
+`--detail minimal|normal|full` controls information density across `list`, `diff`, and `search`: `minimal` shows only file, line, tag, and message; `normal` (default) is unchanged; `full` adds `match_key` and auto-context.
+Run `todox list --detail minimal` for compact output or `--detail full --format json` for enriched machine-readable data.
+
+```sh
+todox list --detail minimal
+todox search "migration" --detail full --format json
 ```
 
 ### Diff Against Git Refs
