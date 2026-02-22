@@ -44,6 +44,9 @@ sequenceDiagram
     Dev->>Dev: Run feature-writing skill on Features section
     Dev->>Repo: Update README.md
 
+    Note over Dev,CI: 5b. Update docs/HOOKS.md (if hooks/CI changed)
+    Dev->>Repo: Update docs/HOOKS.md
+
     Note over Dev,CI: 6. Commit
     Dev->>Dev: /commit
     Dev->>Repo: Committed via commit skill
@@ -69,6 +72,7 @@ sequenceDiagram
 - **Post the plan to the issue** — share the implementation plan as a comment before coding
 - **Link PRs to issues** with `Closes #<number>` for auto-closing
 - **Update README** when adding or changing user-facing features — use the `feature-writing` skill for the Features section
+- **Update `docs/HOOKS.md`** when adding or changing hooks, CI integration, or CLI flags used in hook recipes
 - **Use `/commit`** for all commits — the commit skill handles staging, message formatting, and validation
 
 ## Workflow Steps
@@ -196,6 +200,13 @@ Without enforcement, TODO debt grows silently until it becomes unmanageable.
 a threshold, forbidden tags appear, or too many new TODOs are introduced.
 Run `todox check --max 100 --block-tags BUG` in your CI pipeline.
 ```
+
+### 5b. Update docs/HOOKS.md (if hooks or CI integration changed)
+
+When a change affects CLI flags, hook behavior, or CI integration patterns, update `docs/HOOKS.md` to keep the recipes accurate.
+
+- **When to update**: new/renamed CLI flags used in recipes, new hook event types, changed `todox check`/`todox lint` behavior
+- **When to skip**: internal refactoring, changes unrelated to hooks or CI
 
 ### 6. Commit
 
