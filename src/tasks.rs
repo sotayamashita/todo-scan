@@ -72,7 +72,7 @@ pub fn build_description(item: &TodoItem, context: Option<&ContextInfo>) -> Stri
 
     // Author
     if let Some(ref author) = item.author {
-        lines.push(format!("Author: @{}", author));
+        lines.push(format!("Author: `@{}`", author));
     }
 
     // Issue reference
@@ -228,7 +228,7 @@ mod tests {
         item.priority = Priority::Urgent;
 
         let desc = build_description(&item, None);
-        assert!(desc.contains("Author: @alice"));
+        assert!(desc.contains("Author: `@alice`"));
         assert!(desc.contains("Issue: #42"));
         assert!(desc.contains("Priority: Urgent (!!)"));
     }
