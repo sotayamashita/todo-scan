@@ -780,32 +780,35 @@ fn cmd_tasks(
     let total = claude_tasks.len();
 
     // Output
-    if dry_run || output_dir.is_none() {
-        let result = model::TasksResult {
-            tasks: claude_tasks,
-            total,
-            output_dir: None,
-        };
-        print_tasks(&result, format);
-    } else {
-        let dir = output_dir.unwrap();
-        std::fs::create_dir_all(&dir)
-            .with_context(|| format!("cannot create output directory: {}", dir.display()))?;
+    match output_dir {
+        Some(dir) if !dry_run => {
+            std::fs::create_dir_all(&dir)
+                .with_context(|| format!("cannot create output directory: {}", dir.display()))?;
 
-        for (i, task) in claude_tasks.iter().enumerate() {
-            let filename = format!("task-{:04}.json", i + 1);
-            let path = dir.join(&filename);
-            let json = serde_json::to_string_pretty(task).context("failed to serialize task")?;
-            std::fs::write(&path, json)
-                .with_context(|| format!("cannot write task file: {}", path.display()))?;
+            for (i, task) in claude_tasks.iter().enumerate() {
+                let filename = format!("task-{:04}.json", i + 1);
+                let path = dir.join(&filename);
+                let json =
+                    serde_json::to_string_pretty(task).context("failed to serialize task")?;
+                std::fs::write(&path, json)
+                    .with_context(|| format!("cannot write task file: {}", path.display()))?;
+            }
+
+            let result = model::TasksResult {
+                tasks: claude_tasks,
+                total,
+                output_dir: Some(dir.to_string_lossy().to_string()),
+            };
+            print_tasks(&result, format);
         }
-
-        let result = model::TasksResult {
-            tasks: claude_tasks,
-            total,
-            output_dir: Some(dir.to_string_lossy().to_string()),
-        };
-        print_tasks(&result, format);
+        _ => {
+            let result = model::TasksResult {
+                tasks: claude_tasks,
+                total,
+                output_dir: None,
+            };
+            print_tasks(&result, format);
+        }
     }
 
     Ok(())
