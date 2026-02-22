@@ -143,16 +143,13 @@ fn run() -> Result<()> {
                     package,
                 } => {
                     let scan_root = resolve_package_root(&root, &config, package.as_deref())?;
-                    cmd_diff(
-                        &scan_root,
-                        &config,
-                        &cli.format,
-                        &git_ref,
-                        &tag,
+                    let opts = DiffOptions {
+                        git_ref,
+                        tag,
                         context,
-                        &cli.detail,
-                        no_cache,
-                    )
+                        detail: cli.detail.clone(),
+                    };
+                    cmd_diff(&scan_root, &config, &cli.format, opts, no_cache)
                 }
                 Command::Check {
                     max,

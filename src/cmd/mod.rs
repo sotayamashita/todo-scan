@@ -17,7 +17,7 @@ pub use self::blame::{cmd_blame, BlameOptions};
 pub use self::check::{cmd_check, cmd_workspace_check};
 pub use self::clean::cmd_clean;
 pub use self::context::cmd_context;
-pub use self::diff::cmd_diff;
+pub use self::diff::{cmd_diff, DiffOptions};
 pub use self::lint::cmd_lint;
 pub use self::list::{cmd_list, ListOptions};
 pub use self::relate::{cmd_relate, RelateOptions};
