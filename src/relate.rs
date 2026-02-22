@@ -36,11 +36,7 @@ fn proximity_score(a: &TodoItem, b: &TodoItem, threshold: usize) -> f64 {
     if a.file != b.file {
         return 0.0;
     }
-    let distance = if a.line > b.line {
-        a.line - b.line
-    } else {
-        b.line - a.line
-    };
+    let distance = a.line.abs_diff(b.line);
     if distance > threshold {
         return 0.0;
     }
@@ -70,40 +66,42 @@ fn tag_score(a: &TodoItem, b: &TodoItem) -> f64 {
     }
 }
 
-fn build_reason(
+struct ScoreComponents<'a> {
     prox: f64,
     kw_sim: f64,
     cross: f64,
     tag: f64,
-    a: &TodoItem,
-    b: &TodoItem,
-    keywords_a: &HashSet<String>,
-    keywords_b: &HashSet<String>,
-) -> String {
+    a: &'a TodoItem,
+    b: &'a TodoItem,
+    keywords_a: &'a HashSet<String>,
+    keywords_b: &'a HashSet<String>,
+}
+
+fn build_reason(c: &ScoreComponents) -> String {
     let mut parts = Vec::new();
-    if prox > 0.0 {
+    if c.prox > 0.0 {
         parts.push("proximity".to_string());
     }
-    if kw_sim > 0.0 {
-        let shared: Vec<_> = keywords_a.intersection(keywords_b).cloned().collect();
+    if c.kw_sim > 0.0 {
+        let shared: Vec<_> = c.keywords_a.intersection(c.keywords_b).cloned().collect();
         if !shared.is_empty() {
             parts.push(format!("shared_keyword:{}", shared.join(",")));
         }
     }
-    if cross > 0.0 {
-        if let (Some(ref ra), Some(ref rb)) = (&a.issue_ref, &b.issue_ref) {
+    if c.cross > 0.0 {
+        if let (Some(ref ra), Some(ref rb)) = (&c.a.issue_ref, &c.b.issue_ref) {
             if ra == rb {
                 parts.push(format!("same_issue:{}", ra));
             }
         }
-        if let (Some(ref aa), Some(ref ab)) = (&a.author, &b.author) {
+        if let (Some(ref aa), Some(ref ab)) = (&c.a.author, &c.b.author) {
             if aa == ab {
                 parts.push(format!("same_author:{}", aa));
             }
         }
     }
-    if tag > 0.0 {
-        parts.push(format!("same_tag:{}", a.tag));
+    if c.tag > 0.0 {
+        parts.push(format!("same_tag:{}", c.a.tag));
     }
     parts.join(", ")
 }
@@ -126,7 +124,16 @@ pub fn score_pair(
         + TAG_WEIGHT * tag)
         .clamp(0.0, 1.0);
 
-    let reason = build_reason(prox, kw_sim, cross, tag, a, b, keywords_a, keywords_b);
+    let reason = build_reason(&ScoreComponents {
+        prox,
+        kw_sim,
+        cross,
+        tag,
+        a,
+        b,
+        keywords_a,
+        keywords_b,
+    });
     (score, reason)
 }
 
