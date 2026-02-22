@@ -20,6 +20,8 @@ mod scanner;
 mod search;
 mod stats;
 mod tasks;
+#[cfg(test)]
+mod test_helpers;
 mod watch;
 mod workspace;
 

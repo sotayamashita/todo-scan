@@ -48,26 +48,26 @@ pub fn apply_filters(items: &mut Vec<TodoItem>, filters: &FilterOptions) -> Resu
 mod tests {
     use super::*;
     use crate::model::{Priority, Tag, TodoItem};
+    use crate::test_helpers::helpers::make_item;
 
-    fn make_item(file: &str, tag: Tag, priority: Priority, author: Option<&str>) -> TodoItem {
-        TodoItem {
-            file: file.to_string(),
-            line: 1,
-            tag,
-            message: "test".to_string(),
-            author: author.map(|a| a.to_string()),
-            issue_ref: None,
-            priority,
-            deadline: None,
-        }
+    fn make_filter_item(
+        file: &str,
+        tag: Tag,
+        priority: Priority,
+        author: Option<&str>,
+    ) -> TodoItem {
+        let mut item = make_item(file, 1, tag, "test");
+        item.priority = priority;
+        item.author = author.map(|a| a.to_string());
+        item
     }
 
     #[test]
     fn filter_by_tag() {
         let mut items = vec![
-            make_item("a.rs", Tag::Todo, Priority::Normal, None),
-            make_item("b.rs", Tag::Fixme, Priority::Normal, None),
-            make_item("c.rs", Tag::Hack, Priority::Normal, None),
+            make_filter_item("a.rs", Tag::Todo, Priority::Normal, None),
+            make_filter_item("b.rs", Tag::Fixme, Priority::Normal, None),
+            make_filter_item("c.rs", Tag::Hack, Priority::Normal, None),
         ];
         let filters = FilterOptions {
             tags: vec!["TODO".to_string()],
@@ -83,9 +83,9 @@ mod tests {
     #[test]
     fn filter_by_multiple_tags() {
         let mut items = vec![
-            make_item("a.rs", Tag::Todo, Priority::Normal, None),
-            make_item("b.rs", Tag::Fixme, Priority::Normal, None),
-            make_item("c.rs", Tag::Hack, Priority::Normal, None),
+            make_filter_item("a.rs", Tag::Todo, Priority::Normal, None),
+            make_filter_item("b.rs", Tag::Fixme, Priority::Normal, None),
+            make_filter_item("c.rs", Tag::Hack, Priority::Normal, None),
         ];
         let filters = FilterOptions {
             tags: vec!["TODO".to_string(), "HACK".to_string()],
@@ -102,9 +102,9 @@ mod tests {
     #[test]
     fn filter_by_priority() {
         let mut items = vec![
-            make_item("a.rs", Tag::Todo, Priority::Normal, None),
-            make_item("b.rs", Tag::Todo, Priority::High, None),
-            make_item("c.rs", Tag::Todo, Priority::Urgent, None),
+            make_filter_item("a.rs", Tag::Todo, Priority::Normal, None),
+            make_filter_item("b.rs", Tag::Todo, Priority::High, None),
+            make_filter_item("c.rs", Tag::Todo, Priority::Urgent, None),
         ];
         let filters = FilterOptions {
             tags: vec![],
@@ -120,9 +120,9 @@ mod tests {
     #[test]
     fn filter_by_author() {
         let mut items = vec![
-            make_item("a.rs", Tag::Todo, Priority::Normal, Some("alice")),
-            make_item("b.rs", Tag::Todo, Priority::Normal, Some("bob")),
-            make_item("c.rs", Tag::Todo, Priority::Normal, None),
+            make_filter_item("a.rs", Tag::Todo, Priority::Normal, Some("alice")),
+            make_filter_item("b.rs", Tag::Todo, Priority::Normal, Some("bob")),
+            make_filter_item("c.rs", Tag::Todo, Priority::Normal, None),
         ];
         let filters = FilterOptions {
             tags: vec![],
@@ -138,9 +138,9 @@ mod tests {
     #[test]
     fn filter_by_path() {
         let mut items = vec![
-            make_item("src/main.rs", Tag::Todo, Priority::Normal, None),
-            make_item("src/lib.rs", Tag::Todo, Priority::Normal, None),
-            make_item("tests/test.rs", Tag::Todo, Priority::Normal, None),
+            make_filter_item("src/main.rs", Tag::Todo, Priority::Normal, None),
+            make_filter_item("src/lib.rs", Tag::Todo, Priority::Normal, None),
+            make_filter_item("tests/test.rs", Tag::Todo, Priority::Normal, None),
         ];
         let filters = FilterOptions {
             tags: vec![],
@@ -156,10 +156,10 @@ mod tests {
     #[test]
     fn filter_combined() {
         let mut items = vec![
-            make_item("src/main.rs", Tag::Todo, Priority::High, Some("alice")),
-            make_item("src/lib.rs", Tag::Fixme, Priority::Normal, Some("alice")),
-            make_item("tests/test.rs", Tag::Todo, Priority::High, Some("bob")),
-            make_item("src/util.rs", Tag::Todo, Priority::Normal, Some("alice")),
+            make_filter_item("src/main.rs", Tag::Todo, Priority::High, Some("alice")),
+            make_filter_item("src/lib.rs", Tag::Fixme, Priority::Normal, Some("alice")),
+            make_filter_item("tests/test.rs", Tag::Todo, Priority::High, Some("bob")),
+            make_filter_item("src/util.rs", Tag::Todo, Priority::Normal, Some("alice")),
         ];
         let filters = FilterOptions {
             tags: vec!["TODO".to_string()],
@@ -175,8 +175,8 @@ mod tests {
     #[test]
     fn empty_filters_retain_all() {
         let mut items = vec![
-            make_item("a.rs", Tag::Todo, Priority::Normal, None),
-            make_item("b.rs", Tag::Fixme, Priority::High, Some("alice")),
+            make_filter_item("a.rs", Tag::Todo, Priority::Normal, None),
+            make_filter_item("b.rs", Tag::Fixme, Priority::High, Some("alice")),
         ];
         let filters = FilterOptions {
             tags: vec![],
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn invalid_glob_returns_error() {
-        let mut items = vec![make_item("a.rs", Tag::Todo, Priority::Normal, None)];
+        let mut items = vec![make_filter_item("a.rs", Tag::Todo, Priority::Normal, None)];
         let filters = FilterOptions {
             tags: vec![],
             author: None,

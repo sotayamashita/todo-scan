@@ -154,19 +154,7 @@ mod tests {
     use super::*;
     use crate::deadline::Deadline;
     use crate::model::{Priority, Tag};
-
-    fn make_item(file: &str, msg: &str) -> TodoItem {
-        TodoItem {
-            file: file.to_string(),
-            line: 1,
-            tag: Tag::Todo,
-            message: msg.to_string(),
-            author: None,
-            issue_ref: None,
-            priority: Priority::Normal,
-            deadline: None,
-        }
-    }
+    use crate::test_helpers::helpers::make_item;
 
     fn make_item_with_deadline(file: &str, msg: &str) -> TodoItem {
         TodoItem {
@@ -240,7 +228,7 @@ mod tests {
         cache.insert(
             PathBuf::from("src/main.rs"),
             *hash.as_bytes(),
-            vec![make_item("src/main.rs", "test task")],
+            vec![make_item("src/main.rs", 1, Tag::Todo, "test task")],
             mtime,
         );
 
@@ -318,7 +306,7 @@ mod tests {
         cache.insert(
             path.clone(),
             *hash.as_bytes(),
-            vec![make_item("test.rs", "cached")],
+            vec![make_item("test.rs", 1, Tag::Todo, "cached")],
             mtime,
         );
 
@@ -340,7 +328,7 @@ mod tests {
         cache.insert(
             path.clone(),
             *hash.as_bytes(),
-            vec![make_item("test.rs", "cached")],
+            vec![make_item("test.rs", 1, Tag::Todo, "cached")],
             mtime,
         );
 
@@ -359,7 +347,7 @@ mod tests {
         cache.insert(
             path.clone(),
             *hash.as_bytes(),
-            vec![make_item("test.rs", "test content")],
+            vec![make_item("test.rs", 1, Tag::Todo, "test content")],
             mtime,
         );
 
@@ -380,7 +368,7 @@ mod tests {
         cache.insert(
             path.clone(),
             *hash.as_bytes(),
-            vec![make_item("test.rs", "original")],
+            vec![make_item("test.rs", 1, Tag::Todo, "original")],
             mtime,
         );
 
@@ -399,13 +387,13 @@ mod tests {
         cache.insert(
             PathBuf::from("keep.rs"),
             *hash.as_bytes(),
-            vec![make_item("keep.rs", "keep")],
+            vec![make_item("keep.rs", 1, Tag::Todo, "keep")],
             mtime,
         );
         cache.insert(
             PathBuf::from("delete.rs"),
             *hash.as_bytes(),
-            vec![make_item("delete.rs", "delete")],
+            vec![make_item("delete.rs", 1, Tag::Todo, "delete")],
             mtime,
         );
 

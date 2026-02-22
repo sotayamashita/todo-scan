@@ -38,20 +38,8 @@ pub fn search_items(scan: &ScanResult, query: &str, exact: bool) -> SearchResult
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{Priority, ScanResult, Tag, TodoItem};
-
-    fn make_item(file: &str, message: &str, issue_ref: Option<&str>) -> TodoItem {
-        TodoItem {
-            file: file.to_string(),
-            line: 1,
-            tag: Tag::Todo,
-            message: message.to_string(),
-            author: None,
-            issue_ref: issue_ref.map(|s| s.to_string()),
-            priority: Priority::Normal,
-            deadline: None,
-        }
-    }
+    use crate::model::{ScanResult, Tag};
+    use crate::test_helpers::helpers::make_item;
 
     fn make_scan(items: Vec<TodoItem>) -> ScanResult {
         ScanResult {
@@ -62,14 +50,14 @@ mod tests {
 
     #[test]
     fn test_case_insensitive_match() {
-        let scan = make_scan(vec![make_item("a.rs", "Fix the BUG", None)]);
+        let scan = make_scan(vec![make_item("a.rs", 1, Tag::Todo, "Fix the BUG")]);
         let result = search_items(&scan, "fix the bug", false);
         assert_eq!(result.match_count, 1);
     }
 
     #[test]
     fn test_exact_match_case_sensitive() {
-        let scan = make_scan(vec![make_item("a.rs", "Fix the BUG", None)]);
+        let scan = make_scan(vec![make_item("a.rs", 1, Tag::Todo, "Fix the BUG")]);
 
         let result = search_items(&scan, "Fix the BUG", true);
         assert_eq!(result.match_count, 1);
@@ -80,14 +68,18 @@ mod tests {
 
     #[test]
     fn test_issue_ref_match() {
-        let scan = make_scan(vec![make_item("a.rs", "some task", Some("#123"))]);
+        let scan = make_scan(vec![{
+            let mut item = make_item("a.rs", 1, Tag::Todo, "some task");
+            item.issue_ref = Some("#123".to_string());
+            item
+        }]);
         let result = search_items(&scan, "#123", false);
         assert_eq!(result.match_count, 1);
     }
 
     #[test]
     fn test_no_match_empty_result() {
-        let scan = make_scan(vec![make_item("a.rs", "something", None)]);
+        let scan = make_scan(vec![make_item("a.rs", 1, Tag::Todo, "something")]);
         let result = search_items(&scan, "nonexistent", false);
         assert_eq!(result.match_count, 0);
         assert_eq!(result.file_count, 0);
@@ -97,9 +89,9 @@ mod tests {
     #[test]
     fn test_file_count_deduplication() {
         let scan = make_scan(vec![
-            make_item("a.rs", "fix foo", None),
-            make_item("a.rs", "fix bar", None),
-            make_item("b.rs", "fix baz", None),
+            make_item("a.rs", 1, Tag::Todo, "fix foo"),
+            make_item("a.rs", 1, Tag::Todo, "fix bar"),
+            make_item("b.rs", 1, Tag::Todo, "fix baz"),
         ]);
         let result = search_items(&scan, "fix", false);
         assert_eq!(result.match_count, 3);

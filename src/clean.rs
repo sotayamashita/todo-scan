@@ -290,18 +290,7 @@ mod tests {
         }
     }
 
-    fn make_item(file: &str, line: usize, tag: Tag, message: &str) -> TodoItem {
-        TodoItem {
-            file: file.to_string(),
-            line,
-            tag,
-            message: message.to_string(),
-            author: None,
-            issue_ref: None,
-            priority: Priority::Normal,
-            deadline: None,
-        }
-    }
+    use crate::test_helpers::helpers::make_item;
 
     fn make_item_with_issue(
         file: &str,

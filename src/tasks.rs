@@ -145,18 +145,7 @@ mod tests {
     use crate::context::ContextLine;
     use crate::model::Priority;
 
-    fn make_item(tag: Tag, message: &str) -> TodoItem {
-        TodoItem {
-            file: "src/main.rs".to_string(),
-            line: 10,
-            tag,
-            message: message.to_string(),
-            author: None,
-            issue_ref: None,
-            priority: Priority::Normal,
-            deadline: None,
-        }
-    }
+    use crate::test_helpers::helpers::make_item;
 
     #[test]
     fn test_action_verb_mapping() {
@@ -180,31 +169,31 @@ mod tests {
 
     #[test]
     fn test_build_subject_with_message() {
-        let item = make_item(Tag::Todo, "add user validation");
+        let item = make_item("src/main.rs", 10, Tag::Todo, "add user validation");
         assert_eq!(build_subject(&item), "Implement add user validation");
     }
 
     #[test]
     fn test_build_subject_empty_message() {
-        let item = make_item(Tag::Bug, "");
+        let item = make_item("src/main.rs", 10, Tag::Bug, "");
         assert_eq!(build_subject(&item), "Fix BUG at src/main.rs:10");
     }
 
     #[test]
     fn test_build_active_form_with_message() {
-        let item = make_item(Tag::Hack, "remove workaround");
+        let item = make_item("src/main.rs", 10, Tag::Hack, "remove workaround");
         assert_eq!(build_active_form(&item), "Refactoring remove workaround");
     }
 
     #[test]
     fn test_build_active_form_empty_message() {
-        let item = make_item(Tag::Fixme, "");
+        let item = make_item("src/main.rs", 10, Tag::Fixme, "");
         assert_eq!(build_active_form(&item), "Fixing FIXME at src/main.rs:10");
     }
 
     #[test]
     fn test_build_description_basic() {
-        let item = make_item(Tag::Todo, "implement feature");
+        let item = make_item("src/main.rs", 10, Tag::Todo, "implement feature");
         let desc = build_description(&item, None);
         assert!(desc.contains("**[TODO]** `src/main.rs:10`"));
         assert!(desc.contains("implement feature"));
@@ -213,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_build_description_with_author_and_issue() {
-        let mut item = make_item(Tag::Bug, "critical crash");
+        let mut item = make_item("src/main.rs", 10, Tag::Bug, "critical crash");
         item.author = Some("alice".to_string());
         item.issue_ref = Some("#42".to_string());
         item.priority = Priority::Urgent;
@@ -226,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_build_description_with_context() {
-        let item = make_item(Tag::Todo, "fix this");
+        let item = make_item("src/main.rs", 10, Tag::Todo, "fix this");
         let ctx = ContextInfo {
             before: vec![ContextLine {
                 line_number: 9,
@@ -246,7 +235,7 @@ mod tests {
 
     #[test]
     fn test_build_tasks_metadata() {
-        let mut item = make_item(Tag::Bug, "fix crash");
+        let mut item = make_item("src/main.rs", 10, Tag::Bug, "fix crash");
         item.author = Some("bob".to_string());
         item.issue_ref = Some("#99".to_string());
 
@@ -267,17 +256,17 @@ mod tests {
     fn test_sort_by_priority_ordering() {
         let mut items = vec![
             {
-                let mut i = make_item(Tag::Note, "low");
+                let mut i = make_item("src/main.rs", 10, Tag::Note, "low");
                 i.priority = Priority::Normal;
                 i
             },
             {
-                let mut i = make_item(Tag::Bug, "critical");
+                let mut i = make_item("src/main.rs", 10, Tag::Bug, "critical");
                 i.priority = Priority::Urgent;
                 i
             },
             {
-                let mut i = make_item(Tag::Todo, "medium");
+                let mut i = make_item("src/main.rs", 10, Tag::Todo, "medium");
                 i.priority = Priority::High;
                 i
             },
@@ -293,9 +282,9 @@ mod tests {
     #[test]
     fn test_sort_by_priority_same_priority_uses_tag_severity() {
         let mut items = vec![
-            make_item(Tag::Note, "note item"),
-            make_item(Tag::Bug, "bug item"),
-            make_item(Tag::Todo, "todo item"),
+            make_item("src/main.rs", 10, Tag::Note, "note item"),
+            make_item("src/main.rs", 10, Tag::Bug, "bug item"),
+            make_item("src/main.rs", 10, Tag::Todo, "todo item"),
         ];
 
         sort_by_priority(&mut items);

@@ -100,20 +100,8 @@ pub fn run_check(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{Priority, Tag};
-
-    fn make_item(file: &str, line: usize, tag: Tag, message: &str) -> TodoItem {
-        TodoItem {
-            file: file.to_string(),
-            line,
-            tag,
-            message: message.to_string(),
-            author: None,
-            issue_ref: None,
-            priority: Priority::Normal,
-            deadline: None,
-        }
-    }
+    use crate::model::Tag;
+    use crate::test_helpers::helpers::make_item;
 
     fn default_overrides() -> CheckOverrides {
         CheckOverrides {
