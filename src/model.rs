@@ -407,6 +407,35 @@ pub struct WorkspaceResult {
     pub total_packages: usize,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct Relationship {
+    pub from: String,
+    pub to: String,
+    pub score: f64,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Cluster {
+    pub id: usize,
+    pub theme: String,
+    pub items: Vec<String>,
+    pub suggested_order: Vec<String>,
+    pub relationships: Vec<Relationship>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RelateResult {
+    pub relationships: Vec<Relationship>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clusters: Option<Vec<Cluster>>,
+    pub total_relationships: usize,
+    pub total_items: usize,
+    pub min_score: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -440,6 +469,60 @@ mod tests {
             serde_json::to_string(&PackageStatus::Uncapped).unwrap(),
             "\"uncapped\""
         );
+    }
+
+    #[test]
+    fn relationship_serializes() {
+        let rel = Relationship {
+            from: "src/main.rs:10".to_string(),
+            to: "src/main.rs:15".to_string(),
+            score: 0.65,
+            reason: "proximity".to_string(),
+        };
+        let json = serde_json::to_string_pretty(&rel).unwrap();
+        assert!(json.contains("\"from\": \"src/main.rs:10\""));
+        assert!(json.contains("\"to\": \"src/main.rs:15\""));
+        assert!(json.contains("\"score\": 0.65"));
+        assert!(json.contains("\"reason\": \"proximity\""));
+    }
+
+    #[test]
+    fn relate_result_serializes_without_optionals() {
+        let result = RelateResult {
+            relationships: vec![],
+            clusters: None,
+            total_relationships: 0,
+            total_items: 0,
+            min_score: 0.3,
+            target: None,
+        };
+        let json = serde_json::to_string_pretty(&result).unwrap();
+        assert!(json.contains("\"total_relationships\": 0"));
+        assert!(json.contains("\"min_score\": 0.3"));
+        assert!(!json.contains("\"clusters\""));
+        assert!(!json.contains("\"target\""));
+    }
+
+    #[test]
+    fn relate_result_serializes_with_clusters() {
+        let result = RelateResult {
+            relationships: vec![],
+            clusters: Some(vec![Cluster {
+                id: 1,
+                theme: "authentication".to_string(),
+                items: vec!["src/auth.rs:10".to_string()],
+                suggested_order: vec!["src/auth.rs:10".to_string()],
+                relationships: vec![],
+            }]),
+            total_relationships: 0,
+            total_items: 1,
+            min_score: 0.3,
+            target: Some("src/auth.rs:10".to_string()),
+        };
+        let json = serde_json::to_string_pretty(&result).unwrap();
+        assert!(json.contains("\"clusters\""));
+        assert!(json.contains("\"theme\": \"authentication\""));
+        assert!(json.contains("\"target\": \"src/auth.rs:10\""));
     }
 
     #[test]

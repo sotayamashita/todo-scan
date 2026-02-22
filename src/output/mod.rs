@@ -859,6 +859,64 @@ pub fn print_tasks(result: &TasksResult, format: &Format) {
     }
 }
 
+pub fn print_relate(result: &RelateResult, format: &Format) {
+    match format {
+        Format::Text => {
+            if result.relationships.is_empty() {
+                println!("No relationships found (min_score: {})", result.min_score);
+                return;
+            }
+
+            if let Some(ref target) = result.target {
+                println!(
+                    "{}",
+                    format!("Relationships for {}", target).bold().underline()
+                );
+            }
+
+            if let Some(ref clusters) = result.clusters {
+                for cluster in clusters {
+                    println!(
+                        "\n{}",
+                        format!("Cluster {} — {}", cluster.id, cluster.theme)
+                            .bold()
+                            .underline()
+                    );
+                    println!("  Items (suggested order):");
+                    for loc in &cluster.suggested_order {
+                        println!("    {}", loc);
+                    }
+                    if !cluster.relationships.is_empty() {
+                        println!("  Relationships:");
+                        for rel in &cluster.relationships {
+                            println!(
+                                "    {} ↔ {} (score: {:.2}, {})",
+                                rel.from, rel.to, rel.score, rel.reason
+                            );
+                        }
+                    }
+                }
+            } else {
+                for rel in &result.relationships {
+                    println!(
+                        "  {} ↔ {} (score: {:.2}, {})",
+                        rel.from, rel.to, rel.score, rel.reason
+                    );
+                }
+            }
+
+            println!(
+                "\n{} relationships across {} items",
+                result.total_relationships, result.total_items
+            );
+        }
+        _ => {
+            let json = serde_json::to_string_pretty(result).expect("failed to serialize");
+            println!("{}", json);
+        }
+    }
+}
+
 pub fn print_report(report: &ReportResult, output_path: &str) -> std::io::Result<()> {
     let content = html::render_html(report);
     std::fs::write(output_path, content)?;

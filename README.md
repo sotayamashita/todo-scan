@@ -82,6 +82,10 @@ A single global `--max` threshold doesn't work for monorepos where packages have
 
 Sometimes you only need to see TODOs in one package without the noise from the rest of the monorepo. The `--package` flag on `list`, `check`, and `diff` scopes the scan to a single workspace package. Run `todox list --package core` to see only that package's items.
 
+**`todox relate`**
+
+TODOs in large codebases form implicit dependency chains — a TODO about "add input validation" in `api.rs` is related to a FIXME about "SQL injection risk" in `db.rs` — but existing tools treat each item in isolation. `todox relate` discovers relationships between TODO comments using same-file proximity, shared keywords, cross-references (same issue or author), and tag similarity, scoring each pair on a 0–1 scale. Add `--cluster` to group related TODOs into actionable clusters with auto-generated themes and suggested priority ordering, or `--for src/auth.rs:42` to find all TODOs related to a specific item. Run `todox relate` to discover all relationships, or `todox relate --cluster --format json` for structured output.
+
 **`todox tasks`** (Claude Code integration)
 
 Bridging TODO scanning with AI task orchestration requires manually parsing `todox list --format json` output and constructing TaskCreate calls. `todox tasks` automates this translation, exporting scanned TODOs as Claude Code Task-compatible JSON with action-verb subjects, code context in descriptions, and priority-based ordering. Run `todox tasks --output ~/.claude/tasks/my-sprint/` to generate task files, or `todox tasks --dry-run` to preview. Note: This feature uses Claude Code's proprietary Tasks API and is not compatible with other coding agents.
@@ -384,6 +388,31 @@ todox diff main --package core
 
 # Per-package CI gate (uses [workspace.packages.*] config)
 todox check --workspace
+```
+
+### Relate — TODO relationships and clusters
+
+```bash
+# Discover all relationships (text output)
+todox relate
+
+# JSON output
+todox relate --format json
+
+# Group related TODOs into clusters
+todox relate --cluster
+
+# Show TODOs related to a specific item
+todox relate --for src/auth.rs:42
+
+# Set minimum relationship score (default: 0.3)
+todox relate --min-score 0.5
+
+# Adjust proximity threshold (default: 10 lines)
+todox relate --proximity 20
+
+# Combine options
+todox relate --cluster --min-score 0.4 --format json
 ```
 
 ### Export as Claude Code Tasks

@@ -274,6 +274,25 @@ pub enum Command {
         action: WorkspaceAction,
     },
 
+    /// Discover relationships between TODO comments
+    Relate {
+        /// Group related TODOs into clusters
+        #[arg(long)]
+        cluster: bool,
+
+        /// Show TODOs related to a specific item (FILE:LINE)
+        #[arg(long, value_name = "LOCATION")]
+        r#for: Option<String>,
+
+        /// Minimum relationship score (0.0-1.0)
+        #[arg(long, default_value = "0.3")]
+        min_score: f64,
+
+        /// Line proximity threshold for same-file detection
+        #[arg(long, default_value = "10")]
+        proximity: usize,
+    },
+
     /// Lint TODO comment formatting against configurable rules
     Lint {
         /// Reject TODOs with empty message

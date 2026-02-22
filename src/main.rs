@@ -13,6 +13,7 @@ mod init;
 mod lint;
 mod model;
 mod output;
+mod relate;
 mod report;
 mod scanner;
 mod search;
@@ -36,7 +37,7 @@ use lint::{run_lint, LintOverrides};
 use model::Tag;
 use output::{
     print_blame, print_check, print_clean, print_context, print_diff, print_lint, print_list,
-    print_report, print_search, print_stats, print_tasks, print_workspace_list,
+    print_relate, print_report, print_search, print_stats, print_tasks, print_workspace_list,
 };
 use scanner::scan_directory;
 use search::search_items;
@@ -205,6 +206,21 @@ fn run() -> Result<()> {
                 Command::Clean { check, since } => {
                     cmd_clean(&root, &config, &cli.format, check, since, no_cache)
                 }
+                Command::Relate {
+                    cluster,
+                    r#for: for_item,
+                    min_score,
+                    proximity,
+                } => cmd_relate(
+                    &root,
+                    &config,
+                    &cli.format,
+                    cluster,
+                    for_item,
+                    min_score,
+                    proximity,
+                    no_cache,
+                ),
                 Command::Lint {
                     no_bare_tags,
                     max_message_length,
@@ -830,6 +846,34 @@ fn cmd_tasks(
         }
     }
 
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn cmd_relate(
+    root: &std::path::Path,
+    config: &Config,
+    format: &Format,
+    cluster: bool,
+    for_item: Option<String>,
+    min_score: f64,
+    proximity: usize,
+    no_cache: bool,
+) -> Result<()> {
+    let scan = do_scan(root, config, no_cache)?;
+    let mut result = relate::compute_relations(&scan, min_score, proximity);
+
+    if let Some(ref location) = for_item {
+        let (file, line) = parse_location(location)?;
+        result = relate::filter_for_item(result, &file, line);
+    }
+
+    if cluster {
+        let clusters = relate::build_clusters(&result.relationships, &scan.items);
+        result.clusters = Some(clusters);
+    }
+
+    print_relate(&result, format);
     Ok(())
 }
 
