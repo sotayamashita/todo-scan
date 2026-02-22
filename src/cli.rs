@@ -65,6 +65,10 @@ pub enum Command {
         /// Number of context lines to show around each TODO
         #[arg(short = 'C', long)]
         context: Option<usize>,
+
+        /// Scope scan to a single workspace package
+        #[arg(long)]
+        package: Option<String>,
     },
 
     Diff {
@@ -76,6 +80,10 @@ pub enum Command {
         /// Number of context lines to show around each TODO
         #[arg(short = 'C', long)]
         context: Option<usize>,
+
+        /// Scope scan to a single workspace package
+        #[arg(long)]
+        package: Option<String>,
     },
 
     /// Show code context around a TODO at FILE:LINE
@@ -174,6 +182,14 @@ pub enum Command {
 
         #[arg(long)]
         expired: bool,
+
+        /// Scope scan to a single workspace package
+        #[arg(long)]
+        package: Option<String>,
+
+        /// Run check across all workspace packages with per-package thresholds
+        #[arg(long)]
+        workspace: bool,
     },
 
     /// Watch filesystem for TODO changes in real-time
@@ -251,6 +267,13 @@ pub enum Command {
         path: Option<String>,
     },
 
+    /// Manage and inspect workspace packages
+    #[command(alias = "ws")]
+    Workspace {
+        #[command(subcommand)]
+        action: WorkspaceAction,
+    },
+
     /// Lint TODO comment formatting against configurable rules
     Lint {
         /// Reject TODOs with empty message
@@ -308,6 +331,13 @@ pub enum BlameSortBy {
     Age,
     Author,
     Tag,
+}
+
+#[derive(Subcommand)]
+pub enum WorkspaceAction {
+    /// List detected workspace packages and their TODO counts
+    #[command(alias = "ls")]
+    List,
 }
 
 impl PriorityFilter {

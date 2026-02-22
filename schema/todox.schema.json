@@ -66,6 +66,14 @@
       "items": {
         "type": "string"
       }
+    },
+    "workspace": {
+      "description": "Workspace/monorepo settings",
+      "allOf": [
+        {
+          "$ref": "#/definitions/WorkspaceConfig"
+        }
+      ]
     }
   },
   "additionalProperties": false,
@@ -218,6 +226,53 @@
             "boolean",
             "null"
           ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "PackageCheckConfig": {
+      "description": "Per-package check configuration",
+      "type": "object",
+      "properties": {
+        "block_tags": {
+          "description": "Tags that cause check to fail for this package",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "max": {
+          "description": "Maximum total TODOs allowed for this package",
+          "default": null,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorkspaceConfig": {
+      "description": "Workspace/monorepo settings",
+      "type": "object",
+      "properties": {
+        "auto_detect": {
+          "description": "Enable automatic workspace detection (default: true)",
+          "default": null,
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "packages": {
+          "description": "Per-package check configuration",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/PackageCheckConfig"
+          }
         }
       },
       "additionalProperties": false

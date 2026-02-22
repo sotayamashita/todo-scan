@@ -19,6 +19,7 @@ mod search;
 mod stats;
 mod tasks;
 mod watch;
+mod workspace;
 
 use std::process;
 
@@ -27,7 +28,7 @@ use clap::Parser;
 
 use blame::compute_blame;
 use check::{run_check, CheckOverrides};
-use cli::{BlameSortBy, Cli, Command, Format, GroupBy, PriorityFilter, SortBy};
+use cli::{BlameSortBy, Cli, Command, Format, GroupBy, PriorityFilter, SortBy, WorkspaceAction};
 use config::Config;
 use context::{build_rich_context, collect_context_map, parse_location};
 use diff::compute_diff;
@@ -35,7 +36,7 @@ use lint::{run_lint, LintOverrides};
 use model::Tag;
 use output::{
     print_blame, print_check, print_clean, print_context, print_diff, print_lint, print_list,
-    print_report, print_search, print_stats, print_tasks,
+    print_report, print_search, print_stats, print_tasks, print_workspace_list,
 };
 use scanner::scan_directory;
 use search::search_items;
@@ -102,6 +103,7 @@ fn run() -> Result<()> {
                     path,
                     limit,
                     context,
+                    package,
                 } => {
                     let opts = ListOptions {
                         tag,
@@ -113,7 +115,8 @@ fn run() -> Result<()> {
                         limit,
                         context,
                     };
-                    cmd_list(&root, &config, &cli.format, opts, no_cache)
+                    let scan_root = resolve_package_root(&root, &config, package.as_deref())?;
+                    cmd_list(&scan_root, &config, &cli.format, opts, no_cache)
                 }
                 Command::Blame {
                     sort,
@@ -161,29 +164,40 @@ fn run() -> Result<()> {
                     git_ref,
                     tag,
                     context,
-                } => cmd_diff(
-                    &root,
-                    &config,
-                    &cli.format,
-                    &git_ref,
-                    &tag,
-                    context,
-                    no_cache,
-                ),
+                    package,
+                } => {
+                    let scan_root = resolve_package_root(&root, &config, package.as_deref())?;
+                    cmd_diff(
+                        &scan_root,
+                        &config,
+                        &cli.format,
+                        &git_ref,
+                        &tag,
+                        context,
+                        no_cache,
+                    )
+                }
                 Command::Check {
                     max,
                     block_tags,
                     max_new,
                     since,
                     expired,
+                    package,
+                    workspace: ws_mode,
                 } => {
-                    let overrides = CheckOverrides {
-                        max,
-                        block_tags,
-                        max_new,
-                        expired,
-                    };
-                    cmd_check(&root, &config, &cli.format, overrides, since, no_cache)
+                    if ws_mode {
+                        cmd_workspace_check(&root, &config, &cli.format, no_cache)
+                    } else {
+                        let overrides = CheckOverrides {
+                            max,
+                            block_tags,
+                            max_new,
+                            expired,
+                        };
+                        let scan_root = resolve_package_root(&root, &config, package.as_deref())?;
+                        cmd_check(&scan_root, &config, &cli.format, overrides, since, no_cache)
+                    }
                 }
                 Command::Context { location, context } => {
                     cmd_context(&root, &config, &cli.format, &location, context, no_cache)
@@ -240,6 +254,11 @@ fn run() -> Result<()> {
                 Command::Watch { tag, max, debounce } => {
                     watch::cmd_watch(&root, &config, &cli.format, &tag, max, debounce)
                 }
+                Command::Workspace { action } => match action {
+                    WorkspaceAction::List => {
+                        cmd_workspace_list(&root, &config, &cli.format, no_cache)
+                    }
+                },
             }
         }
     }
@@ -809,6 +828,150 @@ fn cmd_tasks(
             };
             print_tasks(&result, format);
         }
+    }
+
+    Ok(())
+}
+
+/// Resolve a `--package` flag to an absolute scan root path via workspace detection.
+fn resolve_package_root(
+    root: &std::path::Path,
+    config: &Config,
+    package: Option<&str>,
+) -> Result<std::path::PathBuf> {
+    let pkg_name = match package {
+        Some(name) => name,
+        None => return Ok(root.to_path_buf()),
+    };
+
+    let ws = workspace::detect_workspace(root, config)?
+        .ok_or_else(|| anyhow::anyhow!("no workspace detected"))?;
+
+    let pkg = ws
+        .packages
+        .iter()
+        .find(|p| p.name == pkg_name)
+        .ok_or_else(|| {
+            let names: Vec<_> = ws.packages.iter().map(|p| p.name.as_str()).collect();
+            anyhow::anyhow!(
+                "package '{}' not found in workspace. Available: {}",
+                pkg_name,
+                names.join(", ")
+            )
+        })?;
+
+    Ok(root.join(&pkg.path))
+}
+
+fn cmd_workspace_list(
+    root: &std::path::Path,
+    config: &Config,
+    format: &Format,
+    no_cache: bool,
+) -> Result<()> {
+    let ws = workspace::detect_workspace(root, config)?
+        .ok_or_else(|| anyhow::anyhow!("no workspace detected"))?;
+
+    let mut summaries = Vec::new();
+    let mut total_todos = 0;
+
+    for pkg in &ws.packages {
+        let pkg_root = root.join(&pkg.path);
+        let scan = do_scan(&pkg_root, config, no_cache)?;
+        let todo_count = scan.items.len();
+        total_todos += todo_count;
+
+        let max = config.workspace.packages.get(&pkg.name).and_then(|c| c.max);
+
+        let status = match max {
+            Some(m) if todo_count > m => model::PackageStatus::Over,
+            Some(_) => model::PackageStatus::Ok,
+            None => model::PackageStatus::Uncapped,
+        };
+
+        summaries.push(model::PackageScanSummary {
+            name: pkg.name.clone(),
+            path: pkg.path.clone(),
+            todo_count,
+            max,
+            status,
+        });
+    }
+
+    let result = model::WorkspaceResult {
+        total_packages: summaries.len(),
+        packages: summaries,
+        total_todos,
+    };
+
+    print_workspace_list(&result, format, &ws.kind);
+    Ok(())
+}
+
+fn cmd_workspace_check(
+    root: &std::path::Path,
+    config: &Config,
+    format: &Format,
+    no_cache: bool,
+) -> Result<()> {
+    let ws = workspace::detect_workspace(root, config)?
+        .ok_or_else(|| anyhow::anyhow!("no workspace detected"))?;
+
+    let mut all_passed = true;
+    let mut violations = Vec::new();
+
+    for pkg in &ws.packages {
+        let pkg_root = root.join(&pkg.path);
+        let scan = do_scan(&pkg_root, config, no_cache)?;
+        let todo_count = scan.items.len();
+
+        let pkg_config = config.workspace.packages.get(&pkg.name);
+
+        if let Some(pc) = pkg_config {
+            if let Some(max) = pc.max {
+                if todo_count > max {
+                    all_passed = false;
+                    violations.push(model::CheckViolation {
+                        rule: "workspace/max".to_string(),
+                        message: format!(
+                            "package '{}' has {} TODOs (max: {})",
+                            pkg.name, todo_count, max
+                        ),
+                    });
+                }
+            }
+
+            if !pc.block_tags.is_empty() {
+                for item in &scan.items {
+                    if pc
+                        .block_tags
+                        .iter()
+                        .any(|t| t.eq_ignore_ascii_case(item.tag.as_str()))
+                    {
+                        all_passed = false;
+                        violations.push(model::CheckViolation {
+                            rule: "workspace/block-tag".to_string(),
+                            message: format!(
+                                "package '{}': forbidden tag {} at {}:{}",
+                                pkg.name, item.tag, item.file, item.line
+                            ),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    let result = model::CheckResult {
+        passed: all_passed,
+        total: violations.len(),
+        violations,
+    };
+
+    print_check(&result, format);
+
+    if !all_passed {
+        process::exit(1);
     }
 
     Ok(())

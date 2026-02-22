@@ -344,3 +344,119 @@ impl Severity {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WorkspaceKind {
+    Cargo,
+    Npm,
+    Pnpm,
+    Nx,
+    GoWork,
+    Manual,
+}
+
+impl fmt::Display for WorkspaceKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            WorkspaceKind::Cargo => write!(f, "cargo"),
+            WorkspaceKind::Npm => write!(f, "npm"),
+            WorkspaceKind::Pnpm => write!(f, "pnpm"),
+            WorkspaceKind::Nx => write!(f, "nx"),
+            WorkspaceKind::GoWork => write!(f, "go"),
+            WorkspaceKind::Manual => write!(f, "manual"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PackageInfo {
+    pub name: String,
+    pub path: String,
+    pub kind: WorkspaceKind,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkspaceInfo {
+    pub kind: WorkspaceKind,
+    pub packages: Vec<PackageInfo>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PackageStatus {
+    Ok,
+    Over,
+    Uncapped,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PackageScanSummary {
+    pub name: String,
+    pub path: String,
+    pub todo_count: usize,
+    pub max: Option<usize>,
+    pub status: PackageStatus,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WorkspaceResult {
+    pub packages: Vec<PackageScanSummary>,
+    pub total_todos: usize,
+    pub total_packages: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn workspace_kind_display() {
+        assert_eq!(WorkspaceKind::Cargo.to_string(), "cargo");
+        assert_eq!(WorkspaceKind::Npm.to_string(), "npm");
+        assert_eq!(WorkspaceKind::Pnpm.to_string(), "pnpm");
+        assert_eq!(WorkspaceKind::Nx.to_string(), "nx");
+        assert_eq!(WorkspaceKind::GoWork.to_string(), "go");
+        assert_eq!(WorkspaceKind::Manual.to_string(), "manual");
+    }
+
+    #[test]
+    fn workspace_kind_serializes_lowercase() {
+        let json = serde_json::to_string(&WorkspaceKind::Cargo).unwrap();
+        assert_eq!(json, "\"cargo\"");
+        let json = serde_json::to_string(&WorkspaceKind::GoWork).unwrap();
+        assert_eq!(json, "\"gowork\"");
+    }
+
+    #[test]
+    fn package_status_serializes() {
+        assert_eq!(serde_json::to_string(&PackageStatus::Ok).unwrap(), "\"ok\"");
+        assert_eq!(
+            serde_json::to_string(&PackageStatus::Over).unwrap(),
+            "\"over\""
+        );
+        assert_eq!(
+            serde_json::to_string(&PackageStatus::Uncapped).unwrap(),
+            "\"uncapped\""
+        );
+    }
+
+    #[test]
+    fn workspace_result_serializes() {
+        let result = WorkspaceResult {
+            packages: vec![PackageScanSummary {
+                name: "core".to_string(),
+                path: "packages/core".to_string(),
+                todo_count: 5,
+                max: Some(10),
+                status: PackageStatus::Ok,
+            }],
+            total_todos: 5,
+            total_packages: 1,
+        };
+        let json = serde_json::to_string_pretty(&result).unwrap();
+        assert!(json.contains("\"name\": \"core\""));
+        assert!(json.contains("\"todo_count\": 5"));
+        assert!(json.contains("\"status\": \"ok\""));
+    }
+}

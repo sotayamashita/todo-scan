@@ -865,3 +865,45 @@ pub fn print_report(report: &ReportResult, output_path: &str) -> std::io::Result
     println!("Report written to {}", output_path);
     Ok(())
 }
+
+pub fn print_workspace_list(
+    result: &WorkspaceResult,
+    format: &Format,
+    kind: &crate::model::WorkspaceKind,
+) {
+    match format {
+        Format::Text => {
+            println!("{}", format!("Workspace ({kind})").bold().underline());
+            println!(
+                "  {:<20} {:<30} {:>6}  {:>6}  Status",
+                "Package", "Path", "TODOs", "Max"
+            );
+            println!("  {}", "-".repeat(78));
+
+            for pkg in &result.packages {
+                let max_str = match pkg.max {
+                    Some(m) => m.to_string(),
+                    None => "-".to_string(),
+                };
+                let status_str = match pkg.status {
+                    PackageStatus::Ok => "ok".green().to_string(),
+                    PackageStatus::Over => "OVER".red().bold().to_string(),
+                    PackageStatus::Uncapped => "-".dimmed().to_string(),
+                };
+                println!(
+                    "  {:<20} {:<30} {:>6}  {:>6}  {}",
+                    pkg.name, pkg.path, pkg.todo_count, max_str, status_str
+                );
+            }
+
+            println!(
+                "\n{} packages, {} TODOs total",
+                result.total_packages, result.total_todos
+            );
+        }
+        _ => {
+            let json = serde_json::to_string_pretty(result).expect("failed to serialize");
+            println!("{}", json);
+        }
+    }
+}

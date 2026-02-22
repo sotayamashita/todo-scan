@@ -22,6 +22,8 @@ pub struct Config {
     pub lint: LintConfig,
     /// Clean detection settings
     pub clean: CleanConfig,
+    /// Workspace/monorepo settings
+    pub workspace: WorkspaceConfig,
 }
 
 /// CI gate check settings
@@ -80,6 +82,28 @@ pub struct CleanConfig {
     pub since: Option<String>,
 }
 
+/// Workspace/monorepo settings
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+#[serde(default)]
+#[schemars(deny_unknown_fields)]
+pub struct WorkspaceConfig {
+    /// Enable automatic workspace detection (default: true)
+    pub auto_detect: Option<bool>,
+    /// Per-package check configuration
+    pub packages: std::collections::HashMap<String, PackageCheckConfig>,
+}
+
+/// Per-package check configuration
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+#[serde(default)]
+#[schemars(deny_unknown_fields)]
+pub struct PackageCheckConfig {
+    /// Maximum total TODOs allowed for this package
+    pub max: Option<usize>,
+    /// Tags that cause check to fail for this package
+    pub block_tags: Vec<String>,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -97,6 +121,7 @@ impl Default for Config {
             blame: BlameConfig::default(),
             lint: LintConfig::default(),
             clean: CleanConfig::default(),
+            workspace: WorkspaceConfig::default(),
         }
     }
 }
@@ -162,6 +187,47 @@ block_tags = ["BUG"]
         assert_eq!(config.tags.len(), 2);
         assert_eq!(config.check.max, Some(50));
         assert_eq!(config.check.block_tags, vec!["BUG"]);
+    }
+
+    #[test]
+    fn test_workspace_config_default() {
+        let config = Config::default();
+        assert_eq!(config.workspace.auto_detect, None);
+        assert!(config.workspace.packages.is_empty());
+    }
+
+    #[test]
+    fn test_workspace_config_from_toml() {
+        let toml_str = r#"
+[workspace]
+auto_detect = false
+
+[workspace.packages.core]
+max = 20
+block_tags = ["BUG"]
+
+[workspace.packages.cli]
+max = 10
+"#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.workspace.auto_detect, Some(false));
+        assert_eq!(config.workspace.packages.len(), 2);
+        let core = &config.workspace.packages["core"];
+        assert_eq!(core.max, Some(20));
+        assert_eq!(core.block_tags, vec!["BUG"]);
+        let cli = &config.workspace.packages["cli"];
+        assert_eq!(cli.max, Some(10));
+        assert!(cli.block_tags.is_empty());
+    }
+
+    #[test]
+    fn test_workspace_config_empty_section() {
+        let toml_str = r#"
+[workspace]
+"#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.workspace.auto_detect, None);
+        assert!(config.workspace.packages.is_empty());
     }
 
     /// Validates that schema/todox.schema.json matches the current Config structs.

@@ -70,6 +70,18 @@ Re-running `todox list` after every edit breaks flow when actively cleaning up T
 
 Presenting TODO metrics to stakeholders requires manual data collection and slide preparation. `todox report` generates a self-contained HTML dashboard with summary cards, trend charts from git history, tag/priority/age distribution, author breakdowns, and a sortable items table — zero external dependencies, droppable into any CI pipeline as an artifact. Run `todox report` to generate `todox-report.html`, or `todox report --output debt.html --history 20` to customize.
 
+**`todox workspace list`**
+
+Monorepos lack per-package TODO visibility — you can't tell which packages are accumulating debt without manually scanning each one. `todox workspace list` auto-detects your workspace format (Cargo, npm, pnpm, Nx, Go workspaces), scans each package independently, and displays a summary table with TODO counts, configured thresholds, and pass/fail status. Run `todox workspace list` or use the aliases `todox ws ls`.
+
+**`todox check --workspace`**
+
+A single global `--max` threshold doesn't work for monorepos where packages have different maturity levels. `todox check --workspace` evaluates per-package thresholds defined in `[workspace.packages.<name>]` config sections, failing the build if any package exceeds its individual limit or uses forbidden tags. Run `todox check --workspace` in CI for granular enforcement.
+
+**`--package <name>` flag**
+
+Sometimes you only need to see TODOs in one package without the noise from the rest of the monorepo. The `--package` flag on `list`, `check`, and `diff` scopes the scan to a single workspace package. Run `todox list --package core` to see only that package's items.
+
 **`todox tasks`** (Claude Code integration)
 
 Bridging TODO scanning with AI task orchestration requires manually parsing `todox list --format json` output and constructing TaskCreate calls. `todox tasks` automates this translation, exporting scanned TODOs as Claude Code Task-compatible JSON with action-verb subjects, code context in descriptions, and priority-based ordering. Run `todox tasks --output ~/.claude/tasks/my-sprint/` to generate task files, or `todox tasks --dry-run` to preview. Note: This feature uses Claude Code's proprietary Tasks API and is not compatible with other coding agents.
@@ -110,6 +122,20 @@ The scanner uses line-based heuristic comment detection, not a language parser. 
 | `%`    | LaTeX, Erlang, MATLAB |
 
 > **Note:** Detection is line-based. Multi-line constructs (Python docstrings, heredocs) are not supported. Tags must appear as standalone words — `todox` and `TODOS` will not match `TODO`.
+
+### Supported workspace formats
+
+todox auto-detects monorepo/workspace layouts by checking for these manifest files in order:
+
+| Format | Manifest File | Member Field |
+|--------|--------------|--------------|
+| Cargo  | `Cargo.toml` | `[workspace] members` |
+| npm    | `package.json` | `"workspaces"` array |
+| pnpm   | `pnpm-workspace.yaml` | `packages` list |
+| Nx     | `workspace.json` | `"projects"` map |
+| Go     | `go.work` | `use` directives |
+
+Glob patterns in member lists (e.g., `packages/*`, `crates/*`) are expanded automatically. You can also define packages manually in `.todox.toml` with `[workspace]` configuration.
 
 ## Installation
 
@@ -339,6 +365,27 @@ todox check --max 50 --block-tags BUG --max-new 0 --since main --expired
 
 Exit codes: `0` = pass, `1` = fail, `2` = error.
 
+### Workspace — monorepo support
+
+```bash
+# List all packages with TODO counts
+todox workspace list
+
+# Short aliases
+todox ws ls
+
+# JSON output
+todox workspace list --format json
+
+# Scope any command to a single package
+todox list --package core
+todox check --max 50 --package cli
+todox diff main --package core
+
+# Per-package CI gate (uses [workspace.packages.*] config)
+todox check --workspace
+```
+
 ### Export as Claude Code Tasks
 
 ```bash
@@ -448,6 +495,18 @@ duplicates = true
 # Only flag issues closed longer than this duration (default: disabled)
 # since = "30d"
 
+[workspace]
+# Disable automatic workspace detection (default: true)
+# auto_detect = false
+
+# Per-package check thresholds
+[workspace.packages.core]
+max = 50
+block_tags = ["BUG"]
+
+[workspace.packages.cli]
+max = 20
+
 [lint]
 # Reject TODOs with empty message (default: true)
 no_bare_tags = true
@@ -515,6 +574,21 @@ A machine-readable JSON Schema is available at [`schema/todox.schema.json`](sche
 | `max_message_length` | `integer` | _(none)_ | Enforce max message character count |
 | `require_author` | `string[]` | _(none)_ | Require `(author)` for specified tags |
 | `require_issue_ref` | `string[]` | _(none)_ | Require issue ref for specified tags |
+
+#### `[workspace]` section
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `auto_detect` | `boolean` | `true` | Enable automatic workspace detection |
+
+#### `[workspace.packages.<name>]` section
+
+Per-package check thresholds for `todox check --workspace`.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `max` | `integer` | _(none)_ | Maximum TODOs allowed for this package |
+| `block_tags` | `string[]` | `[]` | Tags that cause check to fail for this package |
 
 ## Agent Skill
 
