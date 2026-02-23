@@ -1,6 +1,6 @@
 [package]
 name = "todo-scan"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Track TODO/FIXME/HACK comments with git-aware diff and CI gate"
 license = "MIT"
