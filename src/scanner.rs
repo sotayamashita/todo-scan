@@ -12,7 +12,7 @@ use crate::deadline::{parse_deadline, Deadline};
 use crate::model::{Priority, ScanResult, Tag, TodoItem};
 
 /// Maximum file size (10 MiB) to prevent OOM when scanning very large files.
-const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
+pub(crate) const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
 
 /// Check if a file should be skipped based on its metadata size.
 fn should_skip_file(metadata: &std::fs::Metadata, max_size: u64) -> bool {
