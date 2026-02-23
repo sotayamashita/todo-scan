@@ -2,7 +2,34 @@
 
 [![CI](https://github.com/sotayamashita/todox/actions/workflows/ci.yml/badge.svg)](https://github.com/sotayamashita/todox/actions/workflows/ci.yml) [![codecov](https://codecov.io/gh/sotayamashita/todox/graph/badge.svg)](https://codecov.io/gh/sotayamashita/todox) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/sotayamashita/todox)
 
-Track TODO/FIXME/HACK comments in your codebase with git-aware diff and CI gate.
+A CI gate that fails your build when TODO comments exceed thresholds, so technical debt stays visible and under control.
+
+### Why not `grep -r TODO .`?
+
+- **No CI enforcement** — grep finds TODOs but can't fail a build when the count crosses a limit
+- **No git awareness** — grep can't show which TODOs were added in a branch or since a specific commit
+- **No structure** — grep gives raw text; todo-scan extracts tags, authors, priorities, issue refs, and deadlines
+- **No format enforcement** — grep can't reject malformed TODOs like `todo fix this` in a pre-merge check
+
+### Quick start
+
+```sh
+cargo install --path .
+
+# See what you have
+todo-scan list
+
+# Set a ceiling and enforce it in CI
+todo-scan check --max 100
+```
+
+### Key commands
+
+| Command | What it does |
+|---|---|
+| `todo-scan check --max 100` | CI gate — fails the build when TODO count exceeds the threshold |
+| `todo-scan diff main` | Shows TODOs added/removed since a git ref — useful in PR review |
+| `todo-scan lint` | Enforces consistent TODO formatting (uppercase, colon, author) |
 
 ## Features
 
