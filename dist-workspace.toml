@@ -13,3 +13,6 @@ installers = ["shell", "powershell"]
 targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 # In PRs, only run the plan step (don't build artifacts)
 pr-run-mode = "plan"
+# Allow manual edits to CI files (release-please creates the GitHub Release,
+# cargo-dist uploads binaries to it)
+allow-dirty = ["ci"]

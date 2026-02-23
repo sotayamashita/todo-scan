@@ -19,7 +19,6 @@ jobs:
         with:
           release-type: rust
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-          skip-github-release: true
 
   publish:
     needs: release-please
