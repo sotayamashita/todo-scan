@@ -35,7 +35,7 @@ toml = "1.0"
 schemars = { version = "0.8", features = ["derive"] }
 colored = "3"
 anyhow = "1"
-dialoguer = "0.11"
+dialoguer = "0.12"
 clap_complete = "4"
 toml_edit = "0.22"
 time = { version = "0.3", features = ["local-offset"] }
