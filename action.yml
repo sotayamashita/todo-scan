@@ -1,0 +1,183 @@
+name: 'todo-scan'
+description: 'CI gate for TODO/FIXME/HACK comments — fail builds when technical debt exceeds thresholds'
+branding:
+  icon: 'check-circle'
+  color: 'green'
+
+inputs:
+  version:
+    description: 'todo-scan version to install (e.g. "0.1.0"). Defaults to latest.'
+    required: false
+    default: 'latest'
+  max:
+    description: 'Maximum total TODOs allowed (maps to --max)'
+    required: false
+  block-tags:
+    description: 'Comma-separated tags that cause check to fail (maps to --block-tags)'
+    required: false
+  max-new:
+    description: 'Maximum new TODOs allowed (maps to --max-new, requires base-ref)'
+    required: false
+  base-ref:
+    description: 'Git ref to diff against (maps to --since)'
+    required: false
+  expired:
+    description: 'Fail if any TODOs have expired deadlines (maps to --expired)'
+    required: false
+    default: 'false'
+  sarif:
+    description: 'Generate and upload SARIF to GitHub Code Scanning'
+    required: false
+    default: 'false'
+  root:
+    description: 'Project root directory (maps to --root)'
+    required: false
+  config:
+    description: 'Path to .todo-scan.toml config file (maps to --config)'
+    required: false
+  token:
+    description: 'GitHub token for SARIF upload (defaults to github.token)'
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  total-count:
+    description: 'Total number of TODOs found'
+    value: ${{ steps.check.outputs.total-count }}
+  passed:
+    description: 'Whether the check passed (true/false)'
+    value: ${{ steps.check.outputs.passed }}
+  sarif-file:
+    description: 'Path to generated SARIF file (if sarif input is true)'
+    value: ${{ steps.sarif.outputs.sarif-file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install todo-scan (Linux/macOS)
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+      run: |
+        if [ "$INPUT_VERSION" = "latest" ]; then
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            https://github.com/sotayamashita/todo-scan/releases/latest/download/todo-scan-installer.sh | sh
+        else
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            "https://github.com/sotayamashita/todo-scan/releases/download/v${INPUT_VERSION}/todo-scan-installer.sh" | sh
+        fi
+        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+    - name: Install todo-scan (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+      run: |
+        if ($env:INPUT_VERSION -eq "latest") {
+          irm https://github.com/sotayamashita/todo-scan/releases/latest/download/todo-scan-installer.ps1 | iex
+        } else {
+          irm "https://github.com/sotayamashita/todo-scan/releases/download/v$($env:INPUT_VERSION)/todo-scan-installer.ps1" | iex
+        }
+
+    - name: Validate base-ref
+      if: inputs.base-ref != ''
+      shell: bash
+      env:
+        INPUT_BASE_REF: ${{ inputs.base-ref }}
+      run: |
+        if ! git rev-parse --verify "$INPUT_BASE_REF" >/dev/null 2>&1; then
+          echo "::warning::base-ref '$INPUT_BASE_REF' is not reachable. Did you set fetch-depth: 0 in actions/checkout?"
+        fi
+
+    - name: Run todo-scan check
+      id: check
+      shell: bash
+      env:
+        INPUT_MAX: ${{ inputs.max }}
+        INPUT_BLOCK_TAGS: ${{ inputs.block-tags }}
+        INPUT_MAX_NEW: ${{ inputs.max-new }}
+        INPUT_BASE_REF: ${{ inputs.base-ref }}
+        INPUT_EXPIRED: ${{ inputs.expired }}
+        INPUT_ROOT: ${{ inputs.root }}
+        INPUT_CONFIG: ${{ inputs.config }}
+      run: |
+        args=(check --format github-actions)
+
+        if [ -n "$INPUT_MAX" ]; then
+          args+=(--max "$INPUT_MAX")
+        fi
+        if [ -n "$INPUT_BLOCK_TAGS" ]; then
+          args+=(--block-tags "$INPUT_BLOCK_TAGS")
+        fi
+        if [ -n "$INPUT_MAX_NEW" ]; then
+          args+=(--max-new "$INPUT_MAX_NEW")
+        fi
+        if [ -n "$INPUT_BASE_REF" ]; then
+          args+=(--since "$INPUT_BASE_REF")
+        fi
+        if [ "$INPUT_EXPIRED" = "true" ]; then
+          args+=(--expired)
+        fi
+        if [ -n "$INPUT_ROOT" ]; then
+          args+=(--root "$INPUT_ROOT")
+        fi
+        if [ -n "$INPUT_CONFIG" ]; then
+          args+=(--config "$INPUT_CONFIG")
+        fi
+
+        set +e
+        output=$(todo-scan "${args[@]}" 2>&1)
+        exit_code=$?
+        set -e
+
+        echo "$output"
+
+        # Extract total count from output (best-effort parse)
+        total=$(echo "$output" | grep -oP 'Total: \K[0-9]+' || echo "")
+        echo "total-count=${total}" >> "$GITHUB_OUTPUT"
+
+        if [ "$exit_code" -eq 0 ]; then
+          echo "passed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "passed=false" >> "$GITHUB_OUTPUT"
+        fi
+
+        # Save exit code for later propagation
+        echo "exit-code=${exit_code}" >> "$GITHUB_OUTPUT"
+
+    - name: Generate SARIF
+      id: sarif
+      if: inputs.sarif == 'true'
+      shell: bash
+      env:
+        INPUT_ROOT: ${{ inputs.root }}
+        INPUT_CONFIG: ${{ inputs.config }}
+      run: |
+        sarif_args=(list --format sarif)
+
+        if [ -n "$INPUT_ROOT" ]; then
+          sarif_args+=(--root "$INPUT_ROOT")
+        fi
+        if [ -n "$INPUT_CONFIG" ]; then
+          sarif_args+=(--config "$INPUT_CONFIG")
+        fi
+
+        sarif_file="todo-scan-results.sarif"
+        todo-scan "${sarif_args[@]}" > "$sarif_file"
+        echo "sarif-file=${sarif_file}" >> "$GITHUB_OUTPUT"
+
+    - name: Upload SARIF to Code Scanning
+      if: inputs.sarif == 'true'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: todo-scan-results.sarif
+        token: ${{ inputs.token }}
+
+    - name: Propagate exit code
+      if: steps.check.outputs.exit-code != '0'
+      shell: bash
+      env:
+        CHECK_EXIT_CODE: ${{ steps.check.outputs.exit-code }}
+      run: exit "$CHECK_EXIT_CODE"

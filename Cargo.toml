@@ -21,6 +21,7 @@ exclude = [
     "renovate.json",
     ".todo-scan.toml",
     "CLAUDE.md",
+    "action.yml",
 ]
 
 [dependencies]

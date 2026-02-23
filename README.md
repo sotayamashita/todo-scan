@@ -1046,7 +1046,58 @@ cp -r skills/todo-scan ~/.claude/skills/
 
 ## CI Integration
 
-### GitHub Actions
+### GitHub Action
+
+The easiest way to add todo-scan to your CI pipeline. No binary installation or workflow boilerplate needed.
+
+**Minimal usage:**
+
+```yaml
+- uses: sotayamashita/todo-scan@v1
+  with:
+    max: '100'
+```
+
+**Full example with SARIF and diff:**
+
+```yaml
+- uses: actions/checkout@v6
+  with:
+    fetch-depth: 0  # Required for base-ref diff
+
+- uses: sotayamashita/todo-scan@v1
+  with:
+    max: '100'
+    block-tags: 'BUG,FIXME'
+    max-new: '0'
+    base-ref: 'origin/main'
+    sarif: 'true'
+```
+
+#### Inputs
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `version` | `latest` | todo-scan version to install (e.g. `0.1.0`) |
+| `max` | | Maximum total TODOs allowed |
+| `block-tags` | | Comma-separated tags that cause check to fail |
+| `max-new` | | Maximum new TODOs allowed (requires `base-ref`) |
+| `base-ref` | | Git ref to diff against (requires `fetch-depth: 0`) |
+| `expired` | `false` | Fail if any TODOs have expired deadlines |
+| `sarif` | `false` | Generate and upload SARIF to GitHub Code Scanning |
+| `root` | | Project root directory |
+| `config` | | Path to `.todo-scan.toml` config file |
+| `token` | `github.token` | GitHub token for SARIF upload |
+
+#### Outputs
+
+| Output | Description |
+|--------|-------------|
+| `total-count` | Total number of TODOs found |
+| `passed` | Whether the check passed (`true`/`false`) |
+| `sarif-file` | Path to generated SARIF file (if `sarif: true`) |
+
+### GitHub Actions (manual setup)
 
 ```yaml
 - name: Check TODOs
