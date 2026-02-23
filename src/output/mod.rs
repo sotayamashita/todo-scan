@@ -158,21 +158,20 @@ pub fn print_list(
                         }
                     }
 
+                    let msg = sanitize_for_terminal(&item.message);
+                    let file = sanitize_for_terminal(&item.file);
                     let mut line = if is_file_group {
-                        format!("  L{}: [{}] {}", item.line, tag_str, item.message)
+                        format!("  L{}: [{}] {}", item.line, tag_str, msg)
                     } else {
-                        format!(
-                            "  {}:{}: [{}] {}",
-                            item.file, item.line, tag_str, item.message
-                        )
+                        format!("  {}:{}: [{}] {}", file, item.line, tag_str, msg)
                     };
 
                     if *detail != DetailLevel::Minimal {
                         if let Some(ref author) = item.author {
-                            line.push_str(&format!(" (@{})", author));
+                            line.push_str(&format!(" (@{})", sanitize_for_terminal(author)));
                         }
                         if let Some(ref issue) = item.issue_ref {
-                            line.push_str(&format!(" ({})", issue));
+                            line.push_str(&format!(" ({})", sanitize_for_terminal(issue)));
                         }
                         if let Some(ref deadline) = item.deadline {
                             let today = crate::deadline::today();
@@ -220,13 +219,12 @@ pub fn print_list(
                     }
                     for item in items {
                         let tag_str = colorize_tag(&item.tag);
+                        let msg = sanitize_for_terminal(&item.message);
+                        let file = sanitize_for_terminal(&item.file);
                         let line = if is_file_group {
-                            format!("  L{}: [{}] {}", item.line, tag_str, item.message)
+                            format!("  L{}: [{}] {}", item.line, tag_str, msg)
                         } else {
-                            format!(
-                                "  {}:{}: [{}] {}",
-                                item.file, item.line, tag_str, item.message
-                            )
+                            format!("  {}:{}: [{}] {}", file, item.line, tag_str, msg)
                         };
                         println!("{}", line.dimmed());
                     }
@@ -331,21 +329,20 @@ pub fn print_search(
                         }
                     }
 
+                    let msg = sanitize_for_terminal(&item.message);
+                    let file = sanitize_for_terminal(&item.file);
                     let mut line = if is_file_group {
-                        format!("  L{}: [{}] {}", item.line, tag_str, item.message)
+                        format!("  L{}: [{}] {}", item.line, tag_str, msg)
                     } else {
-                        format!(
-                            "  {}:{}: [{}] {}",
-                            item.file, item.line, tag_str, item.message
-                        )
+                        format!("  {}:{}: [{}] {}", file, item.line, tag_str, msg)
                     };
 
                     if *detail != DetailLevel::Minimal {
                         if let Some(ref author) = item.author {
-                            line.push_str(&format!(" (@{})", author));
+                            line.push_str(&format!(" (@{})", sanitize_for_terminal(author)));
                         }
                         if let Some(ref issue) = item.issue_ref {
-                            line.push_str(&format!(" ({})", issue));
+                            line.push_str(&format!(" ({})", sanitize_for_terminal(issue)));
                         }
                         if let Some(ref deadline) = item.deadline {
                             let today = crate::deadline::today();
@@ -383,12 +380,16 @@ pub fn print_search(
             if is_file_group {
                 println!(
                     "{} matches across {} files (query: \"{}\")",
-                    result.match_count, result.file_count, result.query
+                    result.match_count,
+                    result.file_count,
+                    sanitize_for_terminal(&result.query)
                 );
             } else {
                 println!(
                     "{} matches across {} groups (query: \"{}\")",
-                    result.match_count, group_count, result.query
+                    result.match_count,
+                    group_count,
+                    sanitize_for_terminal(&result.query)
                 );
             }
         }
@@ -457,7 +458,11 @@ pub fn print_diff(
                 let tag_str = colorize_tag(&entry.item.tag);
                 let line = format!(
                     "{} {}:{} [{}] {}",
-                    prefix, entry.item.file, entry.item.line, tag_str, entry.item.message
+                    prefix,
+                    sanitize_for_terminal(&entry.item.file),
+                    entry.item.line,
+                    tag_str,
+                    sanitize_for_terminal(&entry.item.message)
                 );
                 println!("{}", color(&line));
 
@@ -566,15 +571,15 @@ pub fn print_brief(result: &BriefResult, format: &Format, budget: Option<usize>)
                 let issue_suffix = item
                     .issue_ref
                     .as_ref()
-                    .map(|r| format!(" ({})", r))
+                    .map(|r| format!(" ({})", sanitize_for_terminal(r)))
                     .unwrap_or_default();
                 lines.push(format!(
                     "Top urgent: {}:{} {}{} {}{}",
-                    item.file,
+                    sanitize_for_terminal(&item.file),
                     item.line,
                     item.tag.as_str(),
                     priority_marker,
-                    item.message,
+                    sanitize_for_terminal(&item.message),
                     issue_suffix
                 ));
             }
@@ -631,7 +636,7 @@ pub fn print_stats(result: &StatsResult, format: &Format) {
                 for (author, count) in &result.author_counts {
                     println!(
                         "  {:20} {:>4}  {}",
-                        author,
+                        sanitize_for_terminal(author),
                         count,
                         bar(*count, author_max, 20).dimmed()
                     );
@@ -642,7 +647,7 @@ pub fn print_stats(result: &StatsResult, format: &Format) {
             if !result.hotspot_files.is_empty() {
                 println!("\n{}", "Hotspots".bold().underline());
                 for (file, count) in &result.hotspot_files {
-                    println!("  {} ({})", file, count);
+                    println!("  {} ({})", sanitize_for_terminal(file), count);
                 }
             }
 
@@ -694,11 +699,20 @@ pub fn print_lint(result: &LintResult, format: &Format) {
                 }
 
                 for (file, violations) in &groups {
-                    println!("{}", file.bold().underline());
+                    println!("{}", sanitize_for_terminal(file).bold().underline());
                     for v in violations {
-                        println!("  L{}: {} - {}", v.line, v.rule.yellow(), v.message);
+                        println!(
+                            "  L{}: {} - {}",
+                            v.line,
+                            sanitize_for_terminal(&v.rule).yellow(),
+                            sanitize_for_terminal(&v.message)
+                        );
                         if let Some(ref suggestion) = v.suggestion {
-                            println!("    {} {}", "suggestion:".dimmed(), suggestion.dimmed());
+                            println!(
+                                "    {} {}",
+                                "suggestion:".dimmed(),
+                                sanitize_for_terminal(suggestion).dimmed()
+                            );
                         }
                     }
                 }
@@ -744,12 +758,19 @@ pub fn print_clean(result: &CleanResult, format: &Format) {
                 }
 
                 for (file, violations) in &groups {
-                    println!("{}", file.bold().underline());
+                    println!("{}", sanitize_for_terminal(file).bold().underline());
                     for v in violations {
-                        let mut line =
-                            format!("  L{}: {} - {}", v.line, v.rule.yellow(), v.message);
+                        let mut line = format!(
+                            "  L{}: {} - {}",
+                            v.line,
+                            sanitize_for_terminal(&v.rule).yellow(),
+                            sanitize_for_terminal(&v.message)
+                        );
                         if let Some(ref dup_of) = v.duplicate_of {
-                            line.push_str(&format!(" (duplicate of {})", dup_of));
+                            line.push_str(&format!(
+                                " (duplicate of {})",
+                                sanitize_for_terminal(dup_of)
+                            ));
                         }
                         println!("{}", line);
                     }
@@ -780,7 +801,11 @@ pub fn print_check(result: &CheckResult, format: &Format) {
             } else {
                 println!("{}", "FAIL".red().bold());
                 for violation in &result.violations {
-                    println!("  {}: {}", violation.rule.yellow(), violation.message);
+                    println!(
+                        "  {}: {}",
+                        sanitize_for_terminal(&violation.rule).yellow(),
+                        sanitize_for_terminal(&violation.message)
+                    );
                 }
             }
         }
@@ -825,9 +850,9 @@ pub fn print_blame(result: &BlameResult, format: &Format) {
                         "  L{}: [{}] {} @{} {} ({} days ago){}",
                         entry.item.line,
                         tag_str,
-                        entry.item.message,
-                        entry.blame.author,
-                        entry.blame.date,
+                        sanitize_for_terminal(&entry.item.message),
+                        sanitize_for_terminal(&entry.blame.author),
+                        sanitize_for_terminal(&entry.blame.date),
                         entry.blame.age_days,
                         stale_marker,
                     );
@@ -899,7 +924,7 @@ pub fn print_context(rich: &RichContext, format: &Format) {
             println!(
                 "  {} {}",
                 format!("{:>4}", rich.line).cyan(),
-                rich.todo_line
+                sanitize_for_terminal(&rich.todo_line)
             );
 
             for cl in &rich.after {
@@ -914,7 +939,12 @@ pub fn print_context(rich: &RichContext, format: &Format) {
                 println!();
                 println!("{}", "Related TODOs:".bold());
                 for rt in &rich.related_todos {
-                    println!("  L{}: [{}] {}", rt.line, rt.tag, rt.message);
+                    println!(
+                        "  L{}: [{}] {}",
+                        rt.line,
+                        rt.tag,
+                        sanitize_for_terminal(&rt.message)
+                    );
                 }
             }
         }
@@ -954,7 +984,11 @@ pub fn print_initial_summary(tag_counts: &[(Tag, usize)], total: usize, format: 
 pub fn print_watch_event(event: &WatchEvent, format: &Format, max: Option<usize>) {
     match format {
         Format::Text => {
-            println!("{} {}", event.timestamp.dimmed(), event.file.bold());
+            println!(
+                "{} {}",
+                event.timestamp.dimmed(),
+                sanitize_for_terminal(&event.file).bold()
+            );
 
             for item in &event.added {
                 let tag_str = colorize_tag(&item.tag);
@@ -963,7 +997,7 @@ pub fn print_watch_event(event: &WatchEvent, format: &Format, max: Option<usize>
                     "+".green(),
                     item.line,
                     tag_str,
-                    item.message
+                    sanitize_for_terminal(&item.message)
                 );
             }
 
@@ -974,7 +1008,7 @@ pub fn print_watch_event(event: &WatchEvent, format: &Format, max: Option<usize>
                     "-".red(),
                     item.line,
                     tag_str,
-                    item.message
+                    sanitize_for_terminal(&item.message)
                 );
             }
 
@@ -1027,10 +1061,10 @@ pub fn print_tasks(result: &TasksResult, format: &Format) {
                 println!(
                     "  {:>2} {:6} {}:{} {}",
                     priority_marker,
-                    task.metadata.todo_scan_tag,
-                    task.metadata.todo_scan_file,
+                    sanitize_for_terminal(&task.metadata.todo_scan_tag),
+                    sanitize_for_terminal(&task.metadata.todo_scan_file),
                     task.metadata.todo_scan_line,
-                    task.subject,
+                    sanitize_for_terminal(&task.subject),
                 );
             }
 
@@ -1057,7 +1091,9 @@ pub fn print_relate(result: &RelateResult, format: &Format) {
             if let Some(ref target) = result.target {
                 println!(
                     "{}",
-                    format!("Relationships for {}", target).bold().underline()
+                    format!("Relationships for {}", sanitize_for_terminal(target))
+                        .bold()
+                        .underline()
                 );
             }
 
@@ -1065,20 +1101,27 @@ pub fn print_relate(result: &RelateResult, format: &Format) {
                 for cluster in clusters {
                     println!(
                         "\n{}",
-                        format!("Cluster {} — {}", cluster.id, cluster.theme)
-                            .bold()
-                            .underline()
+                        format!(
+                            "Cluster {} — {}",
+                            cluster.id,
+                            sanitize_for_terminal(&cluster.theme)
+                        )
+                        .bold()
+                        .underline()
                     );
                     println!("  Items (suggested order):");
                     for loc in &cluster.suggested_order {
-                        println!("    {}", loc);
+                        println!("    {}", sanitize_for_terminal(loc));
                     }
                     if !cluster.relationships.is_empty() {
                         println!("  Relationships:");
                         for rel in &cluster.relationships {
                             println!(
                                 "    {} ↔ {} (score: {:.2}, {})",
-                                rel.from, rel.to, rel.score, rel.reason
+                                sanitize_for_terminal(&rel.from),
+                                sanitize_for_terminal(&rel.to),
+                                rel.score,
+                                sanitize_for_terminal(&rel.reason)
                             );
                         }
                     }
@@ -1087,7 +1130,10 @@ pub fn print_relate(result: &RelateResult, format: &Format) {
                 for rel in &result.relationships {
                     println!(
                         "  {} ↔ {} (score: {:.2}, {})",
-                        rel.from, rel.to, rel.score, rel.reason
+                        sanitize_for_terminal(&rel.from),
+                        sanitize_for_terminal(&rel.to),
+                        rel.score,
+                        sanitize_for_terminal(&rel.reason)
                     );
                 }
             }
@@ -1102,6 +1148,17 @@ pub fn print_relate(result: &RelateResult, format: &Format) {
             println!("{}", json);
         }
     }
+}
+
+/// Strip terminal control characters from user-controlled strings to prevent
+/// ANSI escape injection. Removes 0x00–0x1f (except tab 0x09) and 0x7f.
+fn sanitize_for_terminal(s: &str) -> String {
+    s.chars()
+        .filter(|c| {
+            let code = *c as u32;
+            *c == '\t' || (code >= 0x20 && code != 0x7f)
+        })
+        .collect()
 }
 
 pub fn print_report(report: &ReportResult, output_path: &str) -> std::io::Result<()> {
@@ -1150,5 +1207,51 @@ pub fn print_workspace_list(
             let json = serde_json::to_string_pretty(result).expect("failed to serialize");
             println!("{}", json);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sanitize_strips_ansi_escape() {
+        assert_eq!(
+            sanitize_for_terminal("hello\x1b[31mworld"),
+            "hello[31mworld"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_strips_null_bytes() {
+        assert_eq!(sanitize_for_terminal("hello\x00world"), "helloworld");
+    }
+
+    #[test]
+    fn test_sanitize_strips_cr_lf() {
+        assert_eq!(sanitize_for_terminal("hello\r\nworld"), "helloworld");
+    }
+
+    #[test]
+    fn test_sanitize_preserves_tab() {
+        assert_eq!(sanitize_for_terminal("hello\tworld"), "hello\tworld");
+    }
+
+    #[test]
+    fn test_sanitize_preserves_normal_ascii() {
+        assert_eq!(
+            sanitize_for_terminal("normal text 123!@#"),
+            "normal text 123!@#"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_strips_bell() {
+        assert_eq!(sanitize_for_terminal("hello\x07world"), "helloworld");
+    }
+
+    #[test]
+    fn test_sanitize_preserves_unicode_emoji() {
+        assert_eq!(sanitize_for_terminal("hello 🌍 café"), "hello 🌍 café");
     }
 }
