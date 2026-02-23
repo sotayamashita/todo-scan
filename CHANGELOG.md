@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/sotayamashita/todo-scan/compare/v0.1.1...v0.1.2) (2026-02-23)
+
+
+### Bug Fixes
+
+* **release:** resolve release-please and cargo-dist GitHub Release conflict ([3473572](https://github.com/sotayamashita/todo-scan/commit/347357234dd9c9e3d0cdacd999b131e43cc08e6a))
+
 ## [0.1.1](https://github.com/sotayamashita/todo-scan/compare/v0.1.0...v0.1.1) (2026-02-23)
 
 
