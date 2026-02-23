@@ -416,8 +416,8 @@ const REPORT_DATA = {safe_json};
     tr.innerHTML =
       '<td>' + escapeHtml(item.file) + '</td>' +
       '<td>' + item.line + '</td>' +
-      '<td><span class="tag tag-' + item.tag + '">' + item.tag + '</span></td>' +
-      '<td class="' + priorityClass + '">' + item.priority + '</td>' +
+      '<td><span class="tag tag-' + escapeHtml(item.tag) + '">' + escapeHtml(item.tag) + '</span></td>' +
+      '<td class="' + escapeHtml(priorityClass) + '">' + escapeHtml(item.priority) + '</td>' +
       '<td>' + escapeHtml(item.message) + '</td>' +
       '<td>' + escapeHtml(item.author || '') + '</td>';
     tbody.appendChild(tr);

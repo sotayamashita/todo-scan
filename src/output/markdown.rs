@@ -87,7 +87,9 @@ pub fn format_search(result: &SearchResult) -> String {
     lines.push(String::new());
     lines.push(format!(
         "**{} matches across {} files** (query: \"{}\")",
-        result.match_count, result.file_count, result.query
+        result.match_count,
+        result.file_count,
+        escape_cell(&result.query)
     ));
     lines.push(String::new());
     lines.join("\n")
@@ -116,7 +118,9 @@ pub fn format_diff(result: &DiffResult) -> String {
     lines.push(String::new());
     lines.push(format!(
         "**+{} -{}** (base: `{}`)",
-        result.added_count, result.removed_count, result.base_ref
+        result.added_count,
+        result.removed_count,
+        escape_cell(&result.base_ref)
     ));
     lines.push(String::new());
     lines.join("\n")
@@ -476,5 +480,26 @@ mod tests {
         let output = format_check(&result);
         assert!(output.contains("## FAIL"));
         assert!(output.contains("- **max**: 10 exceeds max 5"));
+    }
+
+    #[test]
+    fn test_format_search_escapes_query() {
+        let result = SearchResult {
+            query: "test[inject](url)".to_string(),
+            exact: false,
+            items: vec![],
+            match_count: 0,
+            file_count: 0,
+        };
+        let output = format_search(&result);
+        assert!(
+            output.contains("\\[inject\\]"),
+            "query should have brackets escaped, got: {}",
+            output
+        );
+        assert!(
+            !output.contains("[inject](url)"),
+            "raw query should not appear unescaped"
+        );
     }
 }

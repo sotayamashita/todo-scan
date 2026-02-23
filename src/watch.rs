@@ -13,7 +13,7 @@ use crate::config::Config;
 use crate::date_utils;
 use crate::model::{FileUpdate, Tag, TodoItem, WatchEvent};
 use crate::output::{print_initial_summary, print_watch_event};
-use crate::scanner::{scan_content, scan_directory};
+use crate::scanner::{scan_content, scan_directory, MAX_FILE_SIZE};
 
 /// In-memory index of TODO items grouped by file path.
 pub struct TodoIndex {
@@ -53,6 +53,18 @@ impl TodoIndex {
     /// Re-scan a single file and return added/removed items.
     pub fn update_file(&mut self, relative_path: &str) -> Result<FileUpdate> {
         let abs_path = self.root.join(relative_path);
+
+        // Check file size before reading to prevent OOM on large files
+        let metadata = std::fs::metadata(&abs_path)
+            .with_context(|| format!("failed to stat {}", abs_path.display()))?;
+        if metadata.len() > MAX_FILE_SIZE {
+            let removed = self.items.remove(relative_path).unwrap_or_default();
+            return Ok(FileUpdate {
+                added: vec![],
+                removed,
+            });
+        }
+
         let content = std::fs::read_to_string(&abs_path)
             .with_context(|| format!("failed to read {}", abs_path.display()))?;
 
@@ -429,6 +441,23 @@ mod tests {
         let files = collect_changed_files(&events, dir.path());
         assert_eq!(files.len(), 1);
         assert_eq!(files[0], "test.rs");
+    }
+
+    #[test]
+    fn test_update_file_skips_oversized_file() {
+        let (dir, mut index) = setup_index(&[("big.rs", "// TODO: exists\n")]);
+        assert_eq!(index.total_count(), 1);
+
+        // Replace with a file larger than MAX_FILE_SIZE (10 MiB)
+        let oversized = "x".repeat(11 * 1024 * 1024);
+        fs::write(dir.path().join("big.rs"), &oversized).unwrap();
+
+        let update = index.update_file("big.rs").unwrap();
+        // The existing TODO should be removed (file is now too large to scan)
+        assert_eq!(update.removed.len(), 1);
+        assert!(update.added.is_empty());
+        // Index should no longer contain items for this file
+        assert_eq!(index.total_count(), 0);
     }
 
     #[test]

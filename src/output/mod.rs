@@ -153,7 +153,7 @@ pub fn print_list(
                             println!(
                                 "    {} {}",
                                 format!("{:>4}", cl.line_number).dimmed(),
-                                cl.content.dimmed()
+                                sanitize_for_terminal(&cl.content).dimmed()
                             );
                         }
                     }
@@ -198,7 +198,7 @@ pub fn print_list(
                             println!(
                                 "    {} {}",
                                 format!("{:>4}", cl.line_number).dimmed(),
-                                cl.content.dimmed()
+                                sanitize_for_terminal(&cl.content).dimmed()
                             );
                         }
                         println!();
@@ -324,7 +324,7 @@ pub fn print_search(
                             println!(
                                 "    {} {}",
                                 format!("{:>4}", cl.line_number).dimmed(),
-                                cl.content.dimmed()
+                                sanitize_for_terminal(&cl.content).dimmed()
                             );
                         }
                     }
@@ -369,7 +369,7 @@ pub fn print_search(
                             println!(
                                 "    {} {}",
                                 format!("{:>4}", cl.line_number).dimmed(),
-                                cl.content.dimmed()
+                                sanitize_for_terminal(&cl.content).dimmed()
                             );
                         }
                         println!();
@@ -450,7 +450,7 @@ pub fn print_diff(
                         println!(
                             "    {} {}",
                             format!("{:>4}", cl.line_number).dimmed(),
-                            cl.content.dimmed()
+                            sanitize_for_terminal(&cl.content).dimmed()
                         );
                     }
                 }
@@ -472,7 +472,7 @@ pub fn print_diff(
                         println!(
                             "    {} {}",
                             format!("{:>4}", cl.line_number).dimmed(),
-                            cl.content.dimmed()
+                            sanitize_for_terminal(&cl.content).dimmed()
                         );
                     }
                     println!();
@@ -838,7 +838,7 @@ pub fn print_blame(result: &BlameResult, format: &Format) {
             }
 
             for (file, entries) in &groups {
-                println!("{}", file.bold().underline());
+                println!("{}", sanitize_for_terminal(file).bold().underline());
                 for entry in entries {
                     let tag_str = colorize_tag(&entry.item.tag);
                     let stale_marker = if entry.stale {
@@ -917,7 +917,7 @@ pub fn print_context(rich: &RichContext, format: &Format) {
                 println!(
                     "  {} {}",
                     format!("{:>4}", cl.line_number).dimmed(),
-                    cl.content.dimmed()
+                    sanitize_for_terminal(&cl.content).dimmed()
                 );
             }
 
@@ -931,7 +931,7 @@ pub fn print_context(rich: &RichContext, format: &Format) {
                 println!(
                     "  {} {}",
                     format!("{:>4}", cl.line_number).dimmed(),
-                    cl.content.dimmed()
+                    sanitize_for_terminal(&cl.content).dimmed()
                 );
             }
 
@@ -1070,7 +1070,7 @@ pub fn print_tasks(result: &TasksResult, format: &Format) {
 
             println!("\n{} tasks exported", result.total);
             if let Some(ref dir) = result.output_dir {
-                println!("Output: {}", dir);
+                println!("Output: {}", sanitize_for_terminal(dir));
             }
         }
         _ => {
@@ -1164,7 +1164,7 @@ fn sanitize_for_terminal(s: &str) -> String {
 pub fn print_report(report: &ReportResult, output_path: &str) -> std::io::Result<()> {
     let content = html::render_html(report);
     std::fs::write(output_path, content)?;
-    println!("Report written to {}", output_path);
+    println!("Report written to {}", sanitize_for_terminal(output_path));
     Ok(())
 }
 
@@ -1194,7 +1194,11 @@ pub fn print_workspace_list(
                 };
                 println!(
                     "  {:<20} {:<30} {:>6}  {:>6}  {}",
-                    pkg.name, pkg.path, pkg.todo_count, max_str, status_str
+                    sanitize_for_terminal(&pkg.name),
+                    sanitize_for_terminal(&pkg.path),
+                    pkg.todo_count,
+                    max_str,
+                    status_str
                 );
             }
 

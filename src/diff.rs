@@ -18,7 +18,7 @@ fn detect_changed_files(
     base_files: &HashSet<String>,
     current: &ScanResult,
 ) -> HashSet<String> {
-    let diff_from_ref = git_command(&["diff", "--name-only", base_ref], root);
+    let diff_from_ref = git_command(&["diff", "--name-only", "--", base_ref], root);
     let diff_unstaged = git_command(&["diff", "--name-only"], root);
 
     // If either diff command failed, fall back to all files
