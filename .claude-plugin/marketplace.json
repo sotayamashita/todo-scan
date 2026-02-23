@@ -12,8 +12,8 @@
       "author": {
         "name": "sotayamashita"
       },
-      "homepage": "https://github.com/sotayamashita/todox",
-      "repository": "https://github.com/sotayamashita/todox",
+      "homepage": "https://github.com/sotayamashita/todo-scan",
+      "repository": "https://github.com/sotayamashita/todo-scan",
       "license": "MIT",
       "keywords": ["todo", "fixme", "ci-gate", "code-quality", "scanner"],
       "category": "development",

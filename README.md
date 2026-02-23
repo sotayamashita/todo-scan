@@ -1015,13 +1015,13 @@ todo-scan provides a [Claude Code plugin](https://docs.anthropic.com/en/docs/cla
 ### Install from plugin marketplace (recommended)
 
 ```bash
-/plugin marketplace add sotayamashita/todox
+/plugin marketplace add sotayamashita/todo-scan
 ```
 
 ### Install with [skills CLI](https://github.com/vercel-labs/skills)
 
 ```bash
-npx skills add sotayamashita/todox
+npx skills add sotayamashita/todo-scan
 ```
 
 ### Manual install
