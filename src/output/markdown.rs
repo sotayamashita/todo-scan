@@ -1,8 +1,13 @@
 use crate::model::*;
 
-/// Escape pipe characters in markdown table cells.
+/// Escape characters that break markdown table cells.
 fn escape_cell(s: &str) -> String {
     s.replace('|', "\\|")
+        .replace('\n', " ")
+        .replace('\r', "")
+        .replace('[', "\\[")
+        .replace(']', "\\]")
+        .replace('`', "\\`")
 }
 
 fn priority_str(priority: &Priority) -> &'static str {
@@ -26,12 +31,20 @@ pub fn format_list(result: &ScanResult) -> String {
         let tag = item.tag.as_str();
         let priority = priority_str(&item.priority);
         let message = escape_cell(&item.message);
-        let author = item.author.as_deref().unwrap_or("");
-        let issue = item.issue_ref.as_deref().unwrap_or("");
+        let author = item
+            .author
+            .as_deref()
+            .map(|a| escape_cell(a))
+            .unwrap_or_default();
+        let issue = item
+            .issue_ref
+            .as_deref()
+            .map(|r| escape_cell(r))
+            .unwrap_or_default();
         let deadline = item
             .deadline
             .as_ref()
-            .map(|d| d.to_string())
+            .map(|d| escape_cell(&d.to_string()))
             .unwrap_or_default();
         lines.push(format!(
             "| {file} | {} | {tag} | {priority} | {message} | {author} | {issue} | {deadline} |",
@@ -58,12 +71,20 @@ pub fn format_search(result: &SearchResult) -> String {
         let tag = item.tag.as_str();
         let priority = priority_str(&item.priority);
         let message = escape_cell(&item.message);
-        let author = item.author.as_deref().unwrap_or("");
-        let issue = item.issue_ref.as_deref().unwrap_or("");
+        let author = item
+            .author
+            .as_deref()
+            .map(|a| escape_cell(a))
+            .unwrap_or_default();
+        let issue = item
+            .issue_ref
+            .as_deref()
+            .map(|r| escape_cell(r))
+            .unwrap_or_default();
         let deadline = item
             .deadline
             .as_ref()
-            .map(|d| d.to_string())
+            .map(|d| escape_cell(&d.to_string()))
             .unwrap_or_default();
         lines.push(format!(
             "| {file} | {} | {tag} | {priority} | {message} | {author} | {issue} | {deadline} |",
@@ -120,9 +141,11 @@ pub fn format_blame(result: &BlameResult) -> String {
         let tag = entry.item.tag.as_str();
         let message = escape_cell(&entry.item.message);
         let stale = if entry.stale { "Yes" } else { "" };
+        let blame_author = escape_cell(&entry.blame.author);
+        let blame_date = escape_cell(&entry.blame.date);
         lines.push(format!(
-            "| {file} | {} | {tag} | {message} | {} | {} | {} | {stale} |",
-            entry.item.line, entry.blame.author, entry.blame.date, entry.blame.age_days,
+            "| {file} | {} | {tag} | {message} | {blame_author} | {blame_date} | {} | {stale} |",
+            entry.item.line, entry.blame.age_days,
         ));
     }
 
@@ -154,10 +177,11 @@ pub fn format_lint(result: &LintResult) -> String {
         for v in &result.violations {
             let file = escape_cell(&v.file);
             let message = escape_cell(&v.message);
+            let rule = escape_cell(&v.rule);
             let suggestion = v.suggestion.as_deref().map(escape_cell).unwrap_or_default();
             lines.push(format!(
                 "| {} | {} | {} | {} | {} |",
-                file, v.line, v.rule, message, suggestion
+                file, v.line, rule, message, suggestion
             ));
         }
 
@@ -183,7 +207,11 @@ pub fn format_check(result: &CheckResult) -> String {
         lines.push("## FAIL".to_string());
         lines.push(String::new());
         for violation in &result.violations {
-            lines.push(format!("- **{}**: {}", violation.rule, violation.message));
+            lines.push(format!(
+                "- **{}**: {}",
+                escape_cell(&violation.rule),
+                escape_cell(&violation.message)
+            ));
         }
     }
     lines.push(String::new());
@@ -209,16 +237,17 @@ pub fn format_clean(result: &CleanResult) -> String {
         for v in &result.violations {
             let file = escape_cell(&v.file);
             let message = escape_cell(&v.message);
+            let rule = escape_cell(&v.rule);
             let detail = if let Some(ref dup_of) = v.duplicate_of {
-                format!("duplicate of {}", dup_of)
+                escape_cell(&format!("duplicate of {}", dup_of))
             } else if let Some(ref issue_ref) = v.issue_ref {
-                issue_ref.clone()
+                escape_cell(issue_ref)
             } else {
                 String::new()
             };
             lines.push(format!(
                 "| {} | {} | {} | {} | {} |",
-                file, v.line, v.rule, message, detail
+                file, v.line, rule, message, detail
             ));
         }
 
@@ -285,6 +314,115 @@ mod tests {
         let output = format_list(&result);
         assert!(output.contains("| lib.rs | 42 | TODO | ! | add tests | alice | #123 |  |"));
         assert!(output.contains("**1 items found**"));
+    }
+
+    #[test]
+    fn test_escape_cell_replaces_newline_with_space() {
+        assert_eq!(escape_cell("line1\nline2"), "line1 line2");
+    }
+
+    #[test]
+    fn test_escape_cell_removes_carriage_return() {
+        assert_eq!(escape_cell("line1\rline2"), "line1line2");
+    }
+
+    #[test]
+    fn test_escape_cell_escapes_brackets() {
+        assert_eq!(escape_cell("[link](url)"), "\\[link\\](url)");
+    }
+
+    #[test]
+    fn test_escape_cell_escapes_backtick() {
+        assert_eq!(escape_cell("use `code` here"), "use \\`code\\` here");
+    }
+
+    #[test]
+    fn test_escape_cell_still_escapes_pipe() {
+        assert_eq!(escape_cell("a | b"), "a \\| b");
+    }
+
+    #[test]
+    fn test_format_list_escapes_author() {
+        let result = ScanResult {
+            items: vec![TodoItem {
+                file: "test.rs".to_string(),
+                line: 1,
+                tag: Tag::Todo,
+                message: "task".to_string(),
+                author: Some("user\ninjected".to_string()),
+                issue_ref: None,
+                priority: Priority::Normal,
+                deadline: None,
+            }],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let output = format_list(&result);
+        assert!(output.contains("user injected"));
+        assert!(!output.contains("user\ninjected"));
+    }
+
+    #[test]
+    fn test_format_list_escapes_issue_ref() {
+        let result = ScanResult {
+            items: vec![TodoItem {
+                file: "test.rs".to_string(),
+                line: 1,
+                tag: Tag::Todo,
+                message: "task".to_string(),
+                author: None,
+                issue_ref: Some("[link](evil)".to_string()),
+                priority: Priority::Normal,
+                deadline: None,
+            }],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let output = format_list(&result);
+        assert!(output.contains("\\[link\\]"));
+        assert!(!output.contains("[link](evil)"));
+    }
+
+    #[test]
+    fn test_format_blame_escapes_author() {
+        let result = BlameResult {
+            entries: vec![BlameEntry {
+                item: sample_item(Tag::Todo, "task"),
+                blame: BlameInfo {
+                    author: "user|inject".to_string(),
+                    email: "user@test.com".to_string(),
+                    date: "2025-01-01".to_string(),
+                    age_days: 10,
+                    commit: "abc123".to_string(),
+                },
+                stale: false,
+            }],
+            total: 1,
+            avg_age_days: 10,
+            stale_count: 0,
+            stale_threshold_days: 180,
+        };
+        let output = format_blame(&result);
+        assert!(output.contains("user\\|inject"));
+    }
+
+    #[test]
+    fn test_format_lint_escapes_rule() {
+        let result = LintResult {
+            passed: false,
+            total_items: 1,
+            violation_count: 1,
+            violations: vec![LintViolation {
+                file: "test.rs".to_string(),
+                line: 1,
+                rule: "no`bare".to_string(),
+                message: "msg".to_string(),
+                suggestion: Some("use [this]".to_string()),
+            }],
+        };
+        let output = format_lint(&result);
+        assert!(output.contains("no\\`bare"));
+        assert!(output.contains("\\[this\\]"));
     }
 
     #[test]
