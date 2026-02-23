@@ -2,18 +2,6 @@
 
 [![CI](https://github.com/sotayamashita/todox/actions/workflows/ci.yml/badge.svg)](https://github.com/sotayamashita/todox/actions/workflows/ci.yml) [![codecov](https://codecov.io/gh/sotayamashita/todox/graph/badge.svg)](https://codecov.io/gh/sotayamashita/todox) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/sotayamashita/todox)
 
-> [!WARNING]
-> **This is an experiment.** This repository exists to explore what AI can and cannot do across the entire software development lifecycle — and where human judgment remains essential. All code, issues, discussions, pull requests, and code reviews are authored and managed exclusively by [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with no human review. Use this project at your own risk. The maintainers assume no responsibility for any issues arising from its use.
-
-> [!NOTE]
-> This project used the prompt from the **"Start your first agent team"** section of the [Claude Code Agent Teams documentation](https://code.claude.com/docs/en/agent-teams) as-is:
->
-> ```
-> I'm designing a CLI tool that helps developers track TODO comments across
-> their codebase. Create an agent team to explore this from different angles: one
-> teammate on UX, one on technical architecture, one playing devil's advocate.
-> ```
-
 Track TODO/FIXME/HACK comments in your codebase with git-aware diff and CI gate.
 
 ## Features
