@@ -77,3 +77,13 @@ jobs:
           name: todo-scan-report
           path: todo-scan-report.html
           retention-days: 1
+
+  test-action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./
+        with:
+          max: '80'
