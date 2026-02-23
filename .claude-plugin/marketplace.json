@@ -1,0 +1,23 @@
+{
+  "name": "todo-scan-skills",
+  "owner": {
+    "name": "sotayamashita"
+  },
+  "plugins": [
+    {
+      "name": "todo-scan",
+      "description": "Scan, diff, and gate TODO/FIXME/HACK/XXX/BUG/NOTE comments in codebases with CI quality gates",
+      "source": "./",
+      "version": "1.0.0",
+      "author": {
+        "name": "sotayamashita"
+      },
+      "homepage": "https://github.com/sotayamashita/todox",
+      "repository": "https://github.com/sotayamashita/todox",
+      "license": "MIT",
+      "keywords": ["todo", "fixme", "ci-gate", "code-quality", "scanner"],
+      "category": "development",
+      "strict": false
+    }
+  ]
+}

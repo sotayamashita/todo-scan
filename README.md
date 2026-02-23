@@ -1008,7 +1008,13 @@ Per-package check thresholds for `todo-scan check --workspace`.
 
 ## Agent Skill
 
-todo-scan provides a [Claude Code skill](https://docs.anthropic.com/en/docs/claude-code/skills) that enables AI coding agents to automatically use todo-scan commands for TODO tracking, CI gate configuration, and code quality checks.
+todo-scan provides a [Claude Code plugin](https://docs.anthropic.com/en/docs/claude-code/skills) that enables AI coding agents to automatically use todo-scan commands for TODO tracking, CI gate configuration, and code quality checks.
+
+### Install from plugin marketplace (recommended)
+
+```bash
+/plugin marketplace add sotayamashita/todox
+```
 
 ### Install with [skills CLI](https://github.com/vercel-labs/skills)
 
@@ -1019,7 +1025,7 @@ npx skills add sotayamashita/todox
 ### Manual install
 
 ```bash
-cp -r .claude/skills/todo-scan ~/.claude/skills/
+cp -r skills/todo-scan ~/.claude/skills/
 ```
 
 ## CI Integration
