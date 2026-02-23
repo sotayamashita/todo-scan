@@ -3,8 +3,10 @@ use crate::model::ReportResult;
 /// Render a self-contained HTML dashboard report.
 pub fn render_html(report: &ReportResult) -> String {
     let json_data = serde_json::to_string(report).expect("failed to serialize report");
-    // Escape </script> in JSON data to prevent breaking the HTML
-    let safe_json = json_data.replace("</script>", "<\\/script>");
+    // Escape all `<` in JSON data to prevent breaking the HTML script block.
+    // HTML5 parsers match </script> case-insensitively, so we must neutralize
+    // every `<` rather than just the lowercase variant.
+    let safe_json = json_data.replace('<', "\\u003c");
 
     format!(
         r##"<!DOCTYPE html>
@@ -394,7 +396,7 @@ const REPORT_DATA = {safe_json};
       row.className = 'bar-container';
       row.style.marginBottom = '4px';
       const pct = Math.max((count / max) * 100, 2);
-      row.innerHTML = '<span style="width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + name + '</span>' +
+      row.innerHTML = '<span style="width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(name) + '</span>' +
         '<div class="bar" style="width:' + pct + '%;"></div>' +
         '<span style="font-size:0.85rem;">' + count + '</span>';
       el.appendChild(row);
@@ -533,5 +535,46 @@ mod tests {
             !script_content.contains("</script>"),
             "JSON data should not contain raw </script>"
         );
+    }
+
+    #[test]
+    fn test_render_html_bar_list_escapes_html_in_names() {
+        let mut report = minimal_report();
+        let xss_author = "<img src=x onerror=alert(1)>";
+        report.author_counts.push((xss_author.to_string(), 5));
+        let html = render_html(&report);
+        // The JavaScript renderBarList() must use escapeHtml() on `name`,
+        // so the raw HTML tag should not appear unescaped in the template.
+        // We verify the JS source calls escapeHtml(name) rather than bare name.
+        assert!(
+            html.contains("escapeHtml(name)"),
+            "renderBarList must escape author names with escapeHtml()"
+        );
+    }
+
+    #[test]
+    fn test_render_html_escapes_script_tag_case_insensitive() {
+        for variant in ["</Script>", "</SCRIPT>", "</sCrIpT>"] {
+            let mut report = minimal_report();
+            report.items.push(TodoItem {
+                file: "test.rs".to_string(),
+                line: 1,
+                tag: Tag::Todo,
+                message: format!("xss attempt {variant}"),
+                author: None,
+                issue_ref: None,
+                priority: Priority::Normal,
+                deadline: None,
+            });
+            let html = render_html(&report);
+            let script_start = html.find("const REPORT_DATA = ").unwrap();
+            let script_end = html[script_start..].find("</script>").unwrap() + script_start;
+            let script_content = &html[script_start..script_end];
+            // No case variant of </script> should appear in JSON data
+            assert!(
+                !script_content.to_lowercase().contains("</script>"),
+                "JSON data must not contain {variant} — would break the script block"
+            );
+        }
     }
 }

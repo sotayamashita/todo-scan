@@ -39,9 +39,10 @@ pub fn format_list(result: &ScanResult) -> String {
 
 pub fn format_search(result: &SearchResult) -> String {
     let mut lines: Vec<String> = result.items.iter().map(format_item_annotation).collect();
+    let query = escape_message(&result.query);
     lines.push(format!(
-        "::notice::todo-scan search: {} matches (query: \"{}\")",
-        result.match_count, result.query
+        "::notice::todo-scan search: {} matches (query: \"{query}\")",
+        result.match_count
     ));
     lines.push(String::new());
     lines.join("\n")
@@ -111,9 +112,10 @@ pub fn format_lint(result: &LintResult) -> String {
         for violation in &result.violations {
             let file = escape_property(&violation.file);
             let msg = escape_message(&violation.message);
+            let rule = escape_property(&violation.rule);
             lines.push(format!(
-                "::error file={file},line={},title={}::{msg}",
-                violation.line, violation.rule
+                "::error file={file},line={},title={rule}::{msg}",
+                violation.line
             ));
         }
         lines.push(format!(
@@ -132,7 +134,8 @@ pub fn format_check(result: &CheckResult) -> String {
     } else {
         for violation in &result.violations {
             let msg = escape_message(&violation.message);
-            lines.push(format!("::error title={}::{msg}", violation.rule));
+            let rule = escape_property(&violation.rule);
+            lines.push(format!("::error title={rule}::{msg}"));
         }
         lines.push("::error::todo-scan check: FAIL".to_string());
     }
@@ -148,9 +151,10 @@ pub fn format_clean(result: &CleanResult) -> String {
         for violation in &result.violations {
             let file = escape_property(&violation.file);
             let msg = escape_message(&violation.message);
+            let rule = escape_property(&violation.rule);
             lines.push(format!(
-                "::error file={file},line={},title={}::{msg}",
-                violation.line, violation.rule
+                "::error file={file},line={},title={rule}::{msg}",
+                violation.line
             ));
         }
         lines.push(format!(
@@ -287,5 +291,50 @@ mod tests {
         let output = format_check(&result);
         assert!(output.contains("::error title=max::10 exceeds max 5"));
         assert!(output.contains("::error::todo-scan check: FAIL"));
+    }
+
+    #[test]
+    fn test_format_search_escapes_query_with_newline() {
+        let result = SearchResult {
+            items: vec![],
+            match_count: 0,
+            file_count: 0,
+            exact: false,
+            query: "evil\n::error::injected annotation".to_string(),
+        };
+        let output = format_search(&result);
+        // The newline in the query must be escaped to %0A so that
+        // "::error::injected annotation" cannot appear on its own line
+        // (GitHub Actions only parses workflow commands at line start)
+        for line in output.lines() {
+            assert!(
+                !line.starts_with("::error::injected"),
+                "query newline must be escaped to prevent workflow command injection on a separate line"
+            );
+        }
+        assert!(output.contains("%0A"));
+    }
+
+    #[test]
+    fn test_format_lint_escapes_rule_in_title() {
+        let result = LintResult {
+            passed: false,
+            total_items: 1,
+            violation_count: 1,
+            violations: vec![LintViolation {
+                file: "src/main.rs".to_string(),
+                line: 1,
+                rule: "rule:with:colons".to_string(),
+                message: "bad".to_string(),
+                suggestion: None,
+            }],
+        };
+        let output = format_lint(&result);
+        // Colons in rule name must be escaped in the title property
+        assert!(
+            !output.contains("title=rule:with:colons"),
+            "rule name colons must be escaped in title property"
+        );
+        assert!(output.contains("title=rule%3Awith%3Acolons"));
     }
 }

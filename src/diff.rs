@@ -57,6 +57,12 @@ pub fn compute_diff(
     root: &Path,
     config: &Config,
 ) -> Result<DiffResult> {
+    anyhow::ensure!(
+        !base_ref.starts_with('-'),
+        "invalid git ref '{}': must not start with '-'",
+        base_ref
+    );
+
     let file_list = git_command(&["ls-tree", "-r", "--name-only", "--", base_ref], root)
         .with_context(|| format!("Failed to list files at ref {}", base_ref))?;
 
@@ -134,4 +140,27 @@ pub fn compute_diff(
         removed_count,
         base_ref: base_ref.to_string(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compute_diff_rejects_ref_starting_with_dash() {
+        let current = ScanResult {
+            items: vec![],
+            files_scanned: 0,
+            ignored_items: vec![],
+        };
+        let config = Config::default();
+        let root = Path::new(".");
+        let result = compute_diff(&current, "--output=/tmp/leak", root, &config);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("must not start with '-'"),
+            "expected rejection of dash-prefixed ref, got: {err_msg}"
+        );
+    }
 }
