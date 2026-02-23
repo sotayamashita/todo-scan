@@ -11,6 +11,14 @@ use crate::config::Config;
 use crate::deadline::{parse_deadline, Deadline};
 use crate::model::{Priority, ScanResult, Tag, TodoItem};
 
+/// Maximum file size (10 MiB) to prevent OOM when scanning very large files.
+const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
+
+/// Check if a file should be skipped based on its metadata size.
+fn should_skip_file(metadata: &std::fs::Metadata, max_size: u64) -> bool {
+    metadata.len() > max_size
+}
+
 static ISSUE_REF_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?:([A-Z]+-\d+)|#(\d+))").unwrap());
 
@@ -287,6 +295,13 @@ pub fn scan_directory(root: &Path, config: &Config) -> Result<ScanResult> {
                 return WalkState::Continue;
             }
 
+            // Skip oversized files to prevent OOM
+            if let Ok(meta) = path.metadata() {
+                if should_skip_file(&meta, MAX_FILE_SIZE) {
+                    return WalkState::Continue;
+                }
+            }
+
             // Read the file; skip binary or unreadable files
             let content = match std::fs::read_to_string(path) {
                 Ok(c) => c,
@@ -404,11 +419,16 @@ pub fn scan_directory_cached(
 
         seen_paths.insert(relative_path.clone());
 
-        // Layer 1: mtime check
+        // Check file metadata; skip oversized files
         let metadata = match path.metadata() {
             Ok(m) => m,
             Err(_) => continue,
         };
+        if should_skip_file(&metadata, MAX_FILE_SIZE) {
+            continue;
+        }
+
+        // Layer 1: mtime check
         let mtime = metadata
             .modified()
             .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
@@ -1413,6 +1433,53 @@ line four
         assert_eq!(result.ignored_items.len(), 2);
         assert_eq!(result.ignored_items[0].message, "suppressed fixme");
         assert_eq!(result.ignored_items[1].message, "suppressed bug");
+    }
+
+    // --- File size limit tests ---
+
+    #[test]
+    fn test_should_skip_file_over_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("big.txt");
+        // Create a file just over the limit (use a small limit for testing)
+        std::fs::write(&path, vec![b'x'; 101]).unwrap();
+        let metadata = std::fs::metadata(&path).unwrap();
+        assert!(should_skip_file(&metadata, 100));
+    }
+
+    #[test]
+    fn test_should_skip_file_under_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("small.txt");
+        std::fs::write(&path, vec![b'x'; 50]).unwrap();
+        let metadata = std::fs::metadata(&path).unwrap();
+        assert!(!should_skip_file(&metadata, 100));
+    }
+
+    #[test]
+    fn test_should_skip_file_at_exact_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("exact.txt");
+        std::fs::write(&path, vec![b'x'; 100]).unwrap();
+        let metadata = std::fs::metadata(&path).unwrap();
+        assert!(!should_skip_file(&metadata, 100));
+    }
+
+    #[test]
+    fn test_scan_directory_skips_oversized_files() {
+        let dir = tempfile::tempdir().unwrap();
+        // Normal file with TODO
+        std::fs::write(dir.path().join("small.rs"), "// TODO: keep this\n").unwrap();
+        // Oversized file with TODO (> MAX_FILE_SIZE)
+        let mut big_content = "// TODO: should be skipped\n".to_string();
+        big_content.push_str(&"x".repeat(MAX_FILE_SIZE as usize));
+        std::fs::write(dir.path().join("big.rs"), &big_content).unwrap();
+
+        let config = Config::default();
+        let result = scan_directory(dir.path(), &config).unwrap();
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].message, "keep this");
     }
 
     #[test]
