@@ -127,9 +127,15 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Build regex pattern from configured tags
+    /// Build regex pattern from configured tags.
+    /// Each tag is escaped to prevent regex injection from config values.
     pub fn tags_pattern(&self) -> String {
-        let tags = self.tags.join("|");
+        let tags = self
+            .tags
+            .iter()
+            .map(|t| regex::escape(t))
+            .collect::<Vec<_>>()
+            .join("|");
         format!(r"(?i)\b({tags})\b(?:\(([^)]+)\))?:?\s*(!{{1,2}})?\s*(.*)$")
     }
 
@@ -228,6 +234,57 @@ max = 10
         let config: Config = toml::from_str(toml_str).unwrap();
         assert_eq!(config.workspace.auto_detect, None);
         assert!(config.workspace.packages.is_empty());
+    }
+
+    #[test]
+    fn test_tags_pattern_escapes_regex_metacharacters() {
+        let config = Config {
+            tags: vec!["TODO".into(), "FIX.*".into()],
+            ..Config::default()
+        };
+        let pattern = config.tags_pattern();
+        // The .* should be escaped, not treated as regex wildcard
+        assert!(pattern.contains(r"FIX\.\*"));
+        // Should compile successfully
+        let re = regex::Regex::new(&pattern);
+        assert!(re.is_ok());
+    }
+
+    #[test]
+    fn test_tags_pattern_escapes_parentheses() {
+        let config = Config {
+            tags: vec!["TAG(x)".into()],
+            ..Config::default()
+        };
+        let pattern = config.tags_pattern();
+        // Should compile without "unmatched group" error
+        let re = regex::Regex::new(&pattern);
+        assert!(re.is_ok(), "Regex with escaped parens should compile");
+    }
+
+    #[test]
+    fn test_tags_pattern_escapes_pipe_literal() {
+        let config = Config {
+            tags: vec!["A|B".into()],
+            ..Config::default()
+        };
+        let pattern = config.tags_pattern();
+        // The pipe should be escaped, not treated as alternation
+        assert!(pattern.contains(r"A\|B"));
+        let re = regex::Regex::new(&pattern).unwrap();
+        // Should NOT match "A" alone (which would happen if | was alternation)
+        assert!(!re.is_match("// A: test"));
+    }
+
+    #[test]
+    fn test_tags_pattern_default_tags_unaffected() {
+        let config = Config::default();
+        let pattern = config.tags_pattern();
+        let re = regex::Regex::new(&pattern).unwrap();
+        // Default tags should still match
+        assert!(re.is_match("// TODO: test"));
+        assert!(re.is_match("// FIXME: test"));
+        assert!(re.is_match("// HACK: test"));
     }
 
     /// Validates that schema/todo-scan.schema.json matches the current Config structs.

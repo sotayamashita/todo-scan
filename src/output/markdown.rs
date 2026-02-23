@@ -31,15 +31,11 @@ pub fn format_list(result: &ScanResult) -> String {
         let tag = item.tag.as_str();
         let priority = priority_str(&item.priority);
         let message = escape_cell(&item.message);
-        let author = item
-            .author
-            .as_deref()
-            .map(|a| escape_cell(a))
-            .unwrap_or_default();
+        let author = item.author.as_deref().map(escape_cell).unwrap_or_default();
         let issue = item
             .issue_ref
             .as_deref()
-            .map(|r| escape_cell(r))
+            .map(escape_cell)
             .unwrap_or_default();
         let deadline = item
             .deadline
@@ -71,15 +67,11 @@ pub fn format_search(result: &SearchResult) -> String {
         let tag = item.tag.as_str();
         let priority = priority_str(&item.priority);
         let message = escape_cell(&item.message);
-        let author = item
-            .author
-            .as_deref()
-            .map(|a| escape_cell(a))
-            .unwrap_or_default();
+        let author = item.author.as_deref().map(escape_cell).unwrap_or_default();
         let issue = item
             .issue_ref
             .as_deref()
-            .map(|r| escape_cell(r))
+            .map(escape_cell)
             .unwrap_or_default();
         let deadline = item
             .deadline
