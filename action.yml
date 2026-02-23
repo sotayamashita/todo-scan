@@ -60,6 +60,10 @@ runs:
       env:
         INPUT_VERSION: ${{ inputs.version }}
       run: |
+        if command -v todo-scan >/dev/null 2>&1; then
+          echo "todo-scan is already installed: $(todo-scan --version)"
+          exit 0
+        fi
         if [ "$INPUT_VERSION" = "latest" ]; then
           curl --proto '=https' --tlsv1.2 -LsSf \
             https://github.com/sotayamashita/todo-scan/releases/latest/download/todo-scan-installer.sh | sh
@@ -75,6 +79,10 @@ runs:
       env:
         INPUT_VERSION: ${{ inputs.version }}
       run: |
+        if (Get-Command todo-scan -ErrorAction SilentlyContinue) {
+          Write-Host "todo-scan is already installed: $(todo-scan --version)"
+          exit 0
+        }
         if ($env:INPUT_VERSION -eq "latest") {
           irm https://github.com/sotayamashita/todo-scan/releases/latest/download/todo-scan-installer.ps1 | iex
         } else {
