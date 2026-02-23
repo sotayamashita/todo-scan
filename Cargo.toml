@@ -39,7 +39,7 @@ dialoguer = "0.12"
 clap_complete = "4"
 toml_edit = "0.25"
 time = { version = "0.3", features = ["local-offset"] }
-notify = "7"
+notify = "8"
 notify-debouncer-mini = "0.5"
 ctrlc = "3"
 blake3 = "1"
