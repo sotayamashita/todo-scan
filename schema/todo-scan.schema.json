@@ -1,59 +1,44 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "todo-scan Configuration",
   "description": "Configuration for todo-scan TODO tracking tool",
   "type": "object",
   "properties": {
     "blame": {
       "description": "Git blame analysis settings",
-      "allOf": [
-        {
-          "$ref": "#/definitions/BlameConfig"
-        }
-      ]
+      "$ref": "#/$defs/BlameConfig"
     },
     "check": {
       "description": "CI gate check settings",
-      "allOf": [
-        {
-          "$ref": "#/definitions/CheckConfig"
-        }
-      ]
+      "$ref": "#/$defs/CheckConfig"
     },
     "clean": {
       "description": "Clean detection settings",
-      "allOf": [
-        {
-          "$ref": "#/definitions/CleanConfig"
-        }
-      ]
+      "$ref": "#/$defs/CleanConfig"
     },
     "exclude_dirs": {
       "description": "Directory names to skip during scanning",
-      "default": [],
       "type": "array",
+      "default": [],
       "items": {
         "type": "string"
       }
     },
     "exclude_patterns": {
       "description": "Regex patterns; matching file paths are excluded",
-      "default": [],
       "type": "array",
+      "default": [],
       "items": {
         "type": "string"
       }
     },
     "lint": {
       "description": "Lint rule settings",
-      "allOf": [
-        {
-          "$ref": "#/definitions/LintConfig"
-        }
-      ]
+      "$ref": "#/$defs/LintConfig"
     },
     "tags": {
       "description": "Tags to scan for (e.g., TODO, FIXME, HACK)",
+      "type": "array",
       "default": [
         "TODO",
         "FIXME",
@@ -62,33 +47,28 @@
         "BUG",
         "NOTE"
       ],
-      "type": "array",
       "items": {
         "type": "string"
       }
     },
     "workspace": {
       "description": "Workspace/monorepo settings",
-      "allOf": [
-        {
-          "$ref": "#/definitions/WorkspaceConfig"
-        }
-      ]
+      "$ref": "#/$defs/WorkspaceConfig"
     }
   },
   "additionalProperties": false,
-  "definitions": {
+  "$defs": {
     "BlameConfig": {
       "description": "Git blame analysis settings",
       "type": "object",
       "properties": {
         "stale_threshold": {
           "description": "Duration threshold for marking TODOs as stale (e.g., \"180d\")",
-          "default": null,
           "type": [
             "string",
             "null"
-          ]
+          ],
+          "default": null
         }
       },
       "additionalProperties": false
@@ -99,39 +79,39 @@
       "properties": {
         "block_tags": {
           "description": "Tags that cause check to fail immediately",
-          "default": [],
           "type": "array",
+          "default": [],
           "items": {
             "type": "string"
           }
         },
         "expired": {
           "description": "Fail if any TODOs have expired deadlines",
-          "default": null,
           "type": [
             "boolean",
             "null"
-          ]
+          ],
+          "default": null
         },
         "max": {
           "description": "Maximum total TODOs allowed",
-          "default": null,
           "type": [
             "integer",
             "null"
           ],
           "format": "uint",
-          "minimum": 0.0
+          "default": null,
+          "minimum": 0
         },
         "max_new": {
           "description": "Maximum new TODOs allowed (requires --since)",
-          "default": null,
           "type": [
             "integer",
             "null"
           ],
           "format": "uint",
-          "minimum": 0.0
+          "default": null,
+          "minimum": 0
         }
       },
       "additionalProperties": false
@@ -142,27 +122,27 @@
       "properties": {
         "duplicates": {
           "description": "Enable duplicate detection (default: true)",
-          "default": null,
           "type": [
             "boolean",
             "null"
-          ]
+          ],
+          "default": null
         },
         "since": {
           "description": "Only flag issues closed longer than this duration (e.g., \"30d\")",
-          "default": null,
           "type": [
             "string",
             "null"
-          ]
+          ],
+          "default": null
         },
         "stale_issues": {
           "description": "Enable stale issue detection (default: true)",
-          "default": null,
           "type": [
             "boolean",
             "null"
-          ]
+          ],
+          "default": null
         }
       },
       "additionalProperties": false
@@ -173,59 +153,59 @@
       "properties": {
         "max_message_length": {
           "description": "Enforce max message character count",
-          "default": null,
           "type": [
             "integer",
             "null"
           ],
           "format": "uint",
-          "minimum": 0.0
+          "default": null,
+          "minimum": 0
         },
         "no_bare_tags": {
           "description": "Reject TODOs with empty message (default: true)",
-          "default": null,
           "type": [
             "boolean",
             "null"
-          ]
+          ],
+          "default": null
         },
         "require_author": {
           "description": "Require (author) for specified tags",
-          "default": null,
           "type": [
             "array",
             "null"
           ],
+          "default": null,
           "items": {
             "type": "string"
           }
         },
         "require_colon": {
           "description": "Enforce colon after tag (default: true)",
-          "default": null,
           "type": [
             "boolean",
             "null"
-          ]
+          ],
+          "default": null
         },
         "require_issue_ref": {
           "description": "Require issue ref (#N) for specified tags",
-          "default": null,
           "type": [
             "array",
             "null"
           ],
+          "default": null,
           "items": {
             "type": "string"
           }
         },
         "uppercase_tag": {
           "description": "Enforce uppercase tag names (default: true)",
-          "default": null,
           "type": [
             "boolean",
             "null"
-          ]
+          ],
+          "default": null
         }
       },
       "additionalProperties": false
@@ -236,21 +216,21 @@
       "properties": {
         "block_tags": {
           "description": "Tags that cause check to fail for this package",
-          "default": [],
           "type": "array",
+          "default": [],
           "items": {
             "type": "string"
           }
         },
         "max": {
           "description": "Maximum total TODOs allowed for this package",
-          "default": null,
           "type": [
             "integer",
             "null"
           ],
           "format": "uint",
-          "minimum": 0.0
+          "default": null,
+          "minimum": 0
         }
       },
       "additionalProperties": false
@@ -261,17 +241,17 @@
       "properties": {
         "auto_detect": {
           "description": "Enable automatic workspace detection (default: true)",
-          "default": null,
           "type": [
             "boolean",
             "null"
-          ]
+          ],
+          "default": null
         },
         "packages": {
           "description": "Per-package check configuration",
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/definitions/PackageCheckConfig"
+            "$ref": "#/$defs/PackageCheckConfig"
           }
         }
       },
