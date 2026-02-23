@@ -515,6 +515,20 @@ Glob patterns in member lists (e.g., `packages/*`, `crates/*`) are expanded auto
 
 ## Installation
 
+### Prebuilt binaries (macOS / Linux)
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/sotayamashita/todo-scan/releases/latest/download/todo-scan-installer.sh | sh
+```
+
+### Prebuilt binaries (Windows)
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://github.com/sotayamashita/todo-scan/releases/latest/download/todo-scan-installer.ps1 | iex"
+```
+
+### From source
+
 ```bash
 cargo install todo-scan
 ```
@@ -1088,6 +1102,58 @@ cp -r skills/todo-scan ~/.claude/skills/
   run: |
     todo-scan check --max-new 0 --since origin/main
 ```
+
+## Release Workflow
+
+Releases are fully automated via [release-please](https://github.com/googleapis/release-please) and [cargo-dist](https://github.com/axodotdev/cargo-dist).
+
+### How to release
+
+1. Merge PRs with [Conventional Commits](https://www.conventionalcommits.org/) into `main`
+2. release-please automatically opens (or updates) a Release PR that bumps the version and updates the changelog
+3. Merge the Release PR — this creates a git tag and GitHub Release
+4. cargo-dist builds platform binaries and uploads them to the GitHub Release
+
+```mermaid
+sequenceDiagram
+    participant M as main branch
+    participant RP as release-please
+    participant CD as cargo-dist
+    participant GH as GitHub Release
+
+    M->>RP: push with conventional commits
+    RP->>M: open/update Release PR (bump version + changelog)
+    M->>RP: merge Release PR
+    RP->>GH: create git tag + draft release
+    GH->>CD: tag push triggers release workflow
+    CD->>GH: upload binaries, installers, checksums
+```
+
+### Commit conventions
+
+| Prefix | Version bump | Example |
+|--------|-------------|---------|
+| `fix:` | patch (0.0.x) | `fix(scanner): handle empty files` |
+| `feat:` | minor (0.x.0) | `feat(cli): add --verbose flag` |
+| `feat!:` or `BREAKING CHANGE:` | major (x.0.0) | `feat!: remove deprecated --count flag` |
+
+### Supported targets
+
+| Target | OS | Arch |
+|--------|----|------|
+| `aarch64-apple-darwin` | macOS | Apple Silicon |
+| `x86_64-apple-darwin` | macOS | Intel |
+| `x86_64-unknown-linux-gnu` | Linux | x86_64 |
+| `x86_64-pc-windows-msvc` | Windows | x86_64 |
+
+### Release artifacts
+
+Each release includes:
+
+- Platform-specific binary archives (`.tar.xz` / `.zip`)
+- Shell installer (`todo-scan-installer.sh`) for macOS and Linux
+- PowerShell installer (`todo-scan-installer.ps1`) for Windows
+- Checksums for verification
 
 ## Development
 
