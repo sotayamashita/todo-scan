@@ -3100,7 +3100,13 @@ mod tests {
                 Priority::Normal,
             )],
             ignored_items: vec![
-                make_item("src/main.rs", 30, Tag::Note, "ignored note", Priority::Normal),
+                make_item(
+                    "src/main.rs",
+                    30,
+                    Tag::Note,
+                    "ignored note",
+                    Priority::Normal,
+                ),
                 make_item("src/lib.rs", 5, Tag::Hack, "ignored hack", Priority::Normal),
             ],
             files_scanned: 2,
@@ -3122,13 +3128,7 @@ mod tests {
     fn text_print_list_show_ignored_non_file_grouping() {
         let result = ScanResult {
             items: vec![make_item("a.rs", 1, Tag::Todo, "active", Priority::Normal)],
-            ignored_items: vec![make_item(
-                "b.rs",
-                2,
-                Tag::Note,
-                "ignored",
-                Priority::Normal,
-            )],
+            ignored_items: vec![make_item("b.rs", 2, Tag::Note, "ignored", Priority::Normal)],
             files_scanned: 2,
         };
         let ctx = HashMap::new();
@@ -3264,14 +3264,32 @@ mod tests {
             query: "fix".to_string(),
             exact: false,
             items: vec![
-                make_item("src/main.rs", 10, Tag::Todo, "fix this bug", Priority::Normal),
-                make_item("src/lib.rs", 5, Tag::Fixme, "fix memory leak", Priority::High),
+                make_item(
+                    "src/main.rs",
+                    10,
+                    Tag::Todo,
+                    "fix this bug",
+                    Priority::Normal,
+                ),
+                make_item(
+                    "src/lib.rs",
+                    5,
+                    Tag::Fixme,
+                    "fix memory leak",
+                    Priority::High,
+                ),
             ],
             match_count: 2,
             file_count: 2,
         };
         let ctx = HashMap::new();
-        print_search(&result, &Format::Text, &GroupBy::File, &ctx, &DetailLevel::Normal);
+        print_search(
+            &result,
+            &Format::Text,
+            &GroupBy::File,
+            &ctx,
+            &DetailLevel::Normal,
+        );
     }
 
     #[test]
@@ -3279,7 +3297,13 @@ mod tests {
         let result = SearchResult {
             query: "bug".to_string(),
             exact: true,
-            items: vec![make_item("src/main.rs", 10, Tag::Bug, "crash here", Priority::Urgent)],
+            items: vec![make_item(
+                "src/main.rs",
+                10,
+                Tag::Bug,
+                "crash here",
+                Priority::Urgent,
+            )],
             match_count: 1,
             file_count: 1,
         };
@@ -3291,7 +3315,13 @@ mod tests {
                 after: vec![ctx_line(11, "line 11")],
             },
         );
-        print_search(&result, &Format::Text, &GroupBy::File, &ctx, &DetailLevel::Normal);
+        print_search(
+            &result,
+            &Format::Text,
+            &GroupBy::File,
+            &ctx,
+            &DetailLevel::Normal,
+        );
     }
 
     #[test]
@@ -3318,9 +3348,20 @@ mod tests {
 
     #[test]
     fn text_print_search_detail_minimal() {
-        let mut item = make_item_with_author("a.rs", 1, Tag::Todo, "task", Priority::Normal, Some("alice"));
+        let mut item = make_item_with_author(
+            "a.rs",
+            1,
+            Tag::Todo,
+            "task",
+            Priority::Normal,
+            Some("alice"),
+        );
         item.issue_ref = Some("#1".to_string());
-        item.deadline = Some(Deadline { year: 2020, month: 1, day: 1 });
+        item.deadline = Some(Deadline {
+            year: 2020,
+            month: 1,
+            day: 1,
+        });
         let result = SearchResult {
             query: "task".to_string(),
             exact: false,
@@ -3329,14 +3370,31 @@ mod tests {
             file_count: 1,
         };
         let ctx = HashMap::new();
-        print_search(&result, &Format::Text, &GroupBy::File, &ctx, &DetailLevel::Minimal);
+        print_search(
+            &result,
+            &Format::Text,
+            &GroupBy::File,
+            &ctx,
+            &DetailLevel::Minimal,
+        );
     }
 
     #[test]
     fn text_print_search_with_author_issue_deadline() {
-        let mut item = make_item_with_author("a.rs", 1, Tag::Todo, "task", Priority::Normal, Some("alice"));
+        let mut item = make_item_with_author(
+            "a.rs",
+            1,
+            Tag::Todo,
+            "task",
+            Priority::Normal,
+            Some("alice"),
+        );
         item.issue_ref = Some("#99".to_string());
-        item.deadline = Some(Deadline { year: 2099, month: 12, day: 31 });
+        item.deadline = Some(Deadline {
+            year: 2099,
+            month: 12,
+            day: 31,
+        });
         let result = SearchResult {
             query: "task".to_string(),
             exact: false,
@@ -3345,7 +3403,13 @@ mod tests {
             file_count: 1,
         };
         let ctx = HashMap::new();
-        print_search(&result, &Format::Text, &GroupBy::File, &ctx, &DetailLevel::Full);
+        print_search(
+            &result,
+            &Format::Text,
+            &GroupBy::File,
+            &ctx,
+            &DetailLevel::Full,
+        );
     }
 
     // --- print_diff: Text format ---
@@ -3406,7 +3470,13 @@ mod tests {
                 urgent: 2,
             },
             top_urgent: Some({
-                let mut item = make_item("src/main.rs", 10, Tag::Bug, "crash on start", Priority::Urgent);
+                let mut item = make_item(
+                    "src/main.rs",
+                    10,
+                    Tag::Bug,
+                    "crash on start",
+                    Priority::Urgent,
+                );
                 item.issue_ref = Some("#42".to_string());
                 item
             }),
@@ -3767,11 +3837,7 @@ mod tests {
 
     #[test]
     fn text_print_initial_summary() {
-        let tag_counts = vec![
-            (Tag::Todo, 10),
-            (Tag::Fixme, 5),
-            (Tag::Bug, 2),
-        ];
+        let tag_counts = vec![(Tag::Todo, 10), (Tag::Fixme, 5), (Tag::Bug, 2)];
         print_initial_summary(&tag_counts, 17, &Format::Text);
     }
 
@@ -3825,8 +3891,20 @@ mod tests {
         let event = WatchEvent {
             timestamp: "2025-01-15T10:30:00Z".to_string(),
             file: "src/main.rs".to_string(),
-            added: vec![make_item("src/main.rs", 10, Tag::Todo, "new", Priority::Normal)],
-            removed: vec![make_item("src/main.rs", 5, Tag::Todo, "old", Priority::Normal)],
+            added: vec![make_item(
+                "src/main.rs",
+                10,
+                Tag::Todo,
+                "new",
+                Priority::Normal,
+            )],
+            removed: vec![make_item(
+                "src/main.rs",
+                5,
+                Tag::Todo,
+                "old",
+                Priority::Normal,
+            )],
             tag_summary: vec![("TODO".to_string(), 5)],
             total: 20,
             total_delta: 0,
@@ -3839,7 +3917,13 @@ mod tests {
         let event = WatchEvent {
             timestamp: "2025-01-15T10:30:00Z".to_string(),
             file: "src/main.rs".to_string(),
-            added: vec![make_item("src/main.rs", 10, Tag::Todo, "new task", Priority::Normal)],
+            added: vec![make_item(
+                "src/main.rs",
+                10,
+                Tag::Todo,
+                "new task",
+                Priority::Normal,
+            )],
             removed: vec![],
             tag_summary: vec![("TODO".to_string(), 5)],
             total: 100,
@@ -4011,10 +4095,7 @@ mod tests {
                 Cluster {
                     id: 1,
                     theme: "authentication".to_string(),
-                    items: vec![
-                        "src/auth.rs:10".to_string(),
-                        "src/auth.rs:20".to_string(),
-                    ],
+                    items: vec!["src/auth.rs:10".to_string(), "src/auth.rs:20".to_string()],
                     suggested_order: vec![
                         "src/auth.rs:10".to_string(),
                         "src/auth.rs:20".to_string(),
@@ -4188,9 +4269,23 @@ mod tests {
     #[test]
     fn test_group_by_author() {
         let items = vec![
-            make_item_with_author("a.rs", 1, Tag::Todo, "task", Priority::Normal, Some("alice")),
+            make_item_with_author(
+                "a.rs",
+                1,
+                Tag::Todo,
+                "task",
+                Priority::Normal,
+                Some("alice"),
+            ),
             make_item_with_author("b.rs", 2, Tag::Todo, "task2", Priority::Normal, None),
-            make_item_with_author("c.rs", 3, Tag::Todo, "task3", Priority::Normal, Some("alice")),
+            make_item_with_author(
+                "c.rs",
+                3,
+                Tag::Todo,
+                "task3",
+                Priority::Normal,
+                Some("alice"),
+            ),
         ];
         let groups = group_items(&items, &GroupBy::Author);
         // alice has 2 items, unassigned has 1

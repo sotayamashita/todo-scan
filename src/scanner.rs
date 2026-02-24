@@ -1786,7 +1786,10 @@ line four
         let result = scan_content(content, "test.rs", &pattern);
         // WARN matches the regex but Tag::from_str("WARN") returns Err,
         // so the item should be skipped (not included in results)
-        assert!(result.items.is_empty(), "unknown tag should be skipped by scan_content");
+        assert!(
+            result.items.is_empty(),
+            "unknown tag should be skipped by scan_content"
+        );
     }
 
     // --- scan_directory: exclude_patterns ---
@@ -1814,7 +1817,11 @@ line four
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("good.rs"), "// TODO: keep\n").unwrap();
         // Write binary content (invalid UTF-8)
-        std::fs::write(dir.path().join("binary.dat"), &[0xFF, 0xFE, 0x00, 0x01, 0x80, 0x81]).unwrap();
+        std::fs::write(
+            dir.path().join("binary.dat"),
+            &[0xFF, 0xFE, 0x00, 0x01, 0x80, 0x81],
+        )
+        .unwrap();
 
         let config = Config::default();
         let result = scan_directory(dir.path(), &config).unwrap();
@@ -1998,7 +2005,10 @@ line four
         // "todo-" should be skipped (e.g., "todo-scan" tool name)
         let content = "// todo-scan:ignore is a suppression marker\n";
         let result = scan_content(content, "test.rs", &pattern);
-        assert!(result.items.is_empty(), "tag followed by hyphen should be skipped");
+        assert!(
+            result.items.is_empty(),
+            "tag followed by hyphen should be skipped"
+        );
     }
 
     // --- scan_content: no colon after tag still matches ---

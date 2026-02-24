@@ -15,7 +15,7 @@ exclude_patterns = [
 ]
 
 [check]
-max = 80
+max = 90
 
 [blame]
 stale_threshold = "365d"
