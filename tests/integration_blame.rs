@@ -292,3 +292,88 @@ fn test_blame_json_contains_id_field() {
     let entry = &json["entries"][0];
     assert_eq!(entry["id"].as_str().unwrap(), "main.rs:TODO:blame id test");
 }
+
+// --- Blame sort by author ---
+
+#[test]
+fn test_blame_sort_by_author() {
+    let dir = setup_git_repo(&[("main.rs", "// TODO: task a\n// FIXME: task b\n")]);
+
+    todo_scan()
+        .args([
+            "blame",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--sort",
+            "author",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("2 items"));
+}
+
+// --- Blame sort by tag ---
+
+#[test]
+fn test_blame_sort_by_tag() {
+    let dir = setup_git_repo(&[(
+        "main.rs",
+        "// NOTE: a note\n// BUG: a bug\n// TODO: a task\n",
+    )]);
+
+    todo_scan()
+        .args([
+            "blame",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--sort",
+            "tag",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("3 items"));
+}
+
+// --- Blame path filter ---
+
+#[test]
+fn test_blame_path_filter() {
+    let dir = setup_git_repo(&[
+        ("src/lib.rs", "// TODO: in src\n"),
+        ("tests/test.rs", "// TODO: in tests\n"),
+    ]);
+
+    todo_scan()
+        .args([
+            "blame",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--path",
+            "src/**",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("in src"))
+        .stdout(predicate::str::contains("in tests").not())
+        .stdout(predicate::str::contains("1 items"));
+}
+
+// --- Blame config stale threshold ---
+
+#[test]
+fn test_blame_config_stale_threshold() {
+    let dir = setup_git_repo(&[("main.rs", "// TODO: stale check\n")]);
+
+    // Write config with stale_threshold
+    fs::write(
+        dir.path().join(".todo-scan.toml"),
+        "[blame]\nstale_threshold = \"1d\"\n",
+    )
+    .unwrap();
+
+    todo_scan()
+        .args(["blame", "--root", dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("threshold: 1 days"));
+}

@@ -287,6 +287,124 @@ max = 10
         assert!(re.is_match("// HACK: test"));
     }
 
+    // --- Config::load() tests ---
+
+    #[test]
+    fn test_load_returns_default_when_no_config_file() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let config = Config::load(dir.path()).unwrap();
+        let default = Config::default();
+        assert_eq!(config.tags, default.tags);
+        assert_eq!(config.exclude_dirs, default.exclude_dirs);
+    }
+
+    #[test]
+    fn test_load_finds_config_in_current_dir() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join(".todo-scan.toml"),
+            "tags = [\"TODO\", \"FIXME\"]\n",
+        )
+        .unwrap();
+        let config = Config::load(dir.path()).unwrap();
+        assert_eq!(config.tags, vec!["TODO", "FIXME"]);
+    }
+
+    #[test]
+    fn test_load_finds_config_in_parent_dir() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join(".todo-scan.toml"), "tags = [\"HACK\"]\n").unwrap();
+        let sub = dir.path().join("sub");
+        std::fs::create_dir(&sub).unwrap();
+        let config = Config::load(&sub).unwrap();
+        assert_eq!(config.tags, vec!["HACK"]);
+    }
+
+    #[test]
+    fn test_load_finds_config_in_grandparent_dir() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join(".todo-scan.toml"), "tags = [\"BUG\"]\n").unwrap();
+        let sub = dir.path().join("a").join("b");
+        std::fs::create_dir_all(&sub).unwrap();
+        let config = Config::load(&sub).unwrap();
+        assert_eq!(config.tags, vec!["BUG"]);
+    }
+
+    #[test]
+    fn test_load_invalid_toml_returns_error() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join(".todo-scan.toml"),
+            "this is not valid toml {{{}",
+        )
+        .unwrap();
+        let result = Config::load(dir.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_find_config_file_returns_none_for_empty_dir() {
+        let dir = tempfile::TempDir::new().unwrap();
+        assert!(find_config_file(dir.path()).is_none());
+    }
+
+    #[test]
+    fn test_find_config_file_returns_path_when_found() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let config_path = dir.path().join(".todo-scan.toml");
+        std::fs::write(&config_path, "tags = [\"TODO\"]").unwrap();
+        let found = find_config_file(dir.path());
+        assert!(found.is_some());
+        assert_eq!(found.unwrap(), config_path);
+    }
+
+    #[test]
+    fn test_load_with_full_config() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let toml_str = r#"
+tags = ["TODO"]
+exclude_dirs = ["vendor"]
+exclude_patterns = ["\\.min\\.js$"]
+
+[check]
+max = 50
+block_tags = ["BUG"]
+max_new = 10
+expired = true
+
+[blame]
+stale_threshold = "180d"
+
+[lint]
+no_bare_tags = true
+max_message_length = 120
+require_author = ["TODO"]
+require_issue_ref = ["FIXME"]
+uppercase_tag = true
+require_colon = true
+
+[clean]
+stale_issues = true
+duplicates = true
+since = "30d"
+
+[workspace]
+auto_detect = true
+"#;
+        std::fs::write(dir.path().join(".todo-scan.toml"), toml_str).unwrap();
+        let config = Config::load(dir.path()).unwrap();
+        assert_eq!(config.tags, vec!["TODO"]);
+        assert_eq!(config.exclude_dirs, vec!["vendor"]);
+        assert_eq!(config.check.max, Some(50));
+        assert_eq!(config.check.max_new, Some(10));
+        assert_eq!(config.check.expired, Some(true));
+        assert_eq!(config.blame.stale_threshold, Some("180d".to_string()));
+        assert_eq!(config.lint.no_bare_tags, Some(true));
+        assert_eq!(config.lint.max_message_length, Some(120));
+        assert_eq!(config.clean.since, Some("30d".to_string()));
+        assert_eq!(config.workspace.auto_detect, Some(true));
+    }
+
     /// Validates that schema/todo-scan.schema.json matches the current Config structs.
     ///
     /// To regenerate the schema after changing Config:

@@ -732,6 +732,160 @@ mod tests {
         assert_eq!(result.stale_count, 2);
     }
 
+    // --- since_days with future closed_at (age_secs <= 0) ---
+
+    #[test]
+    fn test_since_filter_future_closed_at_yields_zero_age() {
+        let now_ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        // Closed 1 day in the future (clock skew)
+        let future_ts = now_ts + 86400;
+
+        let scan = ScanResult {
+            items: vec![make_item_with_issue(
+                "a.rs",
+                1,
+                Tag::Todo,
+                "fix bug #42",
+                "#42",
+            )],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let checker = MockIssueChecker::new(vec![(
+            42,
+            Some(IssueState::Closed {
+                closed_at: Some(future_ts),
+            }),
+        )]);
+
+        // Since 30 days — future closed_at gives 0 age_days, which is < 30
+        let result = run_clean(&scan, &default_config(), Some(&checker), Some("30d"));
+        assert!(result.passed);
+        assert_eq!(result.stale_count, 0);
+    }
+
+    // --- Three or more duplicates ---
+
+    #[test]
+    fn test_three_duplicates_creates_two_violations() {
+        let scan = ScanResult {
+            items: vec![
+                make_item("a.rs", 1, Tag::Todo, "same msg"),
+                make_item("b.rs", 2, Tag::Todo, "same msg"),
+                make_item("c.rs", 3, Tag::Todo, "same msg"),
+            ],
+            files_scanned: 3,
+            ignored_items: vec![],
+        };
+        let result = run_clean(&scan, &default_config(), None, None);
+        assert!(!result.passed);
+        assert_eq!(result.duplicate_count, 2);
+        // The first item is the "original", the other two are duplicates
+        for v in &result.violations {
+            assert_eq!(v.rule, "duplicate");
+            assert!(v.duplicate_of.as_ref().unwrap().contains("a.rs:1"));
+        }
+    }
+
+    // --- normalize_message edge cases ---
+
+    #[test]
+    fn test_normalize_message_empty() {
+        assert_eq!(normalize_message(""), "");
+    }
+
+    #[test]
+    fn test_normalize_message_only_whitespace() {
+        assert_eq!(normalize_message("   \t  \n  "), "");
+    }
+
+    // --- extract_issue_number edge cases ---
+
+    #[test]
+    fn test_extract_issue_number_with_leading_whitespace() {
+        assert_eq!(extract_issue_number("  #42  "), Some(42));
+    }
+
+    #[test]
+    fn test_extract_issue_number_empty() {
+        assert_eq!(extract_issue_number(""), None);
+    }
+
+    #[test]
+    fn test_extract_issue_number_hash_only() {
+        assert_eq!(extract_issue_number("#"), None);
+    }
+
+    // --- parse_iso8601_timestamp edge cases ---
+
+    #[test]
+    fn test_parse_iso8601_timestamp_with_timezone_offset() {
+        // Should still match the regex (captures 6 groups)
+        let ts = parse_iso8601_timestamp("2024-06-15T12:30:45+00:00");
+        assert!(ts.is_some());
+    }
+
+    #[test]
+    fn test_parse_iso8601_timestamp_embedded_in_string() {
+        // The regex should match the first occurrence in a longer string
+        let ts = parse_iso8601_timestamp("Date: 2024-06-15T12:30:45Z end");
+        assert!(ts.is_some());
+    }
+
+    // --- Violations sorting order ---
+
+    #[test]
+    fn test_violations_sorted_by_file_then_line() {
+        let scan = ScanResult {
+            items: vec![
+                make_item_with_issue("z.rs", 10, Tag::Todo, "fix #1", "#1"),
+                make_item_with_issue("a.rs", 20, Tag::Todo, "fix #2", "#2"),
+                make_item_with_issue("a.rs", 5, Tag::Todo, "fix #3", "#3"),
+            ],
+            files_scanned: 3,
+            ignored_items: vec![],
+        };
+        let checker = MockIssueChecker::new(vec![
+            (1, Some(IssueState::Closed { closed_at: None })),
+            (2, Some(IssueState::Closed { closed_at: None })),
+            (3, Some(IssueState::Closed { closed_at: None })),
+        ]);
+        let result = run_clean(&scan, &default_config(), Some(&checker), None);
+        assert_eq!(result.violations.len(), 3);
+        assert_eq!(result.violations[0].file, "a.rs");
+        assert_eq!(result.violations[0].line, 5);
+        assert_eq!(result.violations[1].file, "a.rs");
+        assert_eq!(result.violations[1].line, 20);
+        assert_eq!(result.violations[2].file, "z.rs");
+        assert_eq!(result.violations[2].line, 10);
+    }
+
+    // --- Mixed stale and duplicate violations ---
+
+    #[test]
+    fn test_mixed_stale_and_duplicate_violations() {
+        let scan = ScanResult {
+            items: vec![
+                make_item_with_issue("a.rs", 1, Tag::Todo, "fix bug #42", "#42"),
+                make_item("b.rs", 2, Tag::Todo, "same message"),
+                make_item("c.rs", 3, Tag::Todo, "same message"),
+            ],
+            files_scanned: 3,
+            ignored_items: vec![],
+        };
+        let checker =
+            MockIssueChecker::new(vec![(42, Some(IssueState::Closed { closed_at: None }))]);
+        let result = run_clean(&scan, &default_config(), Some(&checker), None);
+        assert!(!result.passed);
+        assert_eq!(result.stale_count, 1);
+        assert_eq!(result.duplicate_count, 1);
+        assert_eq!(result.violations.len(), 2);
+    }
+
     // --- IssueChecker returning Err ---
 
     struct ErrorIssueChecker;

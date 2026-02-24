@@ -311,3 +311,164 @@ fn test_tasks_filter_by_path() {
         .stdout(predicate::str::contains("in src"))
         .stdout(predicate::str::contains("in tests").not());
 }
+
+// --- Tasks with invalid glob returns error ---
+
+#[test]
+fn test_tasks_invalid_path_glob() {
+    let dir = setup_project(&[("main.rs", "// TODO: task\n")]);
+
+    todo_scan()
+        .args([
+            "tasks",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--dry-run",
+            "--path",
+            "[invalid",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("invalid glob"));
+}
+
+// --- Tasks with --since (git-based) ---
+
+fn setup_git_repo(files: &[(&str, &str)]) -> TempDir {
+    let dir = TempDir::new().unwrap();
+    let cwd = dir.path();
+
+    std::process::Command::new("git")
+        .args(["init"])
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.email", "test@test.com"])
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.name", "Test"])
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+
+    for (path, content) in files {
+        let full_path = cwd.join(path);
+        if let Some(parent) = full_path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(full_path, content).unwrap();
+    }
+
+    std::process::Command::new("git")
+        .args(["add", "."])
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["commit", "-m", "initial"])
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+
+    dir
+}
+
+#[test]
+fn test_tasks_since_only_new_todos() {
+    let dir = setup_git_repo(&[("main.rs", "// TODO: existing task\nfn main() {}\n")]);
+    let cwd = dir.path();
+
+    // Add new TODOs after initial commit
+    fs::write(
+        cwd.join("main.rs"),
+        "// TODO: existing task\n// TODO: new task since HEAD\nfn main() {}\n",
+    )
+    .unwrap();
+
+    let output = todo_scan()
+        .args([
+            "tasks",
+            "--root",
+            cwd.to_str().unwrap(),
+            "--since",
+            "HEAD",
+            "--dry-run",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    // Only the new task should appear
+    assert_eq!(json["total"].as_u64().unwrap(), 1);
+    let tasks = json["tasks"].as_array().unwrap();
+    assert!(tasks[0]["subject"].as_str().unwrap().contains("new task"));
+}
+
+// --- Tasks text format with empty project ---
+
+#[test]
+fn test_tasks_text_empty_project() {
+    let dir = setup_project(&[("main.rs", "fn main() {}\n")]);
+
+    todo_scan()
+        .args(["tasks", "--root", dir.path().to_str().unwrap(), "--dry-run"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No tasks to export."));
+}
+
+// --- Tasks filter by priority ---
+
+#[test]
+fn test_tasks_filter_by_priority() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO!!: urgent task\n// TODO!: high task\n// TODO: normal task\n",
+    )]);
+
+    todo_scan()
+        .args([
+            "tasks",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--dry-run",
+            "--format",
+            "json",
+            "--priority",
+            "urgent",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"total\": 1"))
+        .stdout(predicate::str::contains("urgent task"));
+}
+
+#[test]
+fn test_tasks_filter_by_normal_priority() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO!!: urgent task\n// TODO!: high task\n// TODO: normal task\n",
+    )]);
+
+    todo_scan()
+        .args([
+            "tasks",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--dry-run",
+            "--format",
+            "json",
+            "--priority",
+            "normal",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"total\": 1"))
+        .stdout(predicate::str::contains("normal task"));
+}

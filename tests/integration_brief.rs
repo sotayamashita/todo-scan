@@ -78,6 +78,20 @@ fn test_brief_top_urgent_line() {
 }
 
 #[test]
+fn test_brief_top_urgent_high_priority() {
+    // Only high-priority items (no urgent), so top_urgent shows "!" marker
+    let dir = setup_project(&[("main.rs", "// TODO: normal\n// BUG!: high priority crash\n")]);
+
+    todo_scan()
+        .args(["brief", "--root", dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Top urgent:"))
+        .stdout(predicate::str::contains("BUG!"))
+        .stdout(predicate::str::contains("high priority crash"));
+}
+
+#[test]
 fn test_brief_json_format() {
     let dir = setup_project(&[("main.rs", "// TODO: json test\n// FIXME!: high fix\n")]);
 
@@ -125,4 +139,69 @@ fn test_brief_empty_project() {
         .assert()
         .success()
         .stdout(predicate::str::contains("0 TODOs across 0 files"));
+}
+
+// --- Brief with --since (trend line) ---
+
+fn setup_git_repo(files: &[(&str, &str)]) -> TempDir {
+    let dir = TempDir::new().unwrap();
+    let cwd = dir.path();
+
+    std::process::Command::new("git")
+        .args(["init"])
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.email", "test@test.com"])
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.name", "Test"])
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+
+    for (path, content) in files {
+        let full_path = cwd.join(path);
+        if let Some(parent) = full_path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(full_path, content).unwrap();
+    }
+
+    std::process::Command::new("git")
+        .args(["add", "."])
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["commit", "-m", "initial"])
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+
+    dir
+}
+
+#[test]
+fn test_brief_with_trend() {
+    let dir = setup_git_repo(&[("main.rs", "// TODO: old task\nfn main() {}\n")]);
+    let cwd = dir.path();
+
+    // Add a new TODO
+    fs::write(
+        cwd.join("main.rs"),
+        "// TODO: old task\n// TODO: new task\nfn main() {}\n",
+    )
+    .unwrap();
+
+    todo_scan()
+        .args(["brief", "--root", cwd.to_str().unwrap(), "--since", "HEAD"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("2 TODOs across 1 files"))
+        .stdout(predicate::str::contains("Trends vs HEAD"))
+        .stdout(predicate::str::contains("+1 added"));
 }

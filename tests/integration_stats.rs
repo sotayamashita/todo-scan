@@ -130,3 +130,97 @@ fn test_stats_bar_chart_present() {
         .success()
         .stdout(predicate::str::contains("\u{2588}"));
 }
+
+// --- Stats with --since (trend line) ---
+
+fn setup_git_repo(files: &[(&str, &str)]) -> TempDir {
+    let dir = TempDir::new().unwrap();
+    let cwd = dir.path();
+
+    std::process::Command::new("git")
+        .args(["init"])
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.email", "test@test.com"])
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["config", "user.name", "Test"])
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+
+    for (path, content) in files {
+        let full_path = cwd.join(path);
+        if let Some(parent) = full_path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(full_path, content).unwrap();
+    }
+
+    std::process::Command::new("git")
+        .args(["add", "."])
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+    std::process::Command::new("git")
+        .args(["commit", "-m", "initial"])
+        .current_dir(cwd)
+        .output()
+        .unwrap();
+
+    dir
+}
+
+#[test]
+fn test_stats_with_trend() {
+    let dir = setup_git_repo(&[("main.rs", "// TODO: existing task\nfn main() {}\n")]);
+    let cwd = dir.path();
+
+    // Add new TODOs
+    fs::write(
+        cwd.join("main.rs"),
+        "// TODO: existing task\n// FIXME: new fix\nfn main() {}\n",
+    )
+    .unwrap();
+
+    todo_scan()
+        .args(["stats", "--root", cwd.to_str().unwrap(), "--since", "HEAD"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Trend since HEAD"))
+        .stdout(predicate::str::contains("added"));
+}
+
+#[test]
+fn test_stats_with_trend_json() {
+    let dir = setup_git_repo(&[("main.rs", "// TODO: existing task\nfn main() {}\n")]);
+    let cwd = dir.path();
+
+    fs::write(
+        cwd.join("main.rs"),
+        "// TODO: existing task\n// FIXME: new fix\nfn main() {}\n",
+    )
+    .unwrap();
+
+    let output = todo_scan()
+        .args([
+            "stats",
+            "--root",
+            cwd.to_str().unwrap(),
+            "--since",
+            "HEAD",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert!(json.get("trend").is_some());
+    assert_eq!(json["trend"]["base_ref"].as_str().unwrap(), "HEAD");
+}

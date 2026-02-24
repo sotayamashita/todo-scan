@@ -946,3 +946,298 @@ fn test_list_json_full_detail_has_both_id_and_match_key() {
     );
     assert_eq!(item["id"].as_str(), item["match_key"].as_str());
 }
+
+// --- Text format context lines (list -C) ---
+
+#[test]
+fn test_list_text_context_lines() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "fn main() {\n    let x = 1;\n    // TODO: fix this\n    let y = 2;\n}\n",
+    )]);
+
+    todo_scan()
+        .args(["list", "--root", dir.path().to_str().unwrap(), "-C", "1"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("let x = 1"))
+        .stdout(predicate::str::contains("let y = 2"))
+        .stdout(predicate::str::contains("TODO"))
+        .stdout(predicate::str::contains("→"));
+}
+
+#[test]
+fn test_list_text_context_lines_with_group_by_tag() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "fn main() {\n    let x = 1;\n    // TODO: fix this\n    let y = 2;\n}\n",
+    )]);
+
+    todo_scan()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "-C",
+            "1",
+            "--group-by",
+            "tag",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("TODO (1 items)"))
+        .stdout(predicate::str::contains("→"));
+}
+
+// --- Text format with deadlines ---
+
+#[test]
+fn test_list_text_shows_deadline() {
+    let dir = setup_project(&[("main.rs", "// TODO(2099-06-15): future deadline task\n")]);
+
+    todo_scan()
+        .args(["list", "--root", dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[deadline: 2099-06-15]"));
+}
+
+#[test]
+fn test_list_text_shows_expired_deadline() {
+    let dir = setup_project(&[("main.rs", "// TODO(2020-01-01): expired task\n")]);
+
+    todo_scan()
+        .args(["list", "--root", dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[expired: 2020-01-01]"));
+}
+
+// --- Text format with author and issue_ref ---
+
+#[test]
+fn test_list_text_shows_author_and_issue_ref() {
+    let dir = setup_project(&[("main.rs", "// TODO(alice): fix bug #42\n")]);
+
+    todo_scan()
+        .args(["list", "--root", dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("@alice"))
+        .stdout(predicate::str::contains("#42"));
+}
+
+// --- Show-ignored with group-by tag ---
+
+#[test]
+fn test_list_show_ignored_with_group_by_tag() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO: visible\n// FIXME: hidden todo-scan:ignore\n",
+    )]);
+
+    todo_scan()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--show-ignored",
+            "--group-by",
+            "tag",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Ignored items"))
+        .stdout(predicate::str::contains("FIXME"));
+}
+
+// --- Text format minimal detail suppresses author/issue/deadline ---
+
+#[test]
+fn test_list_text_minimal_suppresses_metadata() {
+    let dir = setup_project(&[("main.rs", "// TODO(alice, 2099-06-15): fix this bug\n")]);
+
+    todo_scan()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--detail",
+            "minimal",
+        ])
+        .assert()
+        .success()
+        // Minimal mode should not show author annotation or deadline
+        .stdout(predicate::str::contains("@alice").not())
+        .stdout(predicate::str::contains("deadline").not())
+        .stdout(predicate::str::contains("TODO"));
+}
+
+// --- Sort by tag ---
+
+#[test]
+fn test_list_sort_by_tag() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// NOTE: low severity\n// BUG: high severity\n// TODO: medium severity\n",
+    )]);
+
+    let output = todo_scan()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--sort",
+            "tag",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let items = json["items"].as_array().unwrap();
+    // Should be sorted by severity descending: BUG > TODO > NOTE
+    assert_eq!(items[0]["tag"].as_str().unwrap(), "BUG");
+    assert_eq!(items[1]["tag"].as_str().unwrap(), "TODO");
+    assert_eq!(items[2]["tag"].as_str().unwrap(), "NOTE");
+}
+
+// --- Sort by priority ---
+
+#[test]
+fn test_list_sort_by_priority() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO: normal\n// TODO!!: urgent\n// TODO!: high\n",
+    )]);
+
+    let output = todo_scan()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--sort",
+            "priority",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let items = json["items"].as_array().unwrap();
+    // Should be sorted by priority descending: urgent > high > normal
+    assert_eq!(items[0]["priority"].as_str().unwrap(), "urgent");
+    assert_eq!(items[1]["priority"].as_str().unwrap(), "high");
+    assert_eq!(items[2]["priority"].as_str().unwrap(), "normal");
+}
+
+// --- Full detail level with auto-context ---
+
+#[test]
+fn test_list_full_detail_auto_context_json() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "fn main() {\n    let x = 1;\n    // TODO: fix this\n    let y = 2;\n}\n",
+    )]);
+
+    let output = todo_scan()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--detail",
+            "full",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let items = json["items"].as_array().unwrap();
+    // Full detail should include match_key
+    assert!(
+        items[0].get("match_key").is_some(),
+        "full detail should include match_key"
+    );
+    // Full detail should auto-include context
+    assert!(
+        items[0].get("context").is_some(),
+        "full detail should auto-include context"
+    );
+}
+
+// --- Scanner exclude_dirs config ---
+
+#[test]
+fn test_list_exclude_dirs_config() {
+    let dir = setup_project(&[
+        ("src/lib.rs", "// TODO: keep this\n"),
+        ("vendor/dep.rs", "// TODO: exclude this\n"),
+        ("node_modules/pkg.js", "// TODO: exclude this too\n"),
+        (
+            ".todo-scan.toml",
+            r#"
+exclude_dirs = ["vendor", "node_modules"]
+"#,
+        ),
+    ]);
+
+    todo_scan()
+        .args(["list", "--root", dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("keep this"))
+        .stdout(predicate::str::contains("exclude this").not())
+        .stdout(predicate::str::contains("exclude this too").not())
+        .stdout(predicate::str::contains("1 items"));
+}
+
+// --- List filter by normal priority ---
+
+#[test]
+fn test_list_filter_normal_priority() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO!!: urgent\n// TODO!: high\n// TODO: normal one\n// TODO: normal two\n",
+    )]);
+
+    todo_scan()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--priority",
+            "normal",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("normal one"))
+        .stdout(predicate::str::contains("normal two"))
+        .stdout(predicate::str::contains("urgent").not())
+        .stdout(predicate::str::contains("2 items"));
+}
+
+// --- Diff text format with expired deadline ---
+
+#[test]
+fn test_list_text_search_expired_deadline_in_group_by_tag() {
+    let dir = setup_project(&[("main.rs", "// TODO(2020-01-01): old expired task\n")]);
+
+    todo_scan()
+        .args([
+            "list",
+            "--root",
+            dir.path().to_str().unwrap(),
+            "--group-by",
+            "tag",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[expired: 2020-01-01]"));
+}

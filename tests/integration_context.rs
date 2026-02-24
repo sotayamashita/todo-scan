@@ -91,6 +91,28 @@ fn test_context_related_todos() {
 }
 
 #[test]
+fn test_context_related_todos_text_format() {
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO: first todo\nfn main() {\n    // TODO: second todo\n    let x = 1;\n}\n",
+    )]);
+
+    todo_scan()
+        .args([
+            "context",
+            "main.rs:3",
+            "-C",
+            "5",
+            "--root",
+            dir.path().to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Related TODOs:"))
+        .stdout(predicate::str::contains("first todo"));
+}
+
+#[test]
 fn test_context_invalid_format() {
     let dir = setup_project(&[("main.rs", "fn main() {}\n")]);
 

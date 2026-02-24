@@ -189,6 +189,24 @@ mod tests {
     }
 
     #[test]
+    fn filter_by_normal_priority() {
+        let mut items = vec![
+            make_filter_item("a.rs", Tag::Todo, Priority::Normal, None),
+            make_filter_item("b.rs", Tag::Todo, Priority::High, None),
+            make_filter_item("c.rs", Tag::Todo, Priority::Urgent, None),
+        ];
+        let filters = FilterOptions {
+            tags: vec![],
+            author: None,
+            path: None,
+            priority: vec![PriorityFilter::Normal],
+        };
+        apply_filters(&mut items, &filters).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].priority, Priority::Normal);
+    }
+
+    #[test]
     fn invalid_glob_returns_error() {
         let mut items = vec![make_filter_item("a.rs", Tag::Todo, Priority::Normal, None)];
         let filters = FilterOptions {

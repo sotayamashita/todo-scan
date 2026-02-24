@@ -1591,6 +1591,20 @@ line four
         assert!(deadline.is_none());
     }
 
+    #[test]
+    fn test_parse_paren_date_on_left_with_empty_right() {
+        // "2025-06-01," → (None, Some(deadline)) because right side is empty after trim
+        let (author, deadline) = parse_paren_content("2025-06-01,");
+        assert!(
+            author.is_none(),
+            "author should be None when right side is empty"
+        );
+        let d = deadline.unwrap();
+        assert_eq!(d.year, 2025);
+        assert_eq!(d.month, 6);
+        assert_eq!(d.day, 1);
+    }
+
     // --- should_skip_file direct tests ---
 
     #[test]

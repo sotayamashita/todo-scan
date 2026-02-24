@@ -154,6 +154,48 @@ members = ["crates/core"]
         .stdout(predicate::str::contains("core"));
 }
 
+// --- workspace list with package max config (text format: Ok / Over / Uncapped status) ---
+
+#[test]
+fn workspace_list_text_shows_package_status() {
+    let dir = setup_project(&[
+        (
+            "Cargo.toml",
+            r#"
+[workspace]
+members = ["crates/ok-pkg", "crates/over-pkg", "crates/uncapped-pkg"]
+"#,
+        ),
+        (
+            ".todo-scan.toml",
+            r#"
+[workspace.packages.ok-pkg]
+max = 10
+
+[workspace.packages.over-pkg]
+max = 1
+"#,
+        ),
+        ("crates/ok-pkg/main.rs", "// TODO: one task\n"),
+        (
+            "crates/over-pkg/main.rs",
+            "// TODO: first\n// TODO: second\n// TODO: third\n",
+        ),
+        ("crates/uncapped-pkg/main.rs", "// TODO: uncapped task\n"),
+    ]);
+
+    todo_scan()
+        .args(["workspace", "list", "--root", dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("ok-pkg"))
+        .stdout(predicate::str::contains("over-pkg"))
+        .stdout(predicate::str::contains("uncapped-pkg"))
+        .stdout(predicate::str::contains("ok"))
+        .stdout(predicate::str::contains("OVER"))
+        .stdout(predicate::str::contains("3 packages"));
+}
+
 // --- --package flag ---
 
 #[test]

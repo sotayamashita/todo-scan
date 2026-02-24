@@ -303,6 +303,26 @@ fn test_clean_no_issue_refs_no_stale() {
 // --- Config file integration ---
 
 #[test]
+fn test_clean_multiple_violations_same_file() {
+    // Three identical TODOs in same file → two duplicate violations in same file group
+    let dir = setup_project(&[(
+        "main.rs",
+        "// TODO: duplicate msg\n// TODO: duplicate msg\n// TODO: duplicate msg\n",
+    )]);
+
+    todo_scan()
+        .args(["clean", "--root", dir.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("FAIL"))
+        .stdout(predicate::str::contains("main.rs"))
+        .stdout(predicate::str::contains("duplicate"))
+        .stdout(predicate::str::contains("2 violations"));
+}
+
+// --- Config file integration ---
+
+#[test]
 fn test_clean_config_disables_duplicates() {
     let dir = setup_project(&[
         ("a.rs", "// TODO: same message\n"),

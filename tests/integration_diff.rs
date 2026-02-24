@@ -446,3 +446,117 @@ fn test_diff_json_contains_id_field() {
     let item = &entry["item"];
     assert_eq!(item["id"].as_str().unwrap(), "main.rs:TODO:diff id test");
 }
+
+// --- Tag filter for diff ---
+
+#[test]
+fn test_diff_tag_filter() {
+    let dir = setup_git_repo(&[("main.rs", "fn main() {}\n")]);
+    let cwd = dir.path();
+
+    fs::write(
+        cwd.join("main.rs"),
+        "// TODO: new task\n// FIXME: new fix\n// HACK: new hack\nfn main() {}\n",
+    )
+    .unwrap();
+
+    // Filter to only FIXME
+    let output = todo_scan()
+        .args([
+            "diff",
+            "HEAD",
+            "--root",
+            cwd.to_str().unwrap(),
+            "--tag",
+            "FIXME",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let entries = json["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["item"]["tag"].as_str().unwrap(), "FIXME");
+    assert_eq!(json["added_count"].as_u64().unwrap(), 1);
+    assert_eq!(json["removed_count"].as_u64().unwrap(), 0);
+}
+
+#[test]
+fn test_diff_tag_filter_multiple_tags() {
+    let dir = setup_git_repo(&[("main.rs", "fn main() {}\n")]);
+    let cwd = dir.path();
+
+    fs::write(
+        cwd.join("main.rs"),
+        "// TODO: new task\n// FIXME: new fix\n// HACK: new hack\nfn main() {}\n",
+    )
+    .unwrap();
+
+    let output = todo_scan()
+        .args([
+            "diff",
+            "HEAD",
+            "--root",
+            cwd.to_str().unwrap(),
+            "--tag",
+            "TODO",
+            "--tag",
+            "HACK",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let entries = json["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 2);
+    assert_eq!(json["added_count"].as_u64().unwrap(), 2);
+}
+
+// --- Diff with full detail level (auto-context) ---
+
+#[test]
+fn test_diff_full_detail_auto_context_json() {
+    let dir = setup_git_repo(&[("main.rs", "fn main() {\n    let x = 1;\n}\n")]);
+    let cwd = dir.path();
+
+    fs::write(
+        cwd.join("main.rs"),
+        "fn main() {\n    let x = 1;\n    // TODO: new feature\n    let y = 2;\n}\n",
+    )
+    .unwrap();
+
+    let output = todo_scan()
+        .args([
+            "diff",
+            "HEAD",
+            "--root",
+            cwd.to_str().unwrap(),
+            "--detail",
+            "full",
+            "--format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let entry = &json["entries"][0];
+    // Full detail should auto-include context
+    assert!(
+        entry.get("context").is_some(),
+        "full detail should auto-include context"
+    );
+    // And match_key should be present
+    let item = &entry["item"];
+    assert!(
+        item.get("match_key").is_some(),
+        "full detail should include match_key"
+    );
+}
