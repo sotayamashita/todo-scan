@@ -275,4 +275,92 @@ mod tests {
         let json = serde_json::to_string(&d).unwrap();
         assert_eq!(json, "\"2025-06-01\"");
     }
+
+    #[test]
+    fn test_deserialize_json() {
+        let d: Deadline = serde_json::from_str("\"2025-06-01\"").unwrap();
+        assert_eq!(
+            d,
+            Deadline {
+                year: 2025,
+                month: 6,
+                day: 1
+            }
+        );
+    }
+
+    #[test]
+    fn test_deserialize_quarter_format() {
+        let d: Deadline = serde_json::from_str("\"2025-Q3\"").unwrap();
+        assert_eq!(
+            d,
+            Deadline {
+                year: 2025,
+                month: 9,
+                day: 30
+            }
+        );
+    }
+
+    #[test]
+    fn test_deserialize_invalid_format() {
+        let result: Result<Deadline, _> = serde_json::from_str("\"not-a-date\"");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_today_returns_valid_deadline() {
+        let d = today();
+        assert!(d.year >= 2025);
+        assert!((1..=12).contains(&d.month));
+        assert!((1..=31).contains(&d.day));
+    }
+
+    #[test]
+    fn test_serialize_deserialize_roundtrip() {
+        let original = Deadline {
+            year: 2025,
+            month: 12,
+            day: 25,
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: Deadline = serde_json::from_str(&json).unwrap();
+        assert_eq!(original, deserialized);
+    }
+
+    #[test]
+    fn test_parse_two_part_string() {
+        // A string with only 2 parts that's not a quarter
+        assert!(parse_deadline("2025-06").is_none());
+    }
+
+    #[test]
+    fn test_is_expired_year_boundary() {
+        let deadline = Deadline {
+            year: 2024,
+            month: 12,
+            day: 31,
+        };
+        let today = Deadline {
+            year: 2025,
+            month: 1,
+            day: 1,
+        };
+        assert!(deadline.is_expired(&today));
+    }
+
+    #[test]
+    fn test_is_expired_month_boundary() {
+        let deadline = Deadline {
+            year: 2025,
+            month: 5,
+            day: 31,
+        };
+        let today = Deadline {
+            year: 2025,
+            month: 6,
+            day: 1,
+        };
+        assert!(deadline.is_expired(&today));
+    }
 }

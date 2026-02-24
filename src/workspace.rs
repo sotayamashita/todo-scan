@@ -555,4 +555,342 @@ members = ["crates/*"]
         assert_eq!(ws.kind, WorkspaceKind::Cargo);
         assert_eq!(ws.packages.len(), 2);
     }
+
+    // --- glob_prefix tests ---
+
+    #[test]
+    fn glob_prefix_packages_star() {
+        assert_eq!(glob_prefix("packages/*"), "packages");
+    }
+
+    #[test]
+    fn glob_prefix_nested_glob() {
+        assert_eq!(glob_prefix("crates/*/src"), "crates");
+    }
+
+    #[test]
+    fn glob_prefix_star_only() {
+        assert_eq!(glob_prefix("*"), "");
+    }
+
+    #[test]
+    fn glob_prefix_empty_pattern() {
+        assert_eq!(glob_prefix(""), "");
+    }
+
+    #[test]
+    fn glob_prefix_no_glob_chars() {
+        assert_eq!(glob_prefix("some/literal/path"), "some/literal/path");
+    }
+
+    #[test]
+    fn glob_prefix_question_mark() {
+        assert_eq!(glob_prefix("dir/?"), "dir");
+    }
+
+    #[test]
+    fn glob_prefix_bracket_pattern() {
+        assert_eq!(glob_prefix("dir/[abc]"), "dir");
+    }
+
+    // --- package_name_from_path tests ---
+
+    #[test]
+    fn package_name_from_path_nested() {
+        assert_eq!(package_name_from_path("crates/core"), "core");
+    }
+
+    #[test]
+    fn package_name_from_path_single() {
+        assert_eq!(package_name_from_path("single"), "single");
+    }
+
+    #[test]
+    fn package_name_from_path_empty() {
+        // Empty string: Path::new("").file_name() returns None, so fallback to the string itself
+        assert_eq!(package_name_from_path(""), "");
+    }
+
+    #[test]
+    fn package_name_from_path_trailing_slash() {
+        // Path::new("foo/bar/") still yields file_name() == "bar"
+        assert_eq!(package_name_from_path("foo/bar/"), "bar");
+    }
+
+    #[test]
+    fn package_name_from_path_deeply_nested() {
+        assert_eq!(package_name_from_path("a/b/c/d"), "d");
+    }
+
+    // --- detect_pnpm with comments and non-package section ---
+
+    #[test]
+    fn detect_pnpm_yaml_with_comments_between_entries() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join("pnpm-workspace.yaml"),
+            "packages:\n  - 'apps/*'\n  # this is a comment\n  - 'libs/*'\n",
+        )
+        .unwrap();
+        std::fs::create_dir_all(dir.path().join("apps/web")).unwrap();
+        std::fs::create_dir_all(dir.path().join("libs/shared")).unwrap();
+
+        let result = detect_pnpm(dir.path()).unwrap();
+        assert!(result.is_some());
+        let ws = result.unwrap();
+        assert_eq!(ws.kind, WorkspaceKind::Pnpm);
+        assert_eq!(ws.packages.len(), 2);
+    }
+
+    #[test]
+    fn detect_pnpm_yaml_non_package_section_breaks_parse() {
+        let dir = TempDir::new().unwrap();
+        // After the packages list entries, a non-package YAML key appears
+        std::fs::write(
+            dir.path().join("pnpm-workspace.yaml"),
+            "packages:\n  - 'apps/*'\nsomething_else:\n  - unrelated\n",
+        )
+        .unwrap();
+        std::fs::create_dir_all(dir.path().join("apps/web")).unwrap();
+
+        let result = detect_pnpm(dir.path()).unwrap();
+        assert!(result.is_some());
+        let ws = result.unwrap();
+        assert_eq!(ws.kind, WorkspaceKind::Pnpm);
+        // Should only pick up the one pattern before the break
+        assert_eq!(ws.packages.len(), 1);
+        assert_eq!(ws.packages[0].name, "web");
+    }
+
+    #[test]
+    fn detect_pnpm_empty_packages_section() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join("pnpm-workspace.yaml"),
+            "packages:\nother:\n  - foo\n",
+        )
+        .unwrap();
+
+        let result = detect_pnpm(dir.path()).unwrap();
+        assert!(
+            result.is_none(),
+            "empty packages section should return None"
+        );
+    }
+
+    // --- detect_go_work with single-line use ---
+
+    #[test]
+    fn detect_go_work_single_line_use() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("go.work"), "go 1.21\n\nuse ./mymodule\n").unwrap();
+        std::fs::create_dir_all(dir.path().join("mymodule")).unwrap();
+
+        let result = detect_go_work(dir.path()).unwrap();
+        assert!(result.is_some());
+        let ws = result.unwrap();
+        assert_eq!(ws.kind, WorkspaceKind::GoWork);
+        assert_eq!(ws.packages.len(), 1);
+        assert_eq!(ws.packages[0].name, "mymodule");
+        assert_eq!(ws.packages[0].path, "mymodule");
+    }
+
+    #[test]
+    fn detect_go_work_single_line_use_without_dot_slash() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("go.work"), "go 1.21\n\nuse mylib\n").unwrap();
+        std::fs::create_dir_all(dir.path().join("mylib")).unwrap();
+
+        let result = detect_go_work(dir.path()).unwrap();
+        assert!(result.is_some());
+        let ws = result.unwrap();
+        assert_eq!(ws.packages.len(), 1);
+        assert_eq!(ws.packages[0].name, "mylib");
+    }
+
+    #[test]
+    fn detect_go_work_mixed_block_and_single_line() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join("go.work"),
+            "go 1.21\n\nuse (\n\t./cmd/server\n)\n\nuse ./pkg/lib\n",
+        )
+        .unwrap();
+        std::fs::create_dir_all(dir.path().join("cmd/server")).unwrap();
+        std::fs::create_dir_all(dir.path().join("pkg/lib")).unwrap();
+
+        let result = detect_go_work(dir.path()).unwrap();
+        assert!(result.is_some());
+        let ws = result.unwrap();
+        assert_eq!(ws.packages.len(), 2);
+    }
+
+    // --- detect_cargo with no [workspace] section ---
+
+    #[test]
+    fn detect_cargo_no_workspace_section() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            r#"
+[package]
+name = "my-app"
+version = "0.1.0"
+"#,
+        )
+        .unwrap();
+
+        let result = detect_cargo(dir.path()).unwrap();
+        assert!(
+            result.is_none(),
+            "Cargo.toml without [workspace] should return None"
+        );
+    }
+
+    #[test]
+    fn detect_cargo_workspace_without_members() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            r#"
+[workspace]
+resolver = "2"
+"#,
+        )
+        .unwrap();
+
+        let result = detect_cargo(dir.path()).unwrap();
+        assert!(
+            result.is_none(),
+            "workspace without members key should return None"
+        );
+    }
+
+    // --- detect_npm with no workspaces field ---
+
+    #[test]
+    fn detect_npm_no_workspaces_field() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "my-app", "version": "1.0.0"}"#,
+        )
+        .unwrap();
+
+        let result = detect_npm(dir.path()).unwrap();
+        assert!(
+            result.is_none(),
+            "package.json without workspaces should return None"
+        );
+    }
+
+    #[test]
+    fn detect_npm_workspaces_empty_array() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "my-app", "workspaces": []}"#,
+        )
+        .unwrap();
+
+        let result = detect_npm(dir.path()).unwrap();
+        assert!(
+            result.is_none(),
+            "empty workspaces array should return None"
+        );
+    }
+
+    // --- resolve_member_paths with non-existent directory ---
+
+    #[test]
+    fn resolve_member_paths_nonexistent_dir() {
+        let dir = TempDir::new().unwrap();
+        let patterns = vec!["nonexistent/path".to_string()];
+        let result = resolve_member_paths(dir.path(), &patterns, WorkspaceKind::Cargo);
+        assert!(
+            result.is_empty(),
+            "non-existent directory should produce empty result"
+        );
+    }
+
+    #[test]
+    fn resolve_member_paths_glob_nonexistent_dir() {
+        let dir = TempDir::new().unwrap();
+        let patterns = vec!["nonexistent/*".to_string()];
+        let result = resolve_member_paths(dir.path(), &patterns, WorkspaceKind::Npm);
+        assert!(
+            result.is_empty(),
+            "glob with non-existent base dir should produce empty result"
+        );
+    }
+
+    #[test]
+    fn resolve_member_paths_mixed_existing_and_not() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("exists")).unwrap();
+        let patterns = vec!["exists".to_string(), "does-not-exist".to_string()];
+        let result = resolve_member_paths(dir.path(), &patterns, WorkspaceKind::Cargo);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "exists");
+    }
+
+    #[test]
+    fn resolve_member_paths_with_dot_slash_prefix() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("mypackage")).unwrap();
+        let patterns = vec!["./mypackage".to_string()];
+        let result = resolve_member_paths(dir.path(), &patterns, WorkspaceKind::Npm);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "mypackage");
+        assert_eq!(result[0].path, "mypackage");
+    }
+
+    // --- detect_nx with non-existent project dirs ---
+
+    #[test]
+    fn detect_nx_projects_point_to_nonexistent_dirs() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join("workspace.json"),
+            r#"{"projects": {"app": "apps/app", "lib": "libs/lib"}}"#,
+        )
+        .unwrap();
+        // Do NOT create the actual directories
+
+        let result = detect_nx(dir.path()).unwrap();
+        assert!(
+            result.is_none(),
+            "Nx with non-existent project dirs should return None"
+        );
+    }
+
+    #[test]
+    fn detect_nx_some_projects_exist_some_not() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join("workspace.json"),
+            r#"{"projects": {"app": "apps/app", "missing": "libs/missing"}}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(dir.path().join("apps/app")).unwrap();
+        // libs/missing is not created
+
+        let result = detect_nx(dir.path()).unwrap();
+        assert!(result.is_some());
+        let ws = result.unwrap();
+        assert_eq!(ws.packages.len(), 1);
+        assert_eq!(ws.packages[0].name, "app");
+    }
+
+    #[test]
+    fn detect_nx_no_projects_key() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("workspace.json"), r#"{"version": 2}"#).unwrap();
+
+        let result = detect_nx(dir.path()).unwrap();
+        assert!(
+            result.is_none(),
+            "workspace.json without projects key should return None"
+        );
+    }
 }

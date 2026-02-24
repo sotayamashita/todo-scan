@@ -1519,4 +1519,228 @@ line four
         assert_eq!(result.ignored_items.len(), 1);
         assert_eq!(result.ignored_items[0].message, "hidden");
     }
+
+    // --- parse_paren_content edge cases ---
+
+    #[test]
+    fn test_parse_paren_comma_empty_left_with_date_right() {
+        // ", 2025-06-01" → (None, Some(deadline))
+        let (author, deadline) = parse_paren_content(", 2025-06-01");
+        assert!(author.is_none(), "empty left side should yield no author");
+        let d = deadline.unwrap();
+        assert_eq!(d.year, 2025);
+        assert_eq!(d.month, 6);
+        assert_eq!(d.day, 1);
+    }
+
+    #[test]
+    fn test_parse_paren_comma_empty_right() {
+        // "alice, " → author only, no deadline (right side is empty, not a date)
+        let (author, deadline) = parse_paren_content("alice, ");
+        // The right side is empty, so neither side is a date.
+        // Since left is not a date and right is not a date, whole string is treated as author.
+        // Actually let's trace the code: left="alice", right="" (trimmed).
+        // parse_deadline("") → None. parse_deadline("alice") → None.
+        // Falls through to: return (Some(s.to_string()), None) where s = "alice,"
+        // Wait, s is the original trimmed string. Let me re-check.
+        // s = "alice, " → trimmed = "alice,". Actually trim() of "alice, " = "alice,".
+        // No wait: "alice, ".trim() = "alice," — that has a comma at index 5.
+        // left = "alice,"[..5].trim() = "alice", right = "alice,"[6..].trim() = ""
+        // Hmm, let me re-read: s = "alice, ".trim() → "alice,".
+        // idx = s.find(',') → Some(5). left = s[..5].trim() = "alice". right = s[6..].trim() = "".
+        // parse_deadline("") → None. parse_deadline("alice") → None.
+        // Falls to: (Some(s.to_string()), None) where s = "alice,".
+        assert!(deadline.is_none());
+        assert!(author.is_some());
+        // Author is the whole trimmed string (including trailing comma)
+        assert_eq!(author.unwrap(), "alice,");
+    }
+
+    #[test]
+    fn test_parse_paren_comma_neither_side_is_date() {
+        // "alice, bob" → (Some("alice, bob"), None)
+        let (author, deadline) = parse_paren_content("alice, bob");
+        assert!(deadline.is_none());
+        assert_eq!(
+            author.as_deref(),
+            Some("alice, bob"),
+            "when neither side is a date, whole string becomes author"
+        );
+    }
+
+    #[test]
+    fn test_parse_paren_date_on_left_side() {
+        // "2025-06-01, alice" → (Some("alice"), Some(deadline))
+        let (author, deadline) = parse_paren_content("2025-06-01, alice");
+        assert_eq!(
+            author.as_deref(),
+            Some("alice"),
+            "author should be parsed from right side"
+        );
+        let d = deadline.unwrap();
+        assert_eq!(d.year, 2025);
+        assert_eq!(d.month, 6);
+        assert_eq!(d.day, 1);
+    }
+
+    #[test]
+    fn test_parse_paren_whitespace_only() {
+        // "   " → (None, None) because trimmed is empty
+        let (author, deadline) = parse_paren_content("   ");
+        assert!(author.is_none());
+        assert!(deadline.is_none());
+    }
+
+    // --- should_skip_file direct tests ---
+
+    #[test]
+    fn test_should_skip_file_zero_byte_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("empty.txt");
+        std::fs::write(&path, "").unwrap();
+        let metadata = std::fs::metadata(&path).unwrap();
+        assert!(
+            !should_skip_file(&metadata, MAX_FILE_SIZE),
+            "empty file should not be skipped"
+        );
+    }
+
+    #[test]
+    fn test_should_skip_file_exactly_max_file_size() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("exact_max.txt");
+        std::fs::write(&path, vec![b'a'; MAX_FILE_SIZE as usize]).unwrap();
+        let metadata = std::fs::metadata(&path).unwrap();
+        assert!(
+            !should_skip_file(&metadata, MAX_FILE_SIZE),
+            "file at exactly MAX_FILE_SIZE should not be skipped"
+        );
+    }
+
+    #[test]
+    fn test_should_skip_file_one_over_max() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("over_max.txt");
+        std::fs::write(&path, vec![b'a'; MAX_FILE_SIZE as usize + 1]).unwrap();
+        let metadata = std::fs::metadata(&path).unwrap();
+        assert!(
+            should_skip_file(&metadata, MAX_FILE_SIZE),
+            "file one byte over MAX_FILE_SIZE should be skipped"
+        );
+    }
+
+    // --- extract_issue_ref edge cases ---
+
+    #[test]
+    fn test_extract_issue_ref_no_reference() {
+        assert_eq!(extract_issue_ref("just a plain message"), None);
+    }
+
+    #[test]
+    fn test_extract_issue_ref_both_jira_and_hash() {
+        // When both JIRA-style and hash-style refs are present,
+        // the regex should return the first match.
+        let result = extract_issue_ref("fix PROJ-42 and also #99");
+        // JIRA pattern matches first because the regex alternation tries JIRA first
+        assert_eq!(result, Some("PROJ-42".to_string()));
+    }
+
+    #[test]
+    fn test_extract_issue_ref_hash_only() {
+        assert_eq!(extract_issue_ref("see #7"), Some("#7".to_string()));
+    }
+
+    #[test]
+    fn test_extract_issue_ref_jira_only() {
+        assert_eq!(
+            extract_issue_ref("relates to ABC-1234"),
+            Some("ABC-1234".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_issue_ref_empty_string() {
+        assert_eq!(extract_issue_ref(""), None);
+    }
+
+    // --- prefix_outside_quotes edge cases ---
+
+    #[test]
+    fn test_prefix_outside_quotes_no_quotes() {
+        // No quotes before position → even count (0) → true (outside)
+        assert!(prefix_outside_quotes("// TODO: test", 3));
+    }
+
+    #[test]
+    fn test_prefix_outside_quotes_inside_one_quote() {
+        // One quote before position → odd count → false (inside)
+        assert!(!prefix_outside_quotes(r#""// TODO: test"#, 4));
+    }
+
+    #[test]
+    fn test_prefix_outside_quotes_after_two_quotes() {
+        // Two quotes before position → even count → true (outside)
+        assert!(prefix_outside_quotes(r#""x" // TODO: test"#, 4));
+    }
+
+    #[test]
+    fn test_prefix_outside_quotes_at_start() {
+        // Position 0 → no chars before → even (0) → true
+        assert!(prefix_outside_quotes("TODO: test", 0));
+    }
+
+    #[test]
+    fn test_prefix_outside_quotes_nested_quotes() {
+        // Three quotes before → odd → false (inside)
+        assert!(!prefix_outside_quotes(r#""a" "// TODO"#, 5));
+    }
+
+    // --- is_in_comment with LINE_START_PREFIXES ---
+
+    #[test]
+    fn test_is_in_comment_star_at_line_start_with_whitespace() {
+        // "   * TODO: test" — star at start after whitespace (Javadoc-style)
+        assert!(is_in_comment("   * TODO: test", 5));
+    }
+
+    #[test]
+    fn test_is_in_comment_star_not_at_line_start() {
+        // "x * TODO: test" — star NOT at start of line (after non-whitespace)
+        assert!(!is_in_comment("x * TODO: test", 4));
+    }
+
+    #[test]
+    fn test_is_in_comment_star_at_line_start_no_whitespace() {
+        // "* TODO: test" — star right at position 0
+        assert!(is_in_comment("* TODO: test", 2));
+    }
+
+    #[test]
+    fn test_is_in_comment_star_in_string_literal() {
+        // \" * TODO: test\" — star preceded by quote (inside string)
+        // The star is at the line start after trim, but the leading_ws prefix
+        // is inside quotes, so prefix_outside_quotes returns false
+        assert!(!is_in_comment("\" * TODO: test\"", 5));
+    }
+
+    #[test]
+    fn test_is_in_comment_tab_then_star() {
+        // Tab + star is a line-start prefix pattern
+        assert!(is_in_comment("\t* TODO: test", 3));
+    }
+
+    #[test]
+    fn test_is_in_comment_semicolon_prefix() {
+        assert!(is_in_comment("; TODO: test", 2));
+    }
+
+    #[test]
+    fn test_is_in_comment_double_dash() {
+        assert!(is_in_comment("-- TODO: test", 3));
+    }
+
+    #[test]
+    fn test_is_in_comment_no_comment_prefix_at_all() {
+        assert!(!is_in_comment("TODO: test", 0));
+    }
 }

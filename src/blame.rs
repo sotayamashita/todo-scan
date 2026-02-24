@@ -296,4 +296,92 @@ filename test.rs
         let data = result.get(&1).unwrap();
         assert_eq!(data.author, "Not Committed Yet");
     }
+
+    #[test]
+    fn test_compute_age_days_future_timestamp() {
+        // A timestamp far in the future should return 0
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        let future_ts = now + (365 * 86400); // 1 year in the future
+        let age = compute_age_days(future_ts);
+        assert_eq!(age, 0);
+    }
+
+    #[test]
+    fn test_parse_porcelain_blame_short_header() {
+        // A 40-char hex line with fewer than 3 space-separated parts
+        // should be skipped (parts.len() >= 3 check)
+        let output = "\
+abc1234567890123456789012345678901234567 1
+author Alice
+author-mail <alice@test.com>
+author-time 1704067200
+author-tz +0000
+committer Alice
+committer-mail <alice@test.com>
+committer-time 1704067200
+committer-tz +0000
+summary commit
+filename test.rs
+\tsome content
+";
+        let result = parse_porcelain_blame(output);
+        // The header only has 2 parts so current_line is never set,
+        // meaning no entry is inserted despite the tab content line.
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_parse_porcelain_blame_non_parseable_line_number() {
+        // The third part is not a valid number, so parse::<usize>() fails
+        let output = "\
+abc1234567890123456789012345678901234567 1 notanumber 1
+author Bob
+author-mail <bob@test.com>
+author-time 1704067200
+author-tz +0000
+committer Bob
+committer-mail <bob@test.com>
+committer-time 1704067200
+committer-tz +0000
+summary commit
+filename test.rs
+\tsome content
+";
+        let result = parse_porcelain_blame(output);
+        // parts[2] can't be parsed as usize, so current_line stays None
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_parse_porcelain_blame_unparseable_author_time() {
+        // author-time has a non-numeric value -> unwrap_or(0)
+        let output = "\
+abc1234567890123456789012345678901234567 1 1 1
+author Carol
+author-mail <carol@test.com>
+author-time not_a_timestamp
+author-tz +0000
+committer Carol
+committer-mail <carol@test.com>
+committer-time 1704067200
+committer-tz +0000
+summary commit
+filename test.rs
+\tsome line
+";
+        let result = parse_porcelain_blame(output);
+        assert_eq!(result.len(), 1);
+        let data = result.get(&1).unwrap();
+        assert_eq!(data.author, "Carol");
+        assert_eq!(data.timestamp, 0); // Falls back to 0
+    }
+
+    #[test]
+    fn test_timestamp_to_date_string_epoch() {
+        // Unix epoch: timestamp 0 should produce 1970-01-01
+        assert_eq!(timestamp_to_date_string(0), "1970-01-01");
+    }
 }

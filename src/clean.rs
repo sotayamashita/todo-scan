@@ -591,4 +591,175 @@ mod tests {
         let result = run_clean(&scan, &config, None, None);
         assert!(result.passed);
     }
+
+    // --- parse_iso8601_timestamp edge cases ---
+
+    #[test]
+    fn test_parse_iso8601_timestamp_empty_string() {
+        assert_eq!(parse_iso8601_timestamp(""), None);
+    }
+
+    #[test]
+    fn test_parse_iso8601_timestamp_no_match() {
+        assert_eq!(parse_iso8601_timestamp("not a date at all"), None);
+    }
+
+    #[test]
+    fn test_parse_iso8601_timestamp_partial_date() {
+        // Only date portion, missing time components
+        assert_eq!(parse_iso8601_timestamp("2024-01-15"), None);
+    }
+
+    // --- since_days with closed_at=None ---
+
+    #[test]
+    fn test_since_filter_flags_closed_with_no_timestamp() {
+        // When since_days is set but closed_at is None, the issue should
+        // still be flagged (line 206: "If no closed_at timestamp, still flag it")
+        let scan = ScanResult {
+            items: vec![make_item_with_issue(
+                "a.rs",
+                1,
+                Tag::Todo,
+                "fix bug #42",
+                "#42",
+            )],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let checker =
+            MockIssueChecker::new(vec![(42, Some(IssueState::Closed { closed_at: None }))]);
+
+        // Since 30 days — but closed_at is None, so it should still be flagged
+        let result = run_clean(&scan, &default_config(), Some(&checker), Some("30d"));
+        assert!(!result.passed);
+        assert_eq!(result.stale_count, 1);
+        assert!(result.violations[0].message.contains("#42"));
+    }
+
+    // --- run_clean with since from config ---
+
+    #[test]
+    fn test_run_clean_since_from_config() {
+        let now_ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        // Closed 5 days ago
+        let closed_ts = now_ts - (5 * 86400);
+
+        let scan = ScanResult {
+            items: vec![make_item_with_issue(
+                "a.rs",
+                1,
+                Tag::Todo,
+                "fix bug #42",
+                "#42",
+            )],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let checker = MockIssueChecker::new(vec![(
+            42,
+            Some(IssueState::Closed {
+                closed_at: Some(closed_ts),
+            }),
+        )]);
+
+        // Set since in config (not CLI), 30 days — closed 5 days ago should NOT be flagged
+        let mut config = default_config();
+        config.clean.since = Some("30d".to_string());
+        let result = run_clean(&scan, &config, Some(&checker), None);
+        assert!(result.passed);
+        assert_eq!(result.stale_count, 0);
+    }
+
+    #[test]
+    fn test_run_clean_cli_since_overrides_config() {
+        let now_ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        // Closed 60 days ago
+        let closed_ts = now_ts - (60 * 86400);
+
+        let scan = ScanResult {
+            items: vec![make_item_with_issue(
+                "a.rs",
+                1,
+                Tag::Todo,
+                "fix bug #42",
+                "#42",
+            )],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let checker = MockIssueChecker::new(vec![(
+            42,
+            Some(IssueState::Closed {
+                closed_at: Some(closed_ts),
+            }),
+        )]);
+
+        // Config says 90d (would skip), CLI says 30d (should flag)
+        let mut config = default_config();
+        config.clean.since = Some("90d".to_string());
+        let result = run_clean(&scan, &config, Some(&checker), Some("30d"));
+        assert!(!result.passed);
+        assert_eq!(result.stale_count, 1);
+    }
+
+    // --- Multiple items referencing same issue ---
+
+    #[test]
+    fn test_multiple_items_same_issue_number() {
+        let scan = ScanResult {
+            items: vec![
+                make_item_with_issue("a.rs", 1, Tag::Todo, "first ref to #42", "#42"),
+                make_item_with_issue("b.rs", 10, Tag::Todo, "second ref to #42", "#42"),
+            ],
+            files_scanned: 2,
+            ignored_items: vec![],
+        };
+        let checker =
+            MockIssueChecker::new(vec![(42, Some(IssueState::Closed { closed_at: None }))]);
+
+        let result = run_clean(&scan, &default_config(), Some(&checker), None);
+        assert!(!result.passed);
+        // Both items should be flagged as stale
+        assert_eq!(result.stale_count, 2);
+    }
+
+    // --- IssueChecker returning Err ---
+
+    struct ErrorIssueChecker;
+
+    impl IssueChecker for ErrorIssueChecker {
+        fn check_issue(&self, _issue_number: u32) -> Result<Option<IssueState>> {
+            Err(anyhow::anyhow!("network error"))
+        }
+    }
+
+    #[test]
+    fn test_issue_checker_error_skips_issue() {
+        let scan = ScanResult {
+            items: vec![make_item_with_issue(
+                "a.rs",
+                1,
+                Tag::Todo,
+                "fix bug #42",
+                "#42",
+            )],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let checker = ErrorIssueChecker;
+
+        // When the checker returns Err, the issue should be skipped (not flagged)
+        let result = run_clean(&scan, &default_config(), Some(&checker), None);
+        assert!(result.passed);
+        assert_eq!(result.stale_count, 0);
+    }
 }

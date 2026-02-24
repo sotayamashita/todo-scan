@@ -306,4 +306,252 @@ mod tests {
         assert!(result.passed);
         assert!(result.violations.is_empty());
     }
+
+    #[test]
+    fn test_config_max_used_when_override_is_none() {
+        let items: Vec<TodoItem> = (0..10)
+            .map(|i| make_item("a.rs", i + 1, Tag::Todo, &format!("task {}", i)))
+            .collect();
+        let scan = ScanResult {
+            items,
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let mut config = Config::default();
+        config.check.max = Some(5);
+        let overrides = default_overrides(); // max: None
+
+        let result = run_check(&scan, None, &config, &overrides, &test_today());
+        assert!(!result.passed);
+        assert_eq!(result.violations[0].rule, "max");
+    }
+
+    #[test]
+    fn test_config_block_tags_merged_with_overrides() {
+        let scan = ScanResult {
+            items: vec![
+                make_item("a.rs", 1, Tag::Bug, "bug"),
+                make_item("b.rs", 2, Tag::Hack, "hack"),
+            ],
+            files_scanned: 2,
+            ignored_items: vec![],
+        };
+        let mut config = Config::default();
+        config.check.block_tags = vec!["BUG".to_string()];
+        let overrides = CheckOverrides {
+            block_tags: vec!["HACK".to_string()],
+            ..default_overrides()
+        };
+
+        let result = run_check(&scan, None, &config, &overrides, &test_today());
+        assert!(!result.passed);
+        // Both BUG (from config) and HACK (from overrides) should be blocked
+        assert_eq!(result.violations.len(), 2);
+    }
+
+    #[test]
+    fn test_config_max_new_used_when_override_is_none() {
+        let scan = ScanResult {
+            items: vec![make_item("a.rs", 1, Tag::Todo, "task")],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let diff = DiffResult {
+            entries: vec![],
+            added_count: 5,
+            removed_count: 0,
+            base_ref: "main".to_string(),
+        };
+        let mut config = Config::default();
+        config.check.max_new = Some(2);
+        let overrides = default_overrides();
+
+        let result = run_check(&scan, Some(&diff), &config, &overrides, &test_today());
+        assert!(!result.passed);
+        assert_eq!(result.violations[0].rule, "max_new");
+    }
+
+    #[test]
+    fn test_max_new_without_diff_passes() {
+        let scan = ScanResult {
+            items: vec![make_item("a.rs", 1, Tag::Todo, "task")],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let config = Config::default();
+        let overrides = CheckOverrides {
+            max_new: Some(0),
+            ..default_overrides()
+        };
+
+        // No diff provided, so max_new check is skipped
+        let result = run_check(&scan, None, &config, &overrides, &test_today());
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_config_expired_from_config() {
+        let mut item = make_item("a.rs", 1, Tag::Todo, "overdue task");
+        item.deadline = Some(Deadline {
+            year: 2025,
+            month: 1,
+            day: 1,
+        });
+        let scan = ScanResult {
+            items: vec![item],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let mut config = Config::default();
+        config.check.expired = Some(true);
+        let overrides = default_overrides(); // expired: false
+
+        let result = run_check(&scan, None, &config, &overrides, &test_today());
+        assert!(!result.passed);
+        assert_eq!(result.violations[0].rule, "expired");
+    }
+
+    #[test]
+    fn test_multiple_violations_combined() {
+        let mut item = make_item("a.rs", 1, Tag::Bug, "overdue bug");
+        item.deadline = Some(Deadline {
+            year: 2024,
+            month: 1,
+            day: 1,
+        });
+        let items: Vec<TodoItem> = (0..10)
+            .map(|i| make_item("b.rs", i + 1, Tag::Todo, &format!("task {}", i)))
+            .collect();
+        let mut all_items = vec![item];
+        all_items.extend(items);
+
+        let scan = ScanResult {
+            items: all_items,
+            files_scanned: 2,
+            ignored_items: vec![],
+        };
+        let diff = DiffResult {
+            entries: vec![],
+            added_count: 8,
+            removed_count: 0,
+            base_ref: "main".to_string(),
+        };
+        let config = Config::default();
+        let overrides = CheckOverrides {
+            max: Some(5),
+            block_tags: vec!["BUG".to_string()],
+            max_new: Some(3),
+            expired: true,
+        };
+
+        let result = run_check(&scan, Some(&diff), &config, &overrides, &test_today());
+        assert!(!result.passed);
+        // Should have: block_tags (BUG), max (11 > 5), max_new (8 > 3), expired
+        assert!(result.violations.len() >= 4);
+        let rules: Vec<&str> = result.violations.iter().map(|v| v.rule.as_str()).collect();
+        assert!(rules.contains(&"block_tags"));
+        assert!(rules.contains(&"max"));
+        assert!(rules.contains(&"max_new"));
+        assert!(rules.contains(&"expired"));
+    }
+
+    #[test]
+    fn test_block_tags_case_insensitive() {
+        let scan = ScanResult {
+            items: vec![make_item("a.rs", 1, Tag::Hack, "workaround")],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let config = Config::default();
+        let overrides = CheckOverrides {
+            block_tags: vec!["hack".to_string()], // lowercase
+            ..default_overrides()
+        };
+
+        let result = run_check(&scan, None, &config, &overrides, &test_today());
+        assert!(!result.passed);
+        assert_eq!(result.violations[0].rule, "block_tags");
+    }
+
+    #[test]
+    fn test_max_new_passes_when_under_limit() {
+        let scan = ScanResult {
+            items: vec![make_item("a.rs", 1, Tag::Todo, "task")],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let diff = DiffResult {
+            entries: vec![],
+            added_count: 2,
+            removed_count: 0,
+            base_ref: "main".to_string(),
+        };
+        let config = Config::default();
+        let overrides = CheckOverrides {
+            max_new: Some(5),
+            ..default_overrides()
+        };
+
+        let result = run_check(&scan, Some(&diff), &config, &overrides, &test_today());
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_deadline_on_exact_today_not_expired() {
+        let mut item = make_item("a.rs", 1, Tag::Todo, "due today");
+        item.deadline = Some(Deadline {
+            year: 2025,
+            month: 6,
+            day: 15,
+        });
+        let scan = ScanResult {
+            items: vec![item],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let config = Config::default();
+        let overrides = CheckOverrides {
+            expired: true,
+            ..default_overrides()
+        };
+
+        let result = run_check(&scan, None, &config, &overrides, &test_today());
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_item_without_deadline_passes_expired_check() {
+        let scan = ScanResult {
+            items: vec![make_item("a.rs", 1, Tag::Todo, "no deadline")],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let config = Config::default();
+        let overrides = CheckOverrides {
+            expired: true,
+            ..default_overrides()
+        };
+
+        let result = run_check(&scan, None, &config, &overrides, &test_today());
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_empty_scan_always_passes() {
+        let scan = ScanResult {
+            items: vec![],
+            files_scanned: 0,
+            ignored_items: vec![],
+        };
+        let config = Config::default();
+        let overrides = CheckOverrides {
+            max: Some(0),
+            expired: true,
+            ..default_overrides()
+        };
+
+        let result = run_check(&scan, None, &config, &overrides, &test_today());
+        assert!(result.passed);
+        assert_eq!(result.total, 0);
+    }
 }

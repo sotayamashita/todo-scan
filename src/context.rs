@@ -346,4 +346,220 @@ mod tests {
         assert_eq!(file, "src\\main.rs");
         assert_eq!(line, 10);
     }
+
+    #[test]
+    fn test_read_file_context_basic() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.rs");
+        std::fs::write(&file_path, "line1\nline2\nline3\nline4\nline5\n").unwrap();
+
+        let (ctx, todo_line) = read_file_context(dir.path(), "test.rs", 3, 1).unwrap();
+        assert_eq!(todo_line, "line3");
+        assert_eq!(ctx.before.len(), 1);
+        assert_eq!(ctx.before[0].content, "line2");
+        assert_eq!(ctx.after.len(), 1);
+        assert_eq!(ctx.after[0].content, "line4");
+    }
+
+    #[test]
+    fn test_read_file_context_line_beyond_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.rs");
+        std::fs::write(&file_path, "only line\n").unwrap();
+
+        let (ctx, todo_line) = read_file_context(dir.path(), "test.rs", 100, 2).unwrap();
+        assert_eq!(todo_line, "");
+        assert!(ctx.before.is_empty());
+        assert!(ctx.after.is_empty());
+    }
+
+    #[test]
+    fn test_read_file_context_line_zero() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.rs");
+        std::fs::write(&file_path, "line1\n").unwrap();
+
+        let (ctx, todo_line) = read_file_context(dir.path(), "test.rs", 0, 2).unwrap();
+        assert_eq!(todo_line, "");
+        assert!(ctx.before.is_empty());
+        assert!(ctx.after.is_empty());
+    }
+
+    #[test]
+    fn test_read_file_context_file_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = read_file_context(dir.path(), "nonexistent.rs", 1, 2);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_build_rich_context_basic() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.rs");
+        std::fs::write(
+            &file_path,
+            "fn main() {\n    // TODO: fix this\n    println!(\"hello\");\n}\n",
+        )
+        .unwrap();
+
+        let item1 = TodoItem {
+            file: "test.rs".to_string(),
+            line: 2,
+            tag: crate::model::Tag::Todo,
+            message: "fix this".to_string(),
+            author: None,
+            issue_ref: None,
+            priority: crate::model::Priority::Normal,
+            deadline: None,
+        };
+
+        let todos_in_file: Vec<&TodoItem> = vec![&item1];
+        let rich = build_rich_context(dir.path(), "test.rs", 2, 1, &todos_in_file).unwrap();
+        assert_eq!(rich.file, "test.rs");
+        assert_eq!(rich.line, 2);
+        assert!(rich.todo_line.contains("TODO"));
+        assert_eq!(rich.before.len(), 1);
+        assert_eq!(rich.after.len(), 1);
+        // The item itself is not included in related_todos (line == target line)
+        assert!(rich.related_todos.is_empty());
+    }
+
+    #[test]
+    fn test_build_rich_context_with_related_todos() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.rs");
+        std::fs::write(
+            &file_path,
+            "line1\n// TODO: first\nline3\n// FIXME: second\nline5\n",
+        )
+        .unwrap();
+
+        let item1 = TodoItem {
+            file: "test.rs".to_string(),
+            line: 2,
+            tag: crate::model::Tag::Todo,
+            message: "first".to_string(),
+            author: None,
+            issue_ref: None,
+            priority: crate::model::Priority::Normal,
+            deadline: None,
+        };
+        let item2 = TodoItem {
+            file: "test.rs".to_string(),
+            line: 4,
+            tag: crate::model::Tag::Fixme,
+            message: "second".to_string(),
+            author: None,
+            issue_ref: None,
+            priority: crate::model::Priority::Normal,
+            deadline: None,
+        };
+
+        let todos_in_file: Vec<&TodoItem> = vec![&item1, &item2];
+        let rich = build_rich_context(dir.path(), "test.rs", 2, 3, &todos_in_file).unwrap();
+
+        // item2 at line 4 is within window (2-3=0..2+3=5), and != target line 2
+        assert_eq!(rich.related_todos.len(), 1);
+        assert_eq!(rich.related_todos[0].line, 4);
+        assert_eq!(rich.related_todos[0].tag, "FIXME");
+        assert_eq!(rich.related_todos[0].message, "second");
+    }
+
+    #[test]
+    fn test_collect_context_map_basic() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.rs");
+        std::fs::write(&file_path, "line1\nline2\nline3\n").unwrap();
+
+        let items = vec![TodoItem {
+            file: "test.rs".to_string(),
+            line: 2,
+            tag: crate::model::Tag::Todo,
+            message: "do something".to_string(),
+            author: None,
+            issue_ref: None,
+            priority: crate::model::Priority::Normal,
+            deadline: None,
+        }];
+
+        let map = collect_context_map(dir.path(), &items, 1);
+        assert_eq!(map.len(), 1);
+        let ctx = map.get("test.rs:2").unwrap();
+        assert_eq!(ctx.before.len(), 1);
+        assert_eq!(ctx.before[0].content, "line1");
+        assert_eq!(ctx.after.len(), 1);
+        assert_eq!(ctx.after[0].content, "line3");
+    }
+
+    #[test]
+    fn test_collect_context_map_multiple_items_same_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.rs");
+        std::fs::write(&file_path, "a\nb\nc\nd\ne\n").unwrap();
+
+        let items = vec![
+            TodoItem {
+                file: "test.rs".to_string(),
+                line: 2,
+                tag: crate::model::Tag::Todo,
+                message: "first".to_string(),
+                author: None,
+                issue_ref: None,
+                priority: crate::model::Priority::Normal,
+                deadline: None,
+            },
+            TodoItem {
+                file: "test.rs".to_string(),
+                line: 4,
+                tag: crate::model::Tag::Fixme,
+                message: "second".to_string(),
+                author: None,
+                issue_ref: None,
+                priority: crate::model::Priority::Normal,
+                deadline: None,
+            },
+        ];
+
+        let map = collect_context_map(dir.path(), &items, 1);
+        assert_eq!(map.len(), 2);
+        assert!(map.contains_key("test.rs:2"));
+        assert!(map.contains_key("test.rs:4"));
+    }
+
+    #[test]
+    fn test_collect_context_map_file_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let items = vec![TodoItem {
+            file: "nonexistent.rs".to_string(),
+            line: 1,
+            tag: crate::model::Tag::Todo,
+            message: "missing".to_string(),
+            author: None,
+            issue_ref: None,
+            priority: crate::model::Priority::Normal,
+            deadline: None,
+        }];
+
+        let map = collect_context_map(dir.path(), &items, 1);
+        // Should still have an entry but with empty context
+        assert_eq!(map.len(), 1);
+        let ctx = map.get("nonexistent.rs:1").unwrap();
+        assert!(ctx.before.is_empty());
+        assert!(ctx.after.is_empty());
+    }
+
+    #[test]
+    fn test_resolve_location_no_match_no_colon() {
+        let items: Vec<TodoItem> = vec![];
+        let result = resolve_location("invalid", &items);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_extract_context_large_n() {
+        let content = "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n";
+        let ctx = extract_context(content, 5, 100);
+        assert_eq!(ctx.before.len(), 4); // lines 1-4
+        assert_eq!(ctx.after.len(), 5); // lines 6-10
+    }
 }

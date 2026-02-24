@@ -540,4 +540,211 @@ mod tests {
         assert!(!result.passed);
         assert_eq!(result.violation_count, 2);
     }
+
+    #[test]
+    fn test_config_require_author_used_when_override_empty() {
+        let scan = ScanResult {
+            items: vec![make_item("a.rs", 1, Tag::Fixme, "missing author")],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let mut config = Config::default();
+        config.lint.no_bare_tags = Some(false);
+        config.lint.uppercase_tag = Some(false);
+        config.lint.require_colon = Some(false);
+        config.lint.require_author = Some(vec!["FIXME".to_string()]);
+        let overrides = default_overrides();
+        let result = run_lint(&scan, &config, &overrides, Path::new("/tmp"));
+        assert!(!result.passed);
+        assert_eq!(result.violations[0].rule, "require_author");
+    }
+
+    #[test]
+    fn test_config_require_issue_ref_used_when_override_empty() {
+        let scan = ScanResult {
+            items: vec![make_item("a.rs", 1, Tag::Todo, "no ref")],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let mut config = Config::default();
+        config.lint.no_bare_tags = Some(false);
+        config.lint.uppercase_tag = Some(false);
+        config.lint.require_colon = Some(false);
+        config.lint.require_issue_ref = Some(vec!["TODO".to_string()]);
+        let overrides = default_overrides();
+        let result = run_lint(&scan, &config, &overrides, Path::new("/tmp"));
+        assert!(!result.passed);
+        assert_eq!(result.violations[0].rule, "require_issue_ref");
+    }
+
+    #[test]
+    fn test_config_max_message_length_from_config() {
+        let scan = ScanResult {
+            items: vec![make_item(
+                "a.rs",
+                1,
+                Tag::Todo,
+                "a fairly long message here",
+            )],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let mut config = Config::default();
+        config.lint.no_bare_tags = Some(false);
+        config.lint.uppercase_tag = Some(false);
+        config.lint.require_colon = Some(false);
+        config.lint.max_message_length = Some(5);
+        let overrides = default_overrides();
+        let result = run_lint(&scan, &config, &overrides, Path::new("/tmp"));
+        assert!(!result.passed);
+        assert_eq!(result.violations[0].rule, "max_message_length");
+    }
+
+    #[test]
+    fn test_max_message_length_at_boundary() {
+        let scan = ScanResult {
+            items: vec![make_item("a.rs", 1, Tag::Todo, "12345")],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let mut config = Config::default();
+        config.lint.no_bare_tags = Some(false);
+        config.lint.uppercase_tag = Some(false);
+        config.lint.require_colon = Some(false);
+        let overrides = LintOverrides {
+            max_message_length: Some(5), // exactly equal
+            ..default_overrides()
+        };
+        let result = run_lint(&scan, &config, &overrides, Path::new("/tmp"));
+        assert!(result.passed); // len == max, not > max
+    }
+
+    #[test]
+    fn test_require_author_case_insensitive_match() {
+        let scan = ScanResult {
+            items: vec![make_item("a.rs", 1, Tag::Todo, "no author")],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let mut config = Config::default();
+        config.lint.no_bare_tags = Some(false);
+        config.lint.uppercase_tag = Some(false);
+        config.lint.require_colon = Some(false);
+        // Use lowercase "todo" in config
+        let overrides = LintOverrides {
+            require_author: vec!["todo".to_string()],
+            ..default_overrides()
+        };
+        let result = run_lint(&scan, &config, &overrides, Path::new("/tmp"));
+        assert!(!result.passed);
+        assert_eq!(result.violations[0].rule, "require_author");
+    }
+
+    #[test]
+    fn test_no_bare_tags_whitespace_only_message() {
+        let scan = ScanResult {
+            items: vec![make_item("a.rs", 1, Tag::Todo, "   ")],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let mut config = Config::default();
+        config.lint.uppercase_tag = Some(false);
+        config.lint.require_colon = Some(false);
+        let overrides = LintOverrides {
+            no_bare_tags: true,
+            ..default_overrides()
+        };
+        let result = run_lint(&scan, &config, &overrides, Path::new("/tmp"));
+        assert!(!result.passed);
+        assert_eq!(result.violations[0].rule, "no_bare_tags");
+    }
+
+    #[test]
+    fn test_violations_sorted_by_file_then_line() {
+        let scan = ScanResult {
+            items: vec![
+                make_item("b.rs", 5, Tag::Todo, ""),
+                make_item("a.rs", 10, Tag::Bug, ""),
+                make_item("a.rs", 2, Tag::Fixme, ""),
+            ],
+            files_scanned: 2,
+            ignored_items: vec![],
+        };
+        let mut config = Config::default();
+        config.lint.uppercase_tag = Some(false);
+        config.lint.require_colon = Some(false);
+        let overrides = LintOverrides {
+            no_bare_tags: true,
+            ..default_overrides()
+        };
+        let result = run_lint(&scan, &config, &overrides, Path::new("/tmp"));
+        assert_eq!(result.violations.len(), 3);
+        // Should be sorted: a.rs:2, a.rs:10, b.rs:5
+        assert_eq!(result.violations[0].file, "a.rs");
+        assert_eq!(result.violations[0].line, 2);
+        assert_eq!(result.violations[1].file, "a.rs");
+        assert_eq!(result.violations[1].line, 10);
+        assert_eq!(result.violations[2].file, "b.rs");
+        assert_eq!(result.violations[2].line, 5);
+    }
+
+    #[test]
+    fn test_empty_scan_passes() {
+        let scan = ScanResult {
+            items: vec![],
+            files_scanned: 0,
+            ignored_items: vec![],
+        };
+        let config = Config::default();
+        let overrides = LintOverrides {
+            no_bare_tags: true,
+            require_author: vec!["TODO".to_string()],
+            require_issue_ref: vec!["BUG".to_string()],
+            max_message_length: Some(10),
+            ..default_overrides()
+        };
+        let result = run_lint(&scan, &config, &overrides, Path::new("/tmp"));
+        assert!(result.passed);
+        assert_eq!(result.violation_count, 0);
+        assert_eq!(result.total_items, 0);
+    }
+
+    #[test]
+    fn test_file_not_found_skips_raw_text_rules() {
+        let scan = ScanResult {
+            items: vec![make_item("nonexistent.rs", 1, Tag::Todo, "msg")],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let mut config = Config::default();
+        config.lint.no_bare_tags = Some(false);
+        let overrides = LintOverrides {
+            uppercase_tag: true,
+            require_colon: true,
+            ..default_overrides()
+        };
+        // File doesn't exist, so raw text checks should be silently skipped
+        let result = run_lint(&scan, &config, &overrides, Path::new("/nonexistent"));
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn test_no_bare_tags_suggestion_text() {
+        let scan = ScanResult {
+            items: vec![make_item("a.rs", 1, Tag::Fixme, "")],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let mut config = Config::default();
+        config.lint.uppercase_tag = Some(false);
+        config.lint.require_colon = Some(false);
+        let overrides = LintOverrides {
+            no_bare_tags: true,
+            ..default_overrides()
+        };
+        let result = run_lint(&scan, &config, &overrides, Path::new("/tmp"));
+        let suggestion = result.violations[0].suggestion.as_ref().unwrap();
+        assert!(suggestion.contains("FIXME"));
+        assert!(suggestion.contains("<description>"));
+    }
 }

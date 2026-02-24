@@ -98,4 +98,82 @@ mod tests {
         assert_eq!(result.match_count, 3);
         assert_eq!(result.file_count, 2);
     }
+
+    #[test]
+    fn test_exact_issue_ref_match() {
+        let scan = make_scan(vec![{
+            let mut item = make_item("a.rs", 1, Tag::Todo, "some task");
+            item.issue_ref = Some("JIRA-456".to_string());
+            item
+        }]);
+        let result = search_items(&scan, "JIRA-456", true);
+        assert_eq!(result.match_count, 1);
+    }
+
+    #[test]
+    fn test_exact_issue_ref_case_mismatch() {
+        let scan = make_scan(vec![{
+            let mut item = make_item("a.rs", 1, Tag::Todo, "some task");
+            item.issue_ref = Some("JIRA-456".to_string());
+            item
+        }]);
+        // exact=true should be case-sensitive
+        let result = search_items(&scan, "jira-456", true);
+        assert_eq!(result.match_count, 0);
+    }
+
+    #[test]
+    fn test_case_insensitive_issue_ref_match() {
+        let scan = make_scan(vec![{
+            let mut item = make_item("a.rs", 1, Tag::Todo, "some task");
+            item.issue_ref = Some("JIRA-456".to_string());
+            item
+        }]);
+        let result = search_items(&scan, "jira-456", false);
+        assert_eq!(result.match_count, 1);
+    }
+
+    #[test]
+    fn test_empty_scan() {
+        let scan = make_scan(vec![]);
+        let result = search_items(&scan, "anything", false);
+        assert_eq!(result.match_count, 0);
+        assert_eq!(result.file_count, 0);
+        assert!(result.items.is_empty());
+    }
+
+    #[test]
+    fn test_query_stored_in_result() {
+        let scan = make_scan(vec![]);
+        let result = search_items(&scan, "my query", false);
+        assert_eq!(result.query, "my query");
+        assert!(!result.exact);
+    }
+
+    #[test]
+    fn test_exact_flag_stored_in_result() {
+        let scan = make_scan(vec![]);
+        let result = search_items(&scan, "my query", true);
+        assert!(result.exact);
+    }
+
+    #[test]
+    fn test_partial_message_match() {
+        let scan = make_scan(vec![make_item(
+            "a.rs",
+            1,
+            Tag::Todo,
+            "implement user authentication",
+        )]);
+        let result = search_items(&scan, "auth", false);
+        assert_eq!(result.match_count, 1);
+    }
+
+    #[test]
+    fn test_no_issue_ref_does_not_match() {
+        let scan = make_scan(vec![make_item("a.rs", 1, Tag::Todo, "some task")]);
+        // issue_ref is None, query is an issue ref
+        let result = search_items(&scan, "#999", false);
+        assert_eq!(result.match_count, 0);
+    }
 }

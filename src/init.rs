@@ -356,4 +356,106 @@ mod tests {
         let tag_arr = parsed["tags"].as_array().unwrap();
         assert_eq!(tag_arr.len(), ALL_TAGS.len());
     }
+
+    // --- cmd_init non-interactive with project-type detection ---
+
+    #[test]
+    fn test_cmd_init_non_interactive_rust_project_includes_target() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), "[package]").unwrap();
+        let result = cmd_init(dir.path(), true);
+        assert!(result.is_ok(), "cmd_init should succeed: {:?}", result);
+        let content = std::fs::read_to_string(dir.path().join(".todo-scan.toml")).unwrap();
+        let parsed: crate::config::Config = toml::from_str(&content).unwrap();
+        assert!(
+            parsed.exclude_dirs.contains(&"target".to_string()),
+            "Rust project should include 'target' in exclude_dirs, got: {:?}",
+            parsed.exclude_dirs
+        );
+    }
+
+    #[test]
+    fn test_cmd_init_non_interactive_node_project_includes_node_modules() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("package.json"), "{}").unwrap();
+        let result = cmd_init(dir.path(), true);
+        assert!(result.is_ok(), "cmd_init should succeed: {:?}", result);
+        let content = std::fs::read_to_string(dir.path().join(".todo-scan.toml")).unwrap();
+        let parsed: crate::config::Config = toml::from_str(&content).unwrap();
+        assert!(
+            parsed.exclude_dirs.contains(&"node_modules".to_string()),
+            "Node.js project should include 'node_modules' in exclude_dirs, got: {:?}",
+            parsed.exclude_dirs
+        );
+    }
+
+    #[test]
+    fn test_cmd_init_non_interactive_go_project_includes_vendor() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("go.mod"), "module example").unwrap();
+        let result = cmd_init(dir.path(), true);
+        assert!(result.is_ok(), "cmd_init should succeed: {:?}", result);
+        let content = std::fs::read_to_string(dir.path().join(".todo-scan.toml")).unwrap();
+        let parsed: crate::config::Config = toml::from_str(&content).unwrap();
+        assert!(
+            parsed.exclude_dirs.contains(&"vendor".to_string()),
+            "Go project should include 'vendor' in exclude_dirs, got: {:?}",
+            parsed.exclude_dirs
+        );
+    }
+
+    // --- collect_suggested_dirs edge cases ---
+
+    #[test]
+    fn test_collect_suggested_dirs_single_hint() {
+        let hints = vec![ProjectHint {
+            name: "Rust",
+            exclude_dirs: vec!["target"],
+        }];
+        let dirs = collect_suggested_dirs(&hints);
+        assert_eq!(dirs, vec!["target"]);
+    }
+
+    #[test]
+    fn test_collect_suggested_dirs_multiple_hints_overlapping() {
+        let hints = vec![
+            ProjectHint {
+                name: "Rust",
+                exclude_dirs: vec!["target"],
+            },
+            ProjectHint {
+                name: "JavaScript/TypeScript",
+                exclude_dirs: vec!["node_modules", "dist", ".next"],
+            },
+            ProjectHint {
+                name: "Go",
+                exclude_dirs: vec!["vendor"],
+            },
+        ];
+        let dirs = collect_suggested_dirs(&hints);
+        assert_eq!(
+            dirs,
+            vec!["target", "node_modules", "dist", ".next", "vendor"]
+        );
+    }
+
+    #[test]
+    fn test_collect_suggested_dirs_full_overlap_deduplicates() {
+        // Both hints share the exact same dir
+        let hints = vec![
+            ProjectHint {
+                name: "A",
+                exclude_dirs: vec!["shared_dir", "only_a"],
+            },
+            ProjectHint {
+                name: "B",
+                exclude_dirs: vec!["shared_dir", "only_b"],
+            },
+        ];
+        let dirs = collect_suggested_dirs(&hints);
+        assert_eq!(dirs, vec!["shared_dir", "only_a", "only_b"]);
+        // Verify no duplicates
+        let unique: std::collections::HashSet<&&str> = dirs.iter().collect();
+        assert_eq!(unique.len(), dirs.len(), "should have no duplicates");
+    }
 }
