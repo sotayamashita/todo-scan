@@ -337,4 +337,145 @@ mod tests {
         );
         assert!(output.contains("title=rule%3Awith%3Acolons"));
     }
+
+    #[test]
+    fn test_format_lint_pass() {
+        let result = LintResult {
+            passed: true,
+            total_items: 5,
+            violation_count: 0,
+            violations: vec![],
+        };
+        let output = format_lint(&result);
+        assert!(output.contains("::notice::todo-scan lint: PASS"));
+        assert!(!output.contains("::error"));
+    }
+
+    #[test]
+    fn test_format_blame_basic() {
+        let result = BlameResult {
+            entries: vec![BlameEntry {
+                item: sample_item(Tag::Todo, "old item"),
+                blame: BlameInfo {
+                    author: "alice".to_string(),
+                    email: "alice@test.com".to_string(),
+                    date: "2024-01-01".to_string(),
+                    age_days: 400,
+                    commit: "abc123".to_string(),
+                },
+                stale: true,
+            }],
+            total: 1,
+            avg_age_days: 400,
+            stale_count: 1,
+            stale_threshold_days: 365,
+        };
+        let output = format_blame(&result);
+        assert!(output.contains("::warning file=src/main.rs,line=10,title=Stale TODO::"));
+        assert!(output.contains("@alice"));
+        assert!(output.contains("400 days ago"));
+        assert!(output.contains("::notice::todo-scan blame: 1 items, 1 stale"));
+    }
+
+    #[test]
+    fn test_format_blame_not_stale() {
+        let result = BlameResult {
+            entries: vec![BlameEntry {
+                item: sample_item(Tag::Fixme, "recent"),
+                blame: BlameInfo {
+                    author: "bob".to_string(),
+                    email: "bob@test.com".to_string(),
+                    date: "2025-01-01".to_string(),
+                    age_days: 10,
+                    commit: "def456".to_string(),
+                },
+                stale: false,
+            }],
+            total: 1,
+            avg_age_days: 10,
+            stale_count: 0,
+            stale_threshold_days: 365,
+        };
+        let output = format_blame(&result);
+        assert!(output.contains("::notice file=src/main.rs,line=10,title=FIXME::"));
+    }
+
+    #[test]
+    fn test_format_clean_pass() {
+        let result = CleanResult {
+            passed: true,
+            total_items: 3,
+            stale_count: 0,
+            duplicate_count: 0,
+            violations: vec![],
+        };
+        let output = format_clean(&result);
+        assert!(output.contains("::notice::todo-scan clean: PASS"));
+    }
+
+    #[test]
+    fn test_format_clean_fail() {
+        let result = CleanResult {
+            passed: false,
+            total_items: 2,
+            stale_count: 1,
+            duplicate_count: 1,
+            violations: vec![CleanViolation {
+                file: "test.rs".to_string(),
+                line: 10,
+                rule: "stale_issue".to_string(),
+                message: "stale issue".to_string(),
+                issue_ref: Some("#42".to_string()),
+                duplicate_of: None,
+            }],
+        };
+        let output = format_clean(&result);
+        assert!(output.contains("::error file=test.rs,line=10,title=stale_issue::stale issue"));
+        assert!(output.contains("::error::todo-scan clean: FAIL (1 stale, 1 duplicates)"));
+    }
+
+    #[test]
+    fn test_format_item_annotation_with_deadline() {
+        use crate::deadline::Deadline;
+        let item = TodoItem {
+            file: "test.rs".to_string(),
+            line: 5,
+            tag: Tag::Todo,
+            message: "task".to_string(),
+            author: None,
+            issue_ref: None,
+            priority: Priority::Normal,
+            deadline: Some(Deadline {
+                year: 2025,
+                month: 6,
+                day: 15,
+            }),
+        };
+        let output = format_item_annotation(&item);
+        assert!(output.contains("(deadline: 2025-06-15)"));
+    }
+
+    #[test]
+    fn test_format_search_with_items() {
+        let result = SearchResult {
+            query: "fix".to_string(),
+            exact: false,
+            items: vec![sample_item(Tag::Fixme, "fix this")],
+            match_count: 1,
+            file_count: 1,
+        };
+        let output = format_search(&result);
+        assert!(output.contains("::error file=src/main.rs,line=10,title=FIXME::[FIXME] fix this"));
+        assert!(output.contains("::notice::todo-scan search: 1 matches"));
+    }
+
+    #[test]
+    fn test_escape_message_carriage_return() {
+        assert_eq!(escape_message("a\rb"), "a%0Db");
+    }
+
+    #[test]
+    fn test_escape_property_commas() {
+        assert_eq!(escape_property("a,b"), "a%2Cb");
+    }
 }
