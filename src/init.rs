@@ -261,4 +261,99 @@ mod tests {
         assert_eq!(parsed.exclude_dirs, vec!["target", "node_modules"]);
         assert_eq!(parsed.check.max, Some(100));
     }
+
+    #[test]
+    fn test_cmd_init_non_interactive_creates_config() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let result = cmd_init(dir.path(), true);
+        assert!(result.is_ok(), "cmd_init should succeed: {:?}", result);
+        let config_path = dir.path().join(".todo-scan.toml");
+        assert!(config_path.exists(), ".todo-scan.toml should be created");
+        let content = std::fs::read_to_string(&config_path).unwrap();
+        // Non-interactive mode includes all tags
+        for tag in ALL_TAGS {
+            assert!(content.contains(tag), "config should contain tag {}", tag);
+        }
+        // Should be parseable
+        let parsed: crate::config::Config = toml::from_str(&content).unwrap();
+        assert_eq!(parsed.tags.len(), ALL_TAGS.len());
+    }
+
+    #[test]
+    fn test_cmd_init_non_interactive_fails_if_exists() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let config_path = dir.path().join(".todo-scan.toml");
+        std::fs::write(&config_path, "tags = [\"TODO\"]").unwrap();
+        let result = cmd_init(dir.path(), true);
+        assert!(result.is_err(), "cmd_init should fail when config exists");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("already exists"),
+            "error should mention 'already exists', got: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn test_detect_python_requirements_txt() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("requirements.txt"), "flask==2.0").unwrap();
+        let hints = detect_projects(dir.path());
+        assert_eq!(hints.len(), 1);
+        assert_eq!(hints[0].name, "Python");
+        assert!(hints[0].exclude_dirs.contains(&".venv"));
+        assert!(hints[0].exclude_dirs.contains(&"__pycache__"));
+        assert!(hints[0].exclude_dirs.contains(&".tox"));
+    }
+
+    #[test]
+    fn test_detect_multiple_project_types() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), "[package]").unwrap();
+        std::fs::write(dir.path().join("package.json"), "{}").unwrap();
+        let hints = detect_projects(dir.path());
+        assert_eq!(hints.len(), 2);
+        let names: Vec<&str> = hints.iter().map(|h| h.name).collect();
+        assert!(names.contains(&"Rust"), "should detect Rust");
+        assert!(
+            names.contains(&"JavaScript/TypeScript"),
+            "should detect JS/TS"
+        );
+    }
+
+    #[test]
+    fn test_collect_suggested_dirs_empty() {
+        let hints: Vec<ProjectHint> = vec![];
+        let dirs = collect_suggested_dirs(&hints);
+        assert!(dirs.is_empty(), "empty hints should produce empty dirs");
+    }
+
+    #[test]
+    fn test_build_config_toml_empty() {
+        let tags: Vec<String> = vec![];
+        let dirs: Vec<String> = vec![];
+        let content = build_config_toml(&tags, &dirs, None);
+        // Should still be valid TOML with empty arrays
+        assert!(content.contains("tags"));
+        assert!(content.contains("exclude_dirs"));
+        assert!(!content.contains("[check]"));
+        let parsed: DocumentMut = content.parse().expect("should be valid TOML");
+        let tag_arr = parsed["tags"].as_array().unwrap();
+        assert_eq!(tag_arr.len(), 0);
+        let dir_arr = parsed["exclude_dirs"].as_array().unwrap();
+        assert_eq!(dir_arr.len(), 0);
+    }
+
+    #[test]
+    fn test_build_config_toml_all_tags() {
+        let tags: Vec<String> = ALL_TAGS.iter().map(|s| s.to_string()).collect();
+        let dirs = vec!["target".to_string(), "node_modules".to_string()];
+        let content = build_config_toml(&tags, &dirs, None);
+        for tag in ALL_TAGS {
+            assert!(content.contains(tag), "config should contain tag {}", tag);
+        }
+        let parsed: DocumentMut = content.parse().expect("should be valid TOML");
+        let tag_arr = parsed["tags"].as_array().unwrap();
+        assert_eq!(tag_arr.len(), ALL_TAGS.len());
+    }
 }

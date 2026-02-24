@@ -502,4 +502,238 @@ mod tests {
             "raw query should not appear unescaped"
         );
     }
+
+    #[test]
+    fn test_format_search_with_items() {
+        let result = SearchResult {
+            query: "fix".to_string(),
+            exact: true,
+            items: vec![TodoItem {
+                file: "lib.rs".to_string(),
+                line: 5,
+                tag: Tag::Fixme,
+                message: "fix this".to_string(),
+                author: Some("bob".to_string()),
+                issue_ref: Some("#42".to_string()),
+                priority: Priority::Urgent,
+                deadline: None,
+            }],
+            match_count: 1,
+            file_count: 1,
+        };
+        let output = format_search(&result);
+        assert!(output.contains("| lib.rs | 5 | FIXME | !! | fix this | bob | #42 |"));
+        assert!(output.contains("**1 matches across 1 files**"));
+    }
+
+    #[test]
+    fn test_format_blame_with_stale_entry() {
+        let result = BlameResult {
+            entries: vec![BlameEntry {
+                item: sample_item(Tag::Todo, "old task"),
+                blame: BlameInfo {
+                    author: "alice".to_string(),
+                    email: "alice@test.com".to_string(),
+                    date: "2023-01-01".to_string(),
+                    age_days: 700,
+                    commit: "abc123".to_string(),
+                },
+                stale: true,
+            }],
+            total: 1,
+            avg_age_days: 700,
+            stale_count: 1,
+            stale_threshold_days: 365,
+        };
+        let output = format_blame(&result);
+        assert!(output
+            .contains("| src/main.rs | 10 | TODO | old task | alice | 2023-01-01 | 700 | Yes |"));
+        assert!(output.contains("**1 items, avg age 700 days, 1 stale**"));
+    }
+
+    #[test]
+    fn test_format_blame_not_stale() {
+        let result = BlameResult {
+            entries: vec![BlameEntry {
+                item: sample_item(Tag::Fixme, "recent fix"),
+                blame: BlameInfo {
+                    author: "bob".to_string(),
+                    email: "bob@test.com".to_string(),
+                    date: "2025-01-01".to_string(),
+                    age_days: 10,
+                    commit: "def456".to_string(),
+                },
+                stale: false,
+            }],
+            total: 1,
+            avg_age_days: 10,
+            stale_count: 0,
+            stale_threshold_days: 365,
+        };
+        let output = format_blame(&result);
+        assert!(
+            output.contains("|  |"),
+            "non-stale entry should have empty stale column"
+        );
+    }
+
+    #[test]
+    fn test_format_lint_pass() {
+        let result = LintResult {
+            passed: true,
+            total_items: 5,
+            violation_count: 0,
+            violations: vec![],
+        };
+        let output = format_lint(&result);
+        assert!(output.contains("## PASS"));
+        assert!(output.contains("All lint checks passed (5 items total)."));
+    }
+
+    #[test]
+    fn test_format_lint_fail_with_suggestion() {
+        let result = LintResult {
+            passed: false,
+            total_items: 1,
+            violation_count: 1,
+            violations: vec![LintViolation {
+                file: "test.rs".to_string(),
+                line: 5,
+                rule: "no_bare_tags".to_string(),
+                message: "bare tag found".to_string(),
+                suggestion: Some("add a description".to_string()),
+            }],
+        };
+        let output = format_lint(&result);
+        assert!(output.contains("## FAIL"));
+        assert!(
+            output.contains("| test.rs | 5 | no_bare_tags | bare tag found | add a description |")
+        );
+        assert!(output.contains("**1 violations in 1 items**"));
+    }
+
+    #[test]
+    fn test_format_lint_fail_without_suggestion() {
+        let result = LintResult {
+            passed: false,
+            total_items: 1,
+            violation_count: 1,
+            violations: vec![LintViolation {
+                file: "test.rs".to_string(),
+                line: 5,
+                rule: "uppercase_tag".to_string(),
+                message: "tag not uppercase".to_string(),
+                suggestion: None,
+            }],
+        };
+        let output = format_lint(&result);
+        assert!(output.contains("| test.rs | 5 | uppercase_tag | tag not uppercase |  |"));
+    }
+
+    #[test]
+    fn test_format_clean_pass() {
+        let result = CleanResult {
+            passed: true,
+            total_items: 3,
+            stale_count: 0,
+            duplicate_count: 0,
+            violations: vec![],
+        };
+        let output = format_clean(&result);
+        assert!(output.contains("## PASS"));
+        assert!(output.contains("All clean checks passed (3 items total)."));
+    }
+
+    #[test]
+    fn test_format_clean_fail_with_duplicate() {
+        let result = CleanResult {
+            passed: false,
+            total_items: 2,
+            stale_count: 0,
+            duplicate_count: 1,
+            violations: vec![CleanViolation {
+                file: "test.rs".to_string(),
+                line: 10,
+                rule: "duplicate".to_string(),
+                message: "dup TODO".to_string(),
+                issue_ref: None,
+                duplicate_of: Some("test.rs:5".to_string()),
+            }],
+        };
+        let output = format_clean(&result);
+        assert!(output.contains("## FAIL"));
+        assert!(output.contains("duplicate of test.rs:5"));
+    }
+
+    #[test]
+    fn test_format_clean_fail_with_issue_ref() {
+        let result = CleanResult {
+            passed: false,
+            total_items: 1,
+            stale_count: 1,
+            duplicate_count: 0,
+            violations: vec![CleanViolation {
+                file: "test.rs".to_string(),
+                line: 10,
+                rule: "stale".to_string(),
+                message: "stale issue".to_string(),
+                issue_ref: Some("#42".to_string()),
+                duplicate_of: None,
+            }],
+        };
+        let output = format_clean(&result);
+        assert!(output.contains("#42"));
+    }
+
+    #[test]
+    fn test_format_clean_fail_no_detail() {
+        let result = CleanResult {
+            passed: false,
+            total_items: 1,
+            stale_count: 0,
+            duplicate_count: 0,
+            violations: vec![CleanViolation {
+                file: "test.rs".to_string(),
+                line: 10,
+                rule: "some_rule".to_string(),
+                message: "violation".to_string(),
+                issue_ref: None,
+                duplicate_of: None,
+            }],
+        };
+        let output = format_clean(&result);
+        assert!(output.contains("| test.rs | 10 | some_rule | violation |  |"));
+    }
+
+    #[test]
+    fn test_priority_str_values() {
+        assert_eq!(priority_str(&Priority::Normal), "");
+        assert_eq!(priority_str(&Priority::High), "!");
+        assert_eq!(priority_str(&Priority::Urgent), "!!");
+    }
+
+    #[test]
+    fn test_format_list_with_deadline() {
+        use crate::deadline::Deadline;
+        let result = ScanResult {
+            items: vec![TodoItem {
+                file: "test.rs".to_string(),
+                line: 1,
+                tag: Tag::Todo,
+                message: "task".to_string(),
+                author: None,
+                issue_ref: None,
+                priority: Priority::Normal,
+                deadline: Some(Deadline {
+                    year: 2025,
+                    month: 6,
+                    day: 15,
+                }),
+            }],
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+        let output = format_list(&result);
+        assert!(output.contains("2025-06-15"));
+    }
 }

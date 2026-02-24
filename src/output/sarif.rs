@@ -512,4 +512,311 @@ mod tests {
         assert_eq!(results[0]["ruleId"], "todo-scan/check/max");
         assert_eq!(results[0]["level"], "error");
     }
+
+    #[test]
+    fn test_format_search_sarif() {
+        let result = SearchResult {
+            query: "fix".to_string(),
+            exact: false,
+            items: vec![sample_item(Tag::Fixme, "fix this")],
+            match_count: 1,
+            file_count: 1,
+        };
+        let output = format_search(&result);
+        let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let results = sarif["runs"][0]["results"].as_array().unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["ruleId"], "todo-scan/FIXME");
+        assert_eq!(results[0]["level"], "error");
+    }
+
+    #[test]
+    fn test_format_blame_sarif() {
+        let result = BlameResult {
+            entries: vec![BlameEntry {
+                item: sample_item(Tag::Todo, "old item"),
+                blame: BlameInfo {
+                    author: "alice".to_string(),
+                    email: "alice@test.com".to_string(),
+                    date: "2024-01-01".to_string(),
+                    age_days: 400,
+                    commit: "abc123".to_string(),
+                },
+                stale: true,
+            }],
+            total: 1,
+            avg_age_days: 400,
+            stale_count: 1,
+            stale_threshold_days: 365,
+        };
+        let output = format_blame(&result);
+        let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let results = sarif["runs"][0]["results"].as_array().unwrap();
+        assert_eq!(results.len(), 1);
+        let props = &results[0]["properties"]["blame"];
+        assert_eq!(props["author"], "alice");
+        assert_eq!(props["stale"], true);
+        assert_eq!(props["ageDays"], 400);
+    }
+
+    #[test]
+    fn test_format_lint_sarif_pass() {
+        let result = LintResult {
+            passed: true,
+            total_items: 5,
+            violation_count: 0,
+            violations: vec![],
+        };
+        let output = format_lint(&result);
+        let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let results = sarif["runs"][0]["results"].as_array().unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["level"], "note");
+        assert_eq!(results[0]["ruleId"], "todo-scan/lint/summary");
+    }
+
+    #[test]
+    fn test_format_lint_sarif_fail_with_suggestion() {
+        let result = LintResult {
+            passed: false,
+            total_items: 1,
+            violation_count: 1,
+            violations: vec![LintViolation {
+                file: "test.rs".to_string(),
+                line: 5,
+                rule: "no_bare_tags".to_string(),
+                message: "bare tag".to_string(),
+                suggestion: Some("add a message".to_string()),
+            }],
+        };
+        let output = format_lint(&result);
+        let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let results = sarif["runs"][0]["results"].as_array().unwrap();
+        assert_eq!(results[0]["ruleId"], "todo-scan/lint/no_bare_tags");
+        assert!(results[0]["fixes"].is_array());
+        assert_eq!(
+            results[0]["fixes"][0]["description"]["text"],
+            "add a message"
+        );
+    }
+
+    #[test]
+    fn test_format_lint_sarif_fail_without_suggestion() {
+        let result = LintResult {
+            passed: false,
+            total_items: 1,
+            violation_count: 1,
+            violations: vec![LintViolation {
+                file: "test.rs".to_string(),
+                line: 5,
+                rule: "uppercase_tag".to_string(),
+                message: "tag not uppercase".to_string(),
+                suggestion: None,
+            }],
+        };
+        let output = format_lint(&result);
+        let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let results = sarif["runs"][0]["results"].as_array().unwrap();
+        assert!(results[0].get("fixes").is_none());
+    }
+
+    #[test]
+    fn test_format_clean_sarif_pass() {
+        let result = CleanResult {
+            passed: true,
+            total_items: 3,
+            stale_count: 0,
+            duplicate_count: 0,
+            violations: vec![],
+        };
+        let output = format_clean(&result);
+        let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let results = sarif["runs"][0]["results"].as_array().unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["ruleId"], "todo-scan/clean/summary");
+        assert_eq!(results[0]["level"], "note");
+    }
+
+    #[test]
+    fn test_format_clean_sarif_fail_with_duplicate() {
+        let result = CleanResult {
+            passed: false,
+            total_items: 2,
+            stale_count: 0,
+            duplicate_count: 1,
+            violations: vec![CleanViolation {
+                file: "test.rs".to_string(),
+                line: 10,
+                rule: "duplicate".to_string(),
+                message: "duplicate TODO".to_string(),
+                issue_ref: None,
+                duplicate_of: Some("test.rs:5".to_string()),
+            }],
+        };
+        let output = format_clean(&result);
+        let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let results = sarif["runs"][0]["results"].as_array().unwrap();
+        assert_eq!(results[0]["properties"]["duplicateOf"], "test.rs:5");
+    }
+
+    #[test]
+    fn test_format_clean_sarif_fail_with_issue_ref() {
+        let result = CleanResult {
+            passed: false,
+            total_items: 1,
+            stale_count: 1,
+            duplicate_count: 0,
+            violations: vec![CleanViolation {
+                file: "test.rs".to_string(),
+                line: 10,
+                rule: "stale_issue".to_string(),
+                message: "stale issue".to_string(),
+                issue_ref: Some("#42".to_string()),
+                duplicate_of: None,
+            }],
+        };
+        let output = format_clean(&result);
+        let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let results = sarif["runs"][0]["results"].as_array().unwrap();
+        assert_eq!(results[0]["properties"]["issueRef"], "#42");
+    }
+
+    #[test]
+    fn test_format_clean_sarif_fail_no_properties() {
+        let result = CleanResult {
+            passed: false,
+            total_items: 1,
+            stale_count: 0,
+            duplicate_count: 0,
+            violations: vec![CleanViolation {
+                file: "test.rs".to_string(),
+                line: 10,
+                rule: "some_rule".to_string(),
+                message: "violation".to_string(),
+                issue_ref: None,
+                duplicate_of: None,
+            }],
+        };
+        let output = format_clean(&result);
+        let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let results = sarif["runs"][0]["results"].as_array().unwrap();
+        // No properties should be added when both issue_ref and duplicate_of are None
+        assert!(results[0].get("properties").is_none());
+    }
+
+    #[test]
+    fn test_format_diff_sarif_removed() {
+        let result = DiffResult {
+            entries: vec![DiffEntry {
+                status: DiffStatus::Removed,
+                item: sample_item(Tag::Todo, "removed task"),
+            }],
+            added_count: 0,
+            removed_count: 1,
+            base_ref: "main".to_string(),
+        };
+        let output = format_diff(&result);
+        let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let results = sarif["runs"][0]["results"].as_array().unwrap();
+        assert_eq!(results[0]["properties"]["diffStatus"], "removed");
+    }
+
+    #[test]
+    fn test_item_to_result_with_deadline() {
+        use crate::deadline::Deadline;
+        let item = TodoItem {
+            file: "test.rs".to_string(),
+            line: 1,
+            tag: Tag::Todo,
+            message: "task".to_string(),
+            author: None,
+            issue_ref: None,
+            priority: Priority::Normal,
+            deadline: Some(Deadline {
+                year: 2025,
+                month: 6,
+                day: 1,
+            }),
+        };
+        let result = item_to_result(&item);
+        assert!(result["properties"]["deadline"].as_str().is_some());
+    }
+
+    #[test]
+    fn test_format_list_sarif_empty() {
+        let result = ScanResult {
+            items: vec![],
+            files_scanned: 0,
+            ignored_items: vec![],
+        };
+        let output = format_list(&result);
+        let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let results = sarif["runs"][0]["results"].as_array().unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_format_lint_sarif_deduplicates_rules() {
+        let result = LintResult {
+            passed: false,
+            total_items: 2,
+            violation_count: 2,
+            violations: vec![
+                LintViolation {
+                    file: "a.rs".to_string(),
+                    line: 1,
+                    rule: "no_bare_tags".to_string(),
+                    message: "first".to_string(),
+                    suggestion: None,
+                },
+                LintViolation {
+                    file: "b.rs".to_string(),
+                    line: 2,
+                    rule: "no_bare_tags".to_string(),
+                    message: "second".to_string(),
+                    suggestion: None,
+                },
+            ],
+        };
+        let output = format_lint(&result);
+        let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let rules = sarif["runs"][0]["tool"]["driver"]["rules"]
+            .as_array()
+            .unwrap();
+        assert_eq!(rules.len(), 1);
+    }
+
+    #[test]
+    fn test_format_clean_sarif_deduplicates_rules() {
+        let result = CleanResult {
+            passed: false,
+            total_items: 2,
+            stale_count: 2,
+            duplicate_count: 0,
+            violations: vec![
+                CleanViolation {
+                    file: "a.rs".to_string(),
+                    line: 1,
+                    rule: "stale".to_string(),
+                    message: "first".to_string(),
+                    issue_ref: None,
+                    duplicate_of: None,
+                },
+                CleanViolation {
+                    file: "b.rs".to_string(),
+                    line: 2,
+                    rule: "stale".to_string(),
+                    message: "second".to_string(),
+                    issue_ref: None,
+                    duplicate_of: None,
+                },
+            ],
+        };
+        let output = format_clean(&result);
+        let sarif: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let rules = sarif["runs"][0]["tool"]["driver"]["rules"]
+            .as_array()
+            .unwrap();
+        assert_eq!(rules.len(), 1);
+    }
 }

@@ -346,4 +346,486 @@ mod tests {
             assert_eq!(bucket.count, 1);
         }
     }
+
+    // ── Helper to reduce boilerplate ──────────────────────────────────
+    fn make_blame_entry(age_days: u64) -> BlameEntry {
+        BlameEntry {
+            item: TodoItem {
+                file: "test.rs".to_string(),
+                line: 1,
+                tag: Tag::Todo,
+                message: "test".to_string(),
+                author: None,
+                issue_ref: None,
+                priority: Priority::Normal,
+                deadline: None,
+            },
+            blame: BlameInfo {
+                author: "tester".to_string(),
+                email: "tester@test.com".to_string(),
+                date: "2024-01-01".to_string(),
+                age_days,
+                commit: "abc12345".to_string(),
+            },
+            stale: false,
+        }
+    }
+
+    // ── default_age_histogram tests ───────────────────────────────────
+    #[test]
+    fn test_default_age_histogram_returns_six_buckets() {
+        let histogram = default_age_histogram();
+        assert_eq!(histogram.len(), 6);
+    }
+
+    #[test]
+    fn test_default_age_histogram_all_zero() {
+        let histogram = default_age_histogram();
+        for bucket in &histogram {
+            assert_eq!(bucket.count, 0, "bucket '{}' should be 0", bucket.label);
+        }
+    }
+
+    #[test]
+    fn test_default_age_histogram_labels() {
+        let histogram = default_age_histogram();
+        let expected_labels = [
+            "<1 week",
+            "1-4 weeks",
+            "1-3 months",
+            "3-6 months",
+            "6-12 months",
+            ">1 year",
+        ];
+        for (bucket, expected) in histogram.iter().zip(expected_labels.iter()) {
+            assert_eq!(bucket.label, *expected);
+        }
+    }
+
+    // ── build_age_histogram boundary value tests ──────────────────────
+    #[test]
+    fn test_build_age_histogram_boundary_day_6_is_first_bucket() {
+        // 6 days should be in "<1 week" (index 0)
+        let blame = BlameResult {
+            entries: vec![make_blame_entry(6)],
+            total: 1,
+            avg_age_days: 6,
+            stale_count: 0,
+            stale_threshold_days: 365,
+        };
+        let histogram = build_age_histogram(&blame);
+        assert_eq!(histogram[0].count, 1, "6 days should be in <1 week bucket");
+        assert_eq!(histogram[1].count, 0);
+    }
+
+    #[test]
+    fn test_build_age_histogram_boundary_exactly_7_days() {
+        // Exactly 7 days should be in "1-4 weeks" (index 1), since condition is days < 7
+        let blame = BlameResult {
+            entries: vec![make_blame_entry(7)],
+            total: 1,
+            avg_age_days: 7,
+            stale_count: 0,
+            stale_threshold_days: 365,
+        };
+        let histogram = build_age_histogram(&blame);
+        assert_eq!(histogram[0].count, 0, "7 days should NOT be in <1 week");
+        assert_eq!(histogram[1].count, 1, "7 days should be in 1-4 weeks");
+    }
+
+    #[test]
+    fn test_build_age_histogram_boundary_exactly_28_days() {
+        // Exactly 28 days: condition is days < 28 for bucket 1, so 28 goes to bucket 2
+        let blame = BlameResult {
+            entries: vec![make_blame_entry(28)],
+            total: 1,
+            avg_age_days: 28,
+            stale_count: 0,
+            stale_threshold_days: 365,
+        };
+        let histogram = build_age_histogram(&blame);
+        assert_eq!(histogram[1].count, 0, "28 days should NOT be in 1-4 weeks");
+        assert_eq!(histogram[2].count, 1, "28 days should be in 1-3 months");
+    }
+
+    #[test]
+    fn test_build_age_histogram_boundary_day_27_in_second_bucket() {
+        let blame = BlameResult {
+            entries: vec![make_blame_entry(27)],
+            total: 1,
+            avg_age_days: 27,
+            stale_count: 0,
+            stale_threshold_days: 365,
+        };
+        let histogram = build_age_histogram(&blame);
+        assert_eq!(histogram[1].count, 1, "27 days should be in 1-4 weeks");
+    }
+
+    #[test]
+    fn test_build_age_histogram_boundary_exactly_90_days() {
+        // 90 days: condition is days < 90 for bucket 2, so 90 goes to bucket 3
+        let blame = BlameResult {
+            entries: vec![make_blame_entry(90)],
+            total: 1,
+            avg_age_days: 90,
+            stale_count: 0,
+            stale_threshold_days: 365,
+        };
+        let histogram = build_age_histogram(&blame);
+        assert_eq!(histogram[2].count, 0, "90 days should NOT be in 1-3 months");
+        assert_eq!(histogram[3].count, 1, "90 days should be in 3-6 months");
+    }
+
+    #[test]
+    fn test_build_age_histogram_boundary_day_89_in_third_bucket() {
+        let blame = BlameResult {
+            entries: vec![make_blame_entry(89)],
+            total: 1,
+            avg_age_days: 89,
+            stale_count: 0,
+            stale_threshold_days: 365,
+        };
+        let histogram = build_age_histogram(&blame);
+        assert_eq!(histogram[2].count, 1, "89 days should be in 1-3 months");
+    }
+
+    #[test]
+    fn test_build_age_histogram_boundary_exactly_180_days() {
+        // 180 days: condition is days < 180 for bucket 3, so 180 goes to bucket 4
+        let blame = BlameResult {
+            entries: vec![make_blame_entry(180)],
+            total: 1,
+            avg_age_days: 180,
+            stale_count: 0,
+            stale_threshold_days: 365,
+        };
+        let histogram = build_age_histogram(&blame);
+        assert_eq!(
+            histogram[3].count, 0,
+            "180 days should NOT be in 3-6 months"
+        );
+        assert_eq!(histogram[4].count, 1, "180 days should be in 6-12 months");
+    }
+
+    #[test]
+    fn test_build_age_histogram_boundary_day_179_in_fourth_bucket() {
+        let blame = BlameResult {
+            entries: vec![make_blame_entry(179)],
+            total: 1,
+            avg_age_days: 179,
+            stale_count: 0,
+            stale_threshold_days: 365,
+        };
+        let histogram = build_age_histogram(&blame);
+        assert_eq!(histogram[3].count, 1, "179 days should be in 3-6 months");
+    }
+
+    #[test]
+    fn test_build_age_histogram_boundary_exactly_365_days() {
+        // 365 days: condition is days < 365 for bucket 4, so 365 goes to bucket 5
+        let blame = BlameResult {
+            entries: vec![make_blame_entry(365)],
+            total: 1,
+            avg_age_days: 365,
+            stale_count: 1,
+            stale_threshold_days: 365,
+        };
+        let histogram = build_age_histogram(&blame);
+        assert_eq!(
+            histogram[4].count, 0,
+            "365 days should NOT be in 6-12 months"
+        );
+        assert_eq!(histogram[5].count, 1, "365 days should be in >1 year");
+    }
+
+    #[test]
+    fn test_build_age_histogram_boundary_day_364_in_fifth_bucket() {
+        let blame = BlameResult {
+            entries: vec![make_blame_entry(364)],
+            total: 1,
+            avg_age_days: 364,
+            stale_count: 0,
+            stale_threshold_days: 365,
+        };
+        let histogram = build_age_histogram(&blame);
+        assert_eq!(histogram[4].count, 1, "364 days should be in 6-12 months");
+    }
+
+    #[test]
+    fn test_build_age_histogram_day_zero() {
+        let blame = BlameResult {
+            entries: vec![make_blame_entry(0)],
+            total: 1,
+            avg_age_days: 0,
+            stale_count: 0,
+            stale_threshold_days: 365,
+        };
+        let histogram = build_age_histogram(&blame);
+        assert_eq!(histogram[0].count, 1, "0 days should be in <1 week");
+    }
+
+    #[test]
+    fn test_build_age_histogram_very_old_item() {
+        let blame = BlameResult {
+            entries: vec![make_blame_entry(3650)],
+            total: 1,
+            avg_age_days: 3650,
+            stale_count: 1,
+            stale_threshold_days: 365,
+        };
+        let histogram = build_age_histogram(&blame);
+        assert_eq!(histogram[5].count, 1, "3650 days should be in >1 year");
+        for bucket in &histogram[..5] {
+            assert_eq!(bucket.count, 0);
+        }
+    }
+
+    #[test]
+    fn test_build_age_histogram_multiple_in_same_bucket() {
+        let entries = vec![
+            make_blame_entry(1),
+            make_blame_entry(2),
+            make_blame_entry(5),
+        ];
+        let blame = BlameResult {
+            entries,
+            total: 3,
+            avg_age_days: 2,
+            stale_count: 0,
+            stale_threshold_days: 365,
+        };
+        let histogram = build_age_histogram(&blame);
+        assert_eq!(histogram[0].count, 3, "all 3 should be in <1 week");
+        for bucket in &histogram[1..] {
+            assert_eq!(bucket.count, 0);
+        }
+    }
+
+    // ── select_sample_indices edge case tests ─────────────────────────
+    #[test]
+    fn test_select_sample_indices_total_one_sample_one() {
+        let indices = select_sample_indices(1, 1);
+        assert_eq!(indices, vec![0]);
+    }
+
+    #[test]
+    fn test_select_sample_indices_total_two_sample_one() {
+        let indices = select_sample_indices(2, 1);
+        assert_eq!(indices, vec![0]);
+    }
+
+    #[test]
+    fn test_select_sample_indices_total_two_sample_two() {
+        let indices = select_sample_indices(2, 2);
+        assert_eq!(indices, vec![0, 1]);
+    }
+
+    #[test]
+    fn test_select_sample_indices_large_values() {
+        let indices = select_sample_indices(1000, 5);
+        assert_eq!(indices.len(), 5);
+        // First should be 0, last should be 999
+        assert_eq!(indices[0], 0);
+        assert_eq!(indices[4], 999);
+        // All indices must be within range
+        for &idx in &indices {
+            assert!(idx < 1000);
+        }
+        // Indices should be sorted (ascending)
+        for window in indices.windows(2) {
+            assert!(
+                window[0] < window[1],
+                "indices should be strictly increasing"
+            );
+        }
+    }
+
+    #[test]
+    fn test_select_sample_indices_large_sample_exceeds_total() {
+        let indices = select_sample_indices(3, 100);
+        assert_eq!(indices, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_select_sample_indices_both_zero() {
+        assert!(select_sample_indices(0, 0).is_empty());
+    }
+
+    #[test]
+    fn test_select_sample_indices_total_one_sample_zero() {
+        assert!(select_sample_indices(1, 0).is_empty());
+    }
+
+    #[test]
+    fn test_select_sample_indices_total_zero_sample_zero() {
+        assert!(select_sample_indices(0, 0).is_empty());
+    }
+
+    #[test]
+    fn test_select_sample_indices_two_from_ten() {
+        let indices = select_sample_indices(10, 2);
+        assert_eq!(indices, vec![0, 9]);
+    }
+
+    #[test]
+    fn test_select_sample_indices_four_from_ten() {
+        let indices = select_sample_indices(10, 4);
+        assert_eq!(indices.len(), 4);
+        assert_eq!(indices[0], 0);
+        assert_eq!(indices[3], 9);
+        // Evenly spaced: step = 9/3 = 3.0 → 0, 3, 6, 9
+        assert_eq!(indices, vec![0, 3, 6, 9]);
+    }
+
+    // ── compute_report fallback path tests ────────────────────────────
+    #[test]
+    fn test_compute_report_empty_scan_no_history() {
+        // Use a temp dir (not a git repo) so blame fails and exercises the
+        // Err(_) => (default_age_histogram(), 0, 0) fallback on line 36.
+        let tmp = tempfile::tempdir().unwrap();
+        let config = Config::default();
+        let scan = ScanResult {
+            items: vec![],
+            files_scanned: 0,
+            ignored_items: vec![],
+        };
+
+        let result = compute_report(&scan, tmp.path(), &config, 0, 365).unwrap();
+
+        // Summary should be all zeros
+        assert_eq!(result.summary.total_items, 0);
+        assert_eq!(result.summary.total_files, 0);
+        assert_eq!(result.summary.files_scanned, 0);
+        assert_eq!(result.summary.urgent_count, 0);
+        assert_eq!(result.summary.high_count, 0);
+        assert_eq!(result.summary.stale_count, 0);
+        assert_eq!(result.summary.avg_age_days, 0);
+
+        // History should be empty (history_count=0 bypasses it)
+        assert!(result.history.is_empty());
+
+        // Age histogram should be the default (6 buckets, all 0)
+        assert_eq!(result.age_histogram.len(), 6);
+        for bucket in &result.age_histogram {
+            assert_eq!(bucket.count, 0);
+        }
+
+        // Items should be empty
+        assert!(result.items.is_empty());
+
+        // generated_at should be non-empty ISO 8601 string
+        assert!(!result.generated_at.is_empty());
+    }
+
+    #[test]
+    fn test_compute_report_with_items_blame_fails() {
+        // Non-git dir with items: blame fails, fallback values used
+        let tmp = tempfile::tempdir().unwrap();
+        let config = Config::default();
+        let scan = ScanResult {
+            items: vec![
+                TodoItem {
+                    file: "foo.rs".to_string(),
+                    line: 10,
+                    tag: Tag::Todo,
+                    message: "implement this".to_string(),
+                    author: Some("alice".to_string()),
+                    issue_ref: None,
+                    priority: Priority::Normal,
+                    deadline: None,
+                },
+                TodoItem {
+                    file: "bar.rs".to_string(),
+                    line: 20,
+                    tag: Tag::Fixme,
+                    message: "urgent fix".to_string(),
+                    author: None,
+                    issue_ref: Some("#123".to_string()),
+                    priority: Priority::Urgent,
+                    deadline: None,
+                },
+                TodoItem {
+                    file: "foo.rs".to_string(),
+                    line: 30,
+                    tag: Tag::Hack,
+                    message: "workaround".to_string(),
+                    author: None,
+                    issue_ref: None,
+                    priority: Priority::High,
+                    deadline: None,
+                },
+            ],
+            files_scanned: 5,
+            ignored_items: vec![],
+        };
+
+        let result = compute_report(&scan, tmp.path(), &config, 0, 365).unwrap();
+
+        // Stats should reflect the items
+        assert_eq!(result.summary.total_items, 3);
+        assert_eq!(result.summary.total_files, 2);
+        assert_eq!(result.summary.files_scanned, 5);
+        assert_eq!(result.summary.urgent_count, 1);
+        assert_eq!(result.summary.high_count, 1);
+
+        // Blame-derived values should be fallback zeros
+        assert_eq!(result.summary.stale_count, 0);
+        assert_eq!(result.summary.avg_age_days, 0);
+
+        // Age histogram should be default (all zeros)
+        assert_eq!(result.age_histogram.len(), 6);
+        for bucket in &result.age_histogram {
+            assert_eq!(bucket.count, 0);
+        }
+
+        // Items should be passed through
+        assert_eq!(result.items.len(), 3);
+
+        // Tag counts should be present
+        assert!(!result.tag_counts.is_empty());
+
+        // History is empty since history_count=0
+        assert!(result.history.is_empty());
+    }
+
+    #[test]
+    fn test_compute_report_history_count_positive_non_git() {
+        // With history_count > 0 in a non-git dir, compute_history should
+        // return an error that gets unwrap_or_default'd to empty vec.
+        let tmp = tempfile::tempdir().unwrap();
+        let config = Config::default();
+        let scan = ScanResult {
+            items: vec![],
+            files_scanned: 0,
+            ignored_items: vec![],
+        };
+
+        let result = compute_report(&scan, tmp.path(), &config, 5, 365).unwrap();
+
+        // History should be empty because git commands fail in non-git dir
+        assert!(result.history.is_empty());
+    }
+
+    #[test]
+    fn test_compute_history_non_git_returns_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = Config::default();
+        let result = compute_history(tmp.path(), &config, 5);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_compute_history_empty_repo_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+
+        let config = Config::default();
+        let result = compute_history(dir.path(), &config, 5);
+        // Either an error or empty vec (no commits)
+        assert!(result.is_err() || result.unwrap().is_empty());
+    }
 }

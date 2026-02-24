@@ -480,4 +480,295 @@ mod tests {
         assert_eq!(event.added.len(), 2);
         assert!(event.removed.is_empty());
     }
+
+    #[test]
+    fn test_collect_changed_files_skips_non_any_kind() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("test.rs");
+
+        let events = vec![
+            notify_debouncer_mini::DebouncedEvent {
+                path: path.clone(),
+                kind: DebouncedEventKind::AnyContinuous,
+            },
+            notify_debouncer_mini::DebouncedEvent {
+                path: dir.path().join("other.rs"),
+                kind: DebouncedEventKind::AnyContinuous,
+            },
+        ];
+
+        let files = collect_changed_files(&events, dir.path());
+        assert!(files.is_empty(), "AnyContinuous events should be skipped");
+    }
+
+    #[test]
+    fn test_collect_changed_files_skips_unstrippable_prefix() {
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+
+        // Create an event with a path from dir_b but use dir_a as root,
+        // so strip_prefix will fail.
+        let events = vec![notify_debouncer_mini::DebouncedEvent {
+            path: dir_b.path().join("foreign.rs"),
+            kind: DebouncedEventKind::Any,
+        }];
+
+        let files = collect_changed_files(&events, dir_a.path());
+        assert!(
+            files.is_empty(),
+            "Paths that can't be stripped should be skipped"
+        );
+    }
+
+    #[test]
+    fn test_build_watch_event_negative_delta() {
+        let (dir, mut index) =
+            setup_index(&[("a.rs", "// TODO: one\n// TODO: two\n// TODO: three\n")]);
+
+        let previous_total = index.total_count();
+        assert_eq!(previous_total, 3);
+
+        // Remove two TODOs
+        fs::write(dir.path().join("a.rs"), "// TODO: one\n").unwrap();
+
+        let update = index.update_file("a.rs").unwrap();
+        let event = build_watch_event("a.rs", &update, &index, previous_total);
+
+        assert_eq!(event.total, 1);
+        assert_eq!(event.total_delta, -2);
+        assert!(event.added.is_empty());
+        assert_eq!(event.removed.len(), 2);
+    }
+
+    #[test]
+    fn test_build_watch_event_zero_delta() {
+        let (_dir, mut index) = setup_index(&[("a.rs", "// TODO: one\n")]);
+
+        let previous_total = index.total_count();
+        assert_eq!(previous_total, 1);
+
+        // No file changes, simulate an unchanged update
+        let update = index.update_file("a.rs").unwrap();
+        let event = build_watch_event("a.rs", &update, &index, previous_total);
+
+        assert_eq!(event.total, 1);
+        assert_eq!(event.total_delta, 0);
+        assert!(event.added.is_empty());
+        assert!(event.removed.is_empty());
+    }
+
+    #[test]
+    fn test_update_file_no_todos_removes_entry() {
+        let (dir, mut index) = setup_index(&[("a.rs", "// TODO: something\n")]);
+        assert_eq!(index.total_count(), 1);
+        assert!(index.items.contains_key("a.rs"));
+
+        // Overwrite file with no TODOs
+        fs::write(dir.path().join("a.rs"), "fn main() {}\n").unwrap();
+
+        let update = index.update_file("a.rs").unwrap();
+        assert_eq!(update.removed.len(), 1);
+        assert!(update.added.is_empty());
+        assert_eq!(index.total_count(), 0);
+        // The items map should NOT contain an empty entry for "a.rs"
+        assert!(
+            !index.items.contains_key("a.rs"),
+            "Empty file entry should not remain in items map"
+        );
+    }
+
+    #[test]
+    fn test_should_exclude_nested_dir() {
+        let config = Config {
+            exclude_dirs: vec!["node_modules".to_string()],
+            ..Config::default()
+        };
+        let dir = TempDir::new().unwrap();
+        let index = TodoIndex::new(dir.path(), &config).unwrap();
+
+        // node_modules as a nested component should be excluded
+        assert!(index.should_exclude("foo/node_modules/bar.js"));
+        assert!(index.should_exclude("deep/nested/node_modules/package/index.js"));
+        // A file that merely contains "node_modules" in its name should NOT be excluded
+        assert!(!index.should_exclude("src/not_node_modules_related.js"));
+    }
+
+    #[test]
+    fn test_should_exclude_invalid_regex_skipped() {
+        let config = Config {
+            exclude_patterns: vec![
+                r"\.min\.js$".to_string(),  // valid
+                r"[invalid".to_string(),    // invalid regex (unclosed bracket)
+                r"\.test\.js$".to_string(), // valid
+            ],
+            ..Config::default()
+        };
+        let dir = TempDir::new().unwrap();
+        let index = TodoIndex::new(dir.path(), &config).unwrap();
+
+        // Only the two valid regexes should be compiled
+        assert_eq!(
+            index.exclude_regexes.len(),
+            2,
+            "Invalid regex should be silently skipped"
+        );
+        assert!(index.should_exclude("bundle.min.js"));
+        assert!(index.should_exclude("app.test.js"));
+        assert!(!index.should_exclude("src/app.js"));
+    }
+
+    #[test]
+    fn test_index_new_with_no_todo_files() {
+        let (_dir, index) = setup_index(&[
+            ("a.rs", "fn main() {}\n"),
+            ("b.rs", "// just a comment\nlet x = 1;\n"),
+        ]);
+
+        assert_eq!(index.total_count(), 0);
+        assert!(index.items.is_empty());
+    }
+
+    #[test]
+    fn test_tag_counts_when_empty() {
+        let (_dir, index) = setup_index(&[("a.rs", "fn main() {}\n")]);
+
+        let counts = index.tag_counts();
+        assert!(
+            counts.is_empty(),
+            "Empty index should return empty tag counts"
+        );
+    }
+
+    #[test]
+    fn test_update_file_error_nonexistent() {
+        let (_dir, mut index) = setup_index(&[("a.rs", "// TODO: exists\n")]);
+
+        // Attempt to update a file that doesn't exist on disk
+        let result = index.update_file("nonexistent.rs");
+        assert!(result.is_err(), "Updating nonexistent file should error");
+    }
+
+    #[test]
+    fn test_collect_changed_files_mixed_kinds() {
+        let dir = TempDir::new().unwrap();
+
+        let events = vec![
+            notify_debouncer_mini::DebouncedEvent {
+                path: dir.path().join("first.rs"),
+                kind: DebouncedEventKind::Any,
+            },
+            notify_debouncer_mini::DebouncedEvent {
+                path: dir.path().join("skipped.rs"),
+                kind: DebouncedEventKind::AnyContinuous,
+            },
+            notify_debouncer_mini::DebouncedEvent {
+                path: dir.path().join("second.rs"),
+                kind: DebouncedEventKind::Any,
+            },
+        ];
+
+        let files = collect_changed_files(&events, dir.path());
+        assert_eq!(files.len(), 2);
+        assert!(files.contains(&"first.rs".to_string()));
+        assert!(files.contains(&"second.rs".to_string()));
+        assert!(!files.contains(&"skipped.rs".to_string()));
+    }
+
+    #[test]
+    fn test_build_watch_event_tag_summary_content() {
+        let (_dir, index) =
+            setup_index(&[("a.rs", "// TODO: one\n// FIXME: two\n// TODO: three\n")]);
+
+        let update = FileUpdate {
+            added: vec![],
+            removed: vec![],
+        };
+        let event = build_watch_event("a.rs", &update, &index, index.total_count());
+
+        // tag_summary should contain TODO=2 and FIXME=1
+        let todo_count = event
+            .tag_summary
+            .iter()
+            .find(|(tag, _)| tag == "TODO")
+            .map(|(_, c)| *c);
+        let fixme_count = event
+            .tag_summary
+            .iter()
+            .find(|(tag, _)| tag == "FIXME")
+            .map(|(_, c)| *c);
+
+        assert_eq!(todo_count, Some(2));
+        assert_eq!(fixme_count, Some(1));
+        assert_eq!(event.total, 3);
+        assert_eq!(event.total_delta, 0);
+        assert_eq!(event.file, "a.rs");
+    }
+
+    #[test]
+    fn test_build_watch_event_empty_index() {
+        let (_dir, index) = setup_index(&[("a.rs", "fn main() {}\n")]);
+
+        let update = FileUpdate {
+            added: vec![],
+            removed: vec![],
+        };
+        let event = build_watch_event("a.rs", &update, &index, 0);
+
+        assert_eq!(event.total, 0);
+        assert_eq!(event.total_delta, 0);
+        assert!(event.tag_summary.is_empty());
+    }
+
+    #[test]
+    fn test_update_file_new_file_not_in_index() {
+        let (dir, mut index) = setup_index(&[("a.rs", "fn main() {}\n")]);
+        assert_eq!(index.total_count(), 0);
+
+        // Write a new file with a TODO to the same directory
+        fs::write(dir.path().join("b.rs"), "// TODO: new file\n").unwrap();
+
+        let update = index.update_file("b.rs").unwrap();
+        assert_eq!(update.added.len(), 1);
+        assert!(update.removed.is_empty());
+        assert_eq!(index.total_count(), 1);
+    }
+
+    #[test]
+    fn test_should_exclude_multiple_dirs() {
+        let config = Config {
+            exclude_dirs: vec![
+                "node_modules".to_string(),
+                ".git".to_string(),
+                "target".to_string(),
+            ],
+            ..Config::default()
+        };
+        let dir = TempDir::new().unwrap();
+        let index = TodoIndex::new(dir.path(), &config).unwrap();
+
+        assert!(index.should_exclude("node_modules/package/lib.js"));
+        assert!(index.should_exclude(".git/objects/abc"));
+        assert!(index.should_exclude("target/debug/build/foo.rs"));
+        assert!(!index.should_exclude("src/lib.rs"));
+    }
+
+    #[test]
+    fn test_total_count_multiple_files() {
+        let (_dir, index) = setup_index(&[
+            ("a.rs", "// TODO: a1\n// TODO: a2\n"),
+            ("b.rs", "// FIXME: b1\n"),
+            ("c.rs", "// HACK: c1\n// BUG: c2\n// NOTE: c3\n"),
+        ]);
+
+        assert_eq!(index.total_count(), 6);
+    }
+
+    #[test]
+    fn test_collect_changed_files_empty_events() {
+        let dir = TempDir::new().unwrap();
+        let events: Vec<notify_debouncer_mini::DebouncedEvent> = vec![];
+
+        let files = collect_changed_files(&events, dir.path());
+        assert!(files.is_empty());
+    }
 }
