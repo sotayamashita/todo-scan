@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/sotayamashita/todo-scan/compare/v0.1.2...v0.1.3) (2026-02-24)
+
+
+### Bug Fixes
+
+* **ci:** apply cargo fmt and raise TODO max to 90 ([ed9078a](https://github.com/sotayamashita/todo-scan/commit/ed9078af400e87ca9413d34238efd41ba173720c))
+
 ## [0.1.2](https://github.com/sotayamashita/todo-scan/compare/v0.1.1...v0.1.2) (2026-02-23)
 
 
