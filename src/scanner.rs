@@ -1743,4 +1743,285 @@ line four
     fn test_is_in_comment_no_comment_prefix_at_all() {
         assert!(!is_in_comment("TODO: test", 0));
     }
+    // === Additional coverage tests ===
+
+    // --- parse_paren_content: date on left, empty right ---
+
+    #[test]
+    fn test_parse_paren_date_left_empty_right() {
+        // "2025-06-01, " → date on left side, right trimmed to empty → (None, Some(deadline))
+        let (author, deadline) = parse_paren_content("2025-06-01, ");
+        assert!(author.is_none(), "empty right side should yield no author");
+        let d = deadline.unwrap();
+        assert_eq!(d.year, 2025);
+        assert_eq!(d.month, 6);
+        assert_eq!(d.day, 1);
+    }
+
+    // --- scan_content: unknown tag that regex matches but Tag::from_str rejects ---
+
+    #[test]
+    fn test_scan_content_unknown_tag_skipped() {
+        // Use a custom config with a tag that isn't in the Tag enum
+        let config = Config {
+            tags: vec!["WARN".into()],
+            ..Config::default()
+        };
+        let pattern = Regex::new(&config.tags_pattern()).unwrap();
+        let content = "// WARN: this is a warning\n";
+        let result = scan_content(content, "test.rs", &pattern);
+        // WARN matches the regex but Tag::from_str("WARN") returns Err,
+        // so the item should be skipped (not included in results)
+        assert!(result.items.is_empty(), "unknown tag should be skipped by scan_content");
+    }
+
+    // --- scan_directory: exclude_patterns ---
+
+    #[test]
+    fn test_scan_directory_exclude_patterns() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("keep.rs"), "// TODO: keep this\n").unwrap();
+        std::fs::write(dir.path().join("skip_generated.rs"), "// TODO: skip this\n").unwrap();
+
+        let config = Config {
+            exclude_patterns: vec![r"generated".to_string()],
+            ..Config::default()
+        };
+        let result = scan_directory(dir.path(), &config).unwrap();
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].message, "keep this");
+    }
+
+    // --- scan_directory: binary/unreadable file is skipped ---
+
+    #[test]
+    fn test_scan_directory_skips_binary_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("good.rs"), "// TODO: keep\n").unwrap();
+        // Write binary content (invalid UTF-8)
+        std::fs::write(dir.path().join("binary.dat"), &[0xFF, 0xFE, 0x00, 0x01, 0x80, 0x81]).unwrap();
+
+        let config = Config::default();
+        let result = scan_directory(dir.path(), &config).unwrap();
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].message, "keep");
+        // files_scanned should only count the readable file
+        // (binary file fails read_to_string and is skipped)
+        assert_eq!(result.files_scanned, 1);
+    }
+
+    // --- scan_directory_cached: exclude_dirs ---
+
+    #[test]
+    fn test_cached_scan_exclude_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("keep.rs"), "// TODO: keep\n").unwrap();
+        let vendor = dir.path().join("vendor");
+        std::fs::create_dir(&vendor).unwrap();
+        std::fs::write(vendor.join("skip.rs"), "// TODO: skip\n").unwrap();
+
+        let config = Config {
+            exclude_dirs: vec!["vendor".to_string()],
+            ..Config::default()
+        };
+        let config_hash = ScanCache::config_hash(&config);
+        let mut cache = ScanCache::new(config_hash);
+
+        let result = scan_directory_cached(dir.path(), &config, &mut cache).unwrap();
+
+        assert_eq!(result.result.items.len(), 1);
+        assert_eq!(result.result.items[0].message, "keep");
+    }
+
+    // --- scan_directory_cached: exclude_patterns ---
+
+    #[test]
+    fn test_cached_scan_exclude_patterns() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("keep.rs"), "// TODO: keep\n").unwrap();
+        std::fs::write(dir.path().join("skip_generated.rs"), "// TODO: skip\n").unwrap();
+
+        let config = Config {
+            exclude_patterns: vec![r"generated".to_string()],
+            ..Config::default()
+        };
+        let config_hash = ScanCache::config_hash(&config);
+        let mut cache = ScanCache::new(config_hash);
+
+        let result = scan_directory_cached(dir.path(), &config, &mut cache).unwrap();
+
+        assert_eq!(result.result.items.len(), 1);
+        assert_eq!(result.result.items[0].message, "keep");
+    }
+
+    // --- scan_directory_cached: oversized file skip ---
+
+    #[test]
+    fn test_cached_scan_skips_oversized_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("small.rs"), "// TODO: keep\n").unwrap();
+        // Create a file just over MAX_FILE_SIZE
+        let mut big_content = "// TODO: should be skipped\n".to_string();
+        big_content.push_str(&"x".repeat(MAX_FILE_SIZE as usize));
+        std::fs::write(dir.path().join("big.rs"), &big_content).unwrap();
+
+        let config = Config::default();
+        let config_hash = ScanCache::config_hash(&config);
+        let mut cache = ScanCache::new(config_hash);
+
+        let result = scan_directory_cached(dir.path(), &config, &mut cache).unwrap();
+
+        assert_eq!(result.result.items.len(), 1);
+        assert_eq!(result.result.items[0].message, "keep");
+    }
+
+    // --- scan_directory_cached: binary file read error ---
+
+    #[test]
+    fn test_cached_scan_skips_binary_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("good.rs"), "// TODO: keep\n").unwrap();
+        // Write binary content (invalid UTF-8)
+        std::fs::write(dir.path().join("binary.dat"), &[0xFF, 0xFE, 0x00, 0x01]).unwrap();
+
+        let config = Config::default();
+        let config_hash = ScanCache::config_hash(&config);
+        let mut cache = ScanCache::new(config_hash);
+
+        let result = scan_directory_cached(dir.path(), &config, &mut cache).unwrap();
+
+        assert_eq!(result.result.items.len(), 1);
+        assert_eq!(result.result.items[0].message, "keep");
+    }
+
+    // --- scan_directory_cached: Layer 2 content hash hit (touched file) ---
+
+    #[test]
+    fn test_cached_scan_layer2_content_hash_hit() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("a.rs");
+        std::fs::write(&file_path, "// TODO: task a\n").unwrap();
+
+        let config = Config::default();
+        let config_hash = ScanCache::config_hash(&config);
+        let mut cache = ScanCache::new(config_hash);
+
+        // First run: populates cache
+        let result1 = scan_directory_cached(dir.path(), &config, &mut cache).unwrap();
+        assert_eq!(result1.result.items.len(), 1);
+        assert_eq!(result1.cache_misses, 1);
+
+        // Now "touch" the file to change mtime but keep content the same
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        // Read the content, then rewrite with same content
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        std::fs::write(&file_path, &content).unwrap();
+
+        // Invalidate the mtime in cache manually to force layer 2 check.
+        // The cache entry mtime won't match the new file mtime, so layer 1
+        // will miss, but layer 2 (content hash) should hit.
+        let result2 = scan_directory_cached(dir.path(), &config, &mut cache).unwrap();
+        assert_eq!(result2.result.items.len(), 1);
+        assert_eq!(result2.result.items[0].message, "task a");
+        // This should be a layer 2 hit (content hash match)
+        assert_eq!(result2.cache_hits, 1);
+        assert_eq!(result2.cache_misses, 0);
+    }
+
+    // --- scan_content: empty content ---
+
+    #[test]
+    fn test_scan_content_empty() {
+        let pattern = default_pattern();
+        let result = scan_content("", "empty.rs", &pattern);
+        assert!(result.items.is_empty());
+        assert!(result.ignored_items.is_empty());
+    }
+
+    // --- scan_content: lines with no matches ---
+
+    #[test]
+    fn test_scan_content_no_matches() {
+        let pattern = default_pattern();
+        let content = "fn main() {\n    println!(\"hello\");\n}\n";
+        let result = scan_content(content, "main.rs", &pattern);
+        assert!(result.items.is_empty());
+    }
+
+    // --- scan_directory: empty directory ---
+
+    #[test]
+    fn test_scan_directory_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::default();
+        let result = scan_directory(dir.path(), &config).unwrap();
+        assert!(result.items.is_empty());
+        assert_eq!(result.files_scanned, 0);
+    }
+
+    // --- scan_directory_cached: empty directory ---
+
+    #[test]
+    fn test_cached_scan_empty_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::default();
+        let config_hash = ScanCache::config_hash(&config);
+        let mut cache = ScanCache::new(config_hash);
+        let result = scan_directory_cached(dir.path(), &config, &mut cache).unwrap();
+        assert!(result.result.items.is_empty());
+        assert_eq!(result.result.files_scanned, 0);
+        assert_eq!(result.cache_hits, 0);
+        assert_eq!(result.cache_misses, 0);
+    }
+
+    // --- scan_content: tag followed by hyphen should be skipped ---
+
+    #[test]
+    fn test_scan_content_tag_followed_by_hyphen() {
+        let pattern = default_pattern();
+        // "todo-" should be skipped (e.g., "todo-scan" tool name)
+        let content = "// todo-scan:ignore is a suppression marker\n";
+        let result = scan_content(content, "test.rs", &pattern);
+        assert!(result.items.is_empty(), "tag followed by hyphen should be skipped");
+    }
+
+    // --- scan_content: no colon after tag still matches ---
+
+    #[test]
+    fn test_scan_content_no_colon() {
+        let pattern = default_pattern();
+        let content = "// TODO fix this now\n";
+        let result = scan_content(content, "test.rs", &pattern);
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].message, "fix this now");
+    }
+
+    // --- scan_content: empty message after tag ---
+
+    #[test]
+    fn test_scan_content_empty_message() {
+        let pattern = default_pattern();
+        let content = "// TODO:\n";
+        let result = scan_content(content, "test.rs", &pattern);
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].message, "");
+    }
+
+    // --- scan_directory: file with no TODO items still counts as scanned ---
+
+    #[test]
+    fn test_scan_directory_counts_all_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.rs"), "fn main() {}\n").unwrap();
+        std::fs::write(dir.path().join("b.rs"), "fn other() {}\n").unwrap();
+        std::fs::write(dir.path().join("c.rs"), "// TODO: only one\n").unwrap();
+
+        let config = Config::default();
+        let result = scan_directory(dir.path(), &config).unwrap();
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.files_scanned, 3);
+    }
 }

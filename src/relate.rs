@@ -659,6 +659,171 @@ mod tests {
 
     // --- compute_suggested_order ---
 
+    // --- build_clusters edge cases ---
+
+    #[test]
+    fn build_clusters_empty_items() {
+        let clusters = build_clusters(&[], &[]);
+        assert!(clusters.is_empty());
+    }
+
+    #[test]
+    fn build_clusters_no_relationships() {
+        let items = vec![
+            make_item("src/a.rs", 10, Tag::Todo, "fix auth"),
+            make_item("src/b.rs", 20, Tag::Bug, "crash"),
+        ];
+        // No relationships means no clusters with 2+ members
+        let clusters = build_clusters(&[], &items);
+        assert!(clusters.is_empty());
+    }
+
+    #[test]
+    fn build_clusters_three_way_chain() {
+        // A-B and B-C should form a single cluster of 3
+        let items = vec![
+            make_item("src/a.rs", 10, Tag::Todo, "fix auth"),
+            make_item("src/a.rs", 20, Tag::Fixme, "broken auth"),
+            make_item("src/a.rs", 30, Tag::Bug, "auth crash"),
+        ];
+        let relationships = vec![
+            Relationship {
+                from: "src/a.rs:10".to_string(),
+                to: "src/a.rs:20".to_string(),
+                score: 0.5,
+                reason: "proximity".to_string(),
+            },
+            Relationship {
+                from: "src/a.rs:20".to_string(),
+                to: "src/a.rs:30".to_string(),
+                score: 0.4,
+                reason: "proximity".to_string(),
+            },
+        ];
+        let clusters = build_clusters(&relationships, &items);
+        assert_eq!(clusters.len(), 1);
+        assert_eq!(clusters[0].items.len(), 3);
+        assert_eq!(clusters[0].id, 1);
+        assert!(!clusters[0].theme.is_empty());
+        // Relationships within cluster should be included
+        assert_eq!(clusters[0].relationships.len(), 2);
+    }
+
+    #[test]
+    fn build_clusters_sorts_by_size_descending() {
+        let items = vec![
+            make_item("src/a.rs", 10, Tag::Todo, "fix auth"),
+            make_item("src/a.rs", 20, Tag::Fixme, "broken auth"),
+            make_item("src/b.rs", 10, Tag::Bug, "db crash"),
+            make_item("src/b.rs", 20, Tag::Hack, "db workaround"),
+            make_item("src/b.rs", 30, Tag::Todo, "db optimize"),
+        ];
+        let relationships = vec![
+            Relationship {
+                from: "src/a.rs:10".to_string(),
+                to: "src/a.rs:20".to_string(),
+                score: 0.5,
+                reason: "proximity".to_string(),
+            },
+            Relationship {
+                from: "src/b.rs:10".to_string(),
+                to: "src/b.rs:20".to_string(),
+                score: 0.5,
+                reason: "proximity".to_string(),
+            },
+            Relationship {
+                from: "src/b.rs:20".to_string(),
+                to: "src/b.rs:30".to_string(),
+                score: 0.4,
+                reason: "proximity".to_string(),
+            },
+        ];
+        let clusters = build_clusters(&relationships, &items);
+        assert_eq!(clusters.len(), 2);
+        // Larger cluster (3 items) should come first
+        assert_eq!(clusters[0].items.len(), 3);
+        assert_eq!(clusters[1].items.len(), 2);
+    }
+
+    // --- generate_theme edge cases ---
+
+    #[test]
+    fn generate_theme_empty() {
+        let items: Vec<&TodoItem> = vec![];
+        let theme = generate_theme(&items);
+        assert!(theme.is_empty());
+    }
+
+    #[test]
+    fn generate_theme_root_dir_file() {
+        // A file in root dir (parent is "") should not add empty dir parts
+        let item = make_item("main.rs", 1, Tag::Todo, "setup database connection");
+        let refs = vec![&item];
+        let theme = generate_theme(&refs);
+        assert!(!theme.is_empty());
+        // Should contain keywords from the message, not empty strings
+        assert!(
+            theme.contains("setup") || theme.contains("database") || theme.contains("connection")
+        );
+    }
+
+    #[test]
+    fn generate_theme_includes_directory_names() {
+        let item1 = make_item("src/auth/login.rs", 1, Tag::Todo, "validate");
+        let item2 = make_item("src/auth/logout.rs", 2, Tag::Todo, "validate");
+        let refs = vec![&item1, &item2];
+        let theme = generate_theme(&refs);
+        // "auth" and "src" are directory names that appear twice each
+        assert!(theme.contains("auth") || theme.contains("src") || theme.contains("validate"));
+    }
+
+    // --- filter_for_item edge cases ---
+
+    #[test]
+    fn filter_for_item_no_matches() {
+        let result = RelateResult {
+            relationships: vec![Relationship {
+                from: "src/a.rs:10".to_string(),
+                to: "src/b.rs:20".to_string(),
+                score: 0.5,
+                reason: "proximity".to_string(),
+            }],
+            clusters: None,
+            total_relationships: 1,
+            total_items: 3,
+            min_score: 0.3,
+            target: None,
+        };
+        let filtered = filter_for_item(result, "src/c.rs", 30);
+        assert!(filtered.relationships.is_empty());
+        assert_eq!(filtered.total_relationships, 0);
+        assert_eq!(filtered.target, Some("src/c.rs:30".to_string()));
+    }
+
+    // --- score_pair combined scores ---
+
+    #[test]
+    fn score_pair_all_factors_combined() {
+        let mut a = make_item("src/main.rs", 10, Tag::Todo, "fix authentication");
+        let mut b = make_item("src/main.rs", 12, Tag::Todo, "broken authentication");
+        a.author = Some("alice".to_string());
+        b.author = Some("alice".to_string());
+        a.issue_ref = Some("#42".to_string());
+        b.issue_ref = Some("#42".to_string());
+        let kw_a = extract_keywords(&a.message);
+        let kw_b = extract_keywords(&b.message);
+        let (score, reason) = score_pair(&a, &b, 10, &kw_a, &kw_b);
+        // Should have high score with all factors contributing
+        assert!(score > 0.5);
+        assert!(reason.contains("proximity"));
+        assert!(reason.contains("shared_keyword"));
+        assert!(reason.contains("same_issue"));
+        assert!(reason.contains("same_author"));
+        assert!(reason.contains("same_tag"));
+    }
+
+    // --- compute_suggested_order ---
+
     #[test]
     fn compute_suggested_order_by_priority_then_severity() {
         let items = [

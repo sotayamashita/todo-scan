@@ -127,6 +127,47 @@ mod tests {
         assert_eq!(format_iso8601_utc(1704109845), "2024-01-01T11:50:45Z");
     }
 
+    #[test]
+    fn days_to_ymd_far_negative() {
+        // Test negative era calculation (z < 0)
+        let (y, m, d) = days_to_ymd(-719162);
+        assert!(y < 100); // Very early year
+                          // Roundtrip to confirm correctness
+        assert_eq!(ymd_to_days(y, m, d), -719162);
+    }
+
+    #[test]
+    fn ymd_to_days_negative_year() {
+        // Test year before 0 to hit the (y - 399) / 400 branch
+        let days = ymd_to_days(-100, 6, 15);
+        let (y, m, d) = days_to_ymd(days);
+        assert_eq!(y, -100);
+        assert_eq!(m, 6);
+        assert_eq!(d, 15);
+    }
+
+    #[test]
+    fn ymd_to_days_january_adjusts_year() {
+        // Month <= 2 hits the year-1 and month+9 branches
+        let jan = ymd_to_days(2025, 1, 15);
+        let feb = ymd_to_days(2025, 2, 15);
+        let mar = ymd_to_days(2025, 3, 15);
+        assert!(jan < feb);
+        assert!(feb < mar);
+    }
+
+    #[test]
+    fn ymd_to_days_roundtrip_leap_year() {
+        let days = ymd_to_days(2024, 2, 29);
+        let (y, m, d) = days_to_ymd(days);
+        assert_eq!((y, m, d), (2024, 2, 29));
+    }
+
+    #[test]
+    fn format_iso8601_utc_end_of_day() {
+        assert_eq!(format_iso8601_utc(86399), "1970-01-01T23:59:59Z");
+    }
+
     // ── now_iso8601 ──────────────────────────────────────────
 
     #[test]

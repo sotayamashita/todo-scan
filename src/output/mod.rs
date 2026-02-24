@@ -2971,4 +2971,1255 @@ mod tests {
         // id should still be present
         assert!(items[0].get("id").is_some());
     }
+
+    // ========================================================================
+    // Text-format coverage tests
+    // ========================================================================
+
+    use crate::context::{ContextLine as CL, RelatedTodo};
+    use crate::deadline::Deadline;
+
+    fn ctx_line(n: usize, content: &str) -> CL {
+        CL {
+            line_number: n,
+            content: content.to_string(),
+        }
+    }
+
+    // --- print_list: Text format ---
+
+    #[test]
+    fn text_print_list_basic_group_by_file() {
+        let result = ScanResult {
+            items: vec![
+                make_item("src/main.rs", 10, Tag::Todo, "fix this", Priority::Normal),
+                make_item("src/main.rs", 20, Tag::Fixme, "urgent fix", Priority::High),
+                make_item("src/lib.rs", 5, Tag::Hack, "workaround", Priority::Normal),
+            ],
+            ignored_items: vec![],
+            files_scanned: 2,
+        };
+        let ctx = HashMap::new();
+        print_list(
+            &result,
+            &Format::Text,
+            &GroupBy::File,
+            &ctx,
+            0,
+            false,
+            &DetailLevel::Normal,
+        );
+    }
+
+    #[test]
+    fn text_print_list_group_by_tag() {
+        let result = ScanResult {
+            items: vec![
+                make_item("src/main.rs", 10, Tag::Todo, "task a", Priority::Normal),
+                make_item("src/main.rs", 20, Tag::Bug, "crash", Priority::Urgent),
+                make_item("src/lib.rs", 5, Tag::Todo, "task b", Priority::Normal),
+            ],
+            ignored_items: vec![],
+            files_scanned: 2,
+        };
+        let ctx = HashMap::new();
+        print_list(
+            &result,
+            &Format::Text,
+            &GroupBy::Tag,
+            &ctx,
+            0,
+            false,
+            &DetailLevel::Normal,
+        );
+    }
+
+    #[test]
+    fn text_print_list_group_by_priority() {
+        let result = ScanResult {
+            items: vec![
+                make_item("a.rs", 1, Tag::Todo, "normal task", Priority::Normal),
+                make_item("a.rs", 2, Tag::Todo, "high task", Priority::High),
+                make_item("a.rs", 3, Tag::Todo, "urgent task", Priority::Urgent),
+            ],
+            ignored_items: vec![],
+            files_scanned: 1,
+        };
+        let ctx = HashMap::new();
+        print_list(
+            &result,
+            &Format::Text,
+            &GroupBy::Priority,
+            &ctx,
+            0,
+            false,
+            &DetailLevel::Normal,
+        );
+    }
+
+    #[test]
+    fn text_print_list_with_context_map() {
+        let result = ScanResult {
+            items: vec![make_item(
+                "src/main.rs",
+                10,
+                Tag::Todo,
+                "fix this",
+                Priority::Normal,
+            )],
+            ignored_items: vec![],
+            files_scanned: 1,
+        };
+        let mut ctx = HashMap::new();
+        ctx.insert(
+            "src/main.rs:10".to_string(),
+            ContextInfo {
+                before: vec![ctx_line(9, "fn main() {")],
+                after: vec![ctx_line(11, "}")],
+            },
+        );
+        print_list(
+            &result,
+            &Format::Text,
+            &GroupBy::File,
+            &ctx,
+            0,
+            false,
+            &DetailLevel::Normal,
+        );
+    }
+
+    #[test]
+    fn text_print_list_with_ignored_items() {
+        let result = ScanResult {
+            items: vec![make_item(
+                "src/main.rs",
+                10,
+                Tag::Todo,
+                "active",
+                Priority::Normal,
+            )],
+            ignored_items: vec![
+                make_item("src/main.rs", 30, Tag::Note, "ignored note", Priority::Normal),
+                make_item("src/lib.rs", 5, Tag::Hack, "ignored hack", Priority::Normal),
+            ],
+            files_scanned: 2,
+        };
+        let ctx = HashMap::new();
+        // show_ignored=true, ignored_count=2
+        print_list(
+            &result,
+            &Format::Text,
+            &GroupBy::File,
+            &ctx,
+            2,
+            true,
+            &DetailLevel::Normal,
+        );
+    }
+
+    #[test]
+    fn text_print_list_show_ignored_non_file_grouping() {
+        let result = ScanResult {
+            items: vec![make_item("a.rs", 1, Tag::Todo, "active", Priority::Normal)],
+            ignored_items: vec![make_item(
+                "b.rs",
+                2,
+                Tag::Note,
+                "ignored",
+                Priority::Normal,
+            )],
+            files_scanned: 2,
+        };
+        let ctx = HashMap::new();
+        print_list(
+            &result,
+            &Format::Text,
+            &GroupBy::Tag,
+            &ctx,
+            1,
+            true,
+            &DetailLevel::Normal,
+        );
+    }
+
+    #[test]
+    fn text_print_list_detail_minimal() {
+        let mut item = make_item_with_author(
+            "src/main.rs",
+            10,
+            Tag::Todo,
+            "fix this",
+            Priority::High,
+            Some("alice"),
+        );
+        item.issue_ref = Some("#42".to_string());
+        item.deadline = Some(Deadline {
+            year: 2025,
+            month: 6,
+            day: 1,
+        });
+        let result = ScanResult {
+            items: vec![item],
+            ignored_items: vec![],
+            files_scanned: 1,
+        };
+        let ctx = HashMap::new();
+        // With Minimal, author/issue/deadline should not appear
+        print_list(
+            &result,
+            &Format::Text,
+            &GroupBy::File,
+            &ctx,
+            0,
+            false,
+            &DetailLevel::Minimal,
+        );
+    }
+
+    #[test]
+    fn text_print_list_detail_full_with_deadline() {
+        let mut item = make_item_with_author(
+            "src/main.rs",
+            10,
+            Tag::Todo,
+            "fix this",
+            Priority::High,
+            Some("bob"),
+        );
+        item.issue_ref = Some("JIRA-123".to_string());
+        // Set expired deadline (well in the past)
+        item.deadline = Some(Deadline {
+            year: 2020,
+            month: 1,
+            day: 1,
+        });
+        let result = ScanResult {
+            items: vec![item],
+            ignored_items: vec![],
+            files_scanned: 1,
+        };
+        let ctx = HashMap::new();
+        print_list(
+            &result,
+            &Format::Text,
+            &GroupBy::File,
+            &ctx,
+            0,
+            false,
+            &DetailLevel::Full,
+        );
+    }
+
+    #[test]
+    fn text_print_list_with_future_deadline() {
+        let mut item = make_item("src/main.rs", 10, Tag::Todo, "future", Priority::Normal);
+        item.deadline = Some(Deadline {
+            year: 2099,
+            month: 12,
+            day: 31,
+        });
+        let result = ScanResult {
+            items: vec![item],
+            ignored_items: vec![],
+            files_scanned: 1,
+        };
+        let ctx = HashMap::new();
+        print_list(
+            &result,
+            &Format::Text,
+            &GroupBy::File,
+            &ctx,
+            0,
+            false,
+            &DetailLevel::Normal,
+        );
+    }
+
+    #[test]
+    fn text_print_list_with_ignored_count_no_show() {
+        let result = ScanResult {
+            items: vec![make_item("a.rs", 1, Tag::Todo, "task", Priority::Normal)],
+            ignored_items: vec![],
+            files_scanned: 1,
+        };
+        let ctx = HashMap::new();
+        // ignored_count > 0 but show_ignored=false => just summary suffix
+        print_list(
+            &result,
+            &Format::Text,
+            &GroupBy::File,
+            &ctx,
+            3,
+            false,
+            &DetailLevel::Normal,
+        );
+    }
+
+    // --- print_search: Text format ---
+
+    #[test]
+    fn text_print_search_basic() {
+        let result = SearchResult {
+            query: "fix".to_string(),
+            exact: false,
+            items: vec![
+                make_item("src/main.rs", 10, Tag::Todo, "fix this bug", Priority::Normal),
+                make_item("src/lib.rs", 5, Tag::Fixme, "fix memory leak", Priority::High),
+            ],
+            match_count: 2,
+            file_count: 2,
+        };
+        let ctx = HashMap::new();
+        print_search(&result, &Format::Text, &GroupBy::File, &ctx, &DetailLevel::Normal);
+    }
+
+    #[test]
+    fn text_print_search_with_context() {
+        let result = SearchResult {
+            query: "bug".to_string(),
+            exact: true,
+            items: vec![make_item("src/main.rs", 10, Tag::Bug, "crash here", Priority::Urgent)],
+            match_count: 1,
+            file_count: 1,
+        };
+        let mut ctx = HashMap::new();
+        ctx.insert(
+            "src/main.rs:10".to_string(),
+            ContextInfo {
+                before: vec![ctx_line(8, "line 8"), ctx_line(9, "line 9")],
+                after: vec![ctx_line(11, "line 11")],
+            },
+        );
+        print_search(&result, &Format::Text, &GroupBy::File, &ctx, &DetailLevel::Normal);
+    }
+
+    #[test]
+    fn text_print_search_non_file_grouping() {
+        let result = SearchResult {
+            query: "task".to_string(),
+            exact: false,
+            items: vec![
+                make_item("a.rs", 1, Tag::Todo, "task a", Priority::Normal),
+                make_item("b.rs", 2, Tag::Todo, "task b", Priority::High),
+            ],
+            match_count: 2,
+            file_count: 2,
+        };
+        let ctx = HashMap::new();
+        print_search(
+            &result,
+            &Format::Text,
+            &GroupBy::Priority,
+            &ctx,
+            &DetailLevel::Normal,
+        );
+    }
+
+    #[test]
+    fn text_print_search_detail_minimal() {
+        let mut item = make_item_with_author("a.rs", 1, Tag::Todo, "task", Priority::Normal, Some("alice"));
+        item.issue_ref = Some("#1".to_string());
+        item.deadline = Some(Deadline { year: 2020, month: 1, day: 1 });
+        let result = SearchResult {
+            query: "task".to_string(),
+            exact: false,
+            items: vec![item],
+            match_count: 1,
+            file_count: 1,
+        };
+        let ctx = HashMap::new();
+        print_search(&result, &Format::Text, &GroupBy::File, &ctx, &DetailLevel::Minimal);
+    }
+
+    #[test]
+    fn text_print_search_with_author_issue_deadline() {
+        let mut item = make_item_with_author("a.rs", 1, Tag::Todo, "task", Priority::Normal, Some("alice"));
+        item.issue_ref = Some("#99".to_string());
+        item.deadline = Some(Deadline { year: 2099, month: 12, day: 31 });
+        let result = SearchResult {
+            query: "task".to_string(),
+            exact: false,
+            items: vec![item],
+            match_count: 1,
+            file_count: 1,
+        };
+        let ctx = HashMap::new();
+        print_search(&result, &Format::Text, &GroupBy::File, &ctx, &DetailLevel::Full);
+    }
+
+    // --- print_diff: Text format ---
+
+    #[test]
+    fn text_print_diff_added_and_removed() {
+        let result = DiffResult {
+            entries: vec![
+                DiffEntry {
+                    status: DiffStatus::Added,
+                    item: make_item("src/main.rs", 10, Tag::Todo, "new task", Priority::Normal),
+                },
+                DiffEntry {
+                    status: DiffStatus::Removed,
+                    item: make_item("src/main.rs", 5, Tag::Fixme, "old fix", Priority::High),
+                },
+            ],
+            added_count: 1,
+            removed_count: 1,
+            base_ref: "main".to_string(),
+        };
+        let ctx = HashMap::new();
+        print_diff(&result, &Format::Text, &ctx, &DetailLevel::Normal);
+    }
+
+    #[test]
+    fn text_print_diff_with_context() {
+        let result = DiffResult {
+            entries: vec![DiffEntry {
+                status: DiffStatus::Added,
+                item: make_item("src/main.rs", 10, Tag::Todo, "new task", Priority::Normal),
+            }],
+            added_count: 1,
+            removed_count: 0,
+            base_ref: "HEAD~1".to_string(),
+        };
+        let mut ctx = HashMap::new();
+        ctx.insert(
+            "src/main.rs:10".to_string(),
+            ContextInfo {
+                before: vec![ctx_line(9, "fn main() {")],
+                after: vec![ctx_line(11, "}")],
+            },
+        );
+        print_diff(&result, &Format::Text, &ctx, &DetailLevel::Normal);
+    }
+
+    // --- print_brief: Text format ---
+
+    #[test]
+    fn text_print_brief_with_urgent_and_trend() {
+        let result = BriefResult {
+            total_items: 15,
+            total_files: 5,
+            priority_counts: PriorityCounts {
+                normal: 10,
+                high: 3,
+                urgent: 2,
+            },
+            top_urgent: Some({
+                let mut item = make_item("src/main.rs", 10, Tag::Bug, "crash on start", Priority::Urgent);
+                item.issue_ref = Some("#42".to_string());
+                item
+            }),
+            trend: Some(TrendInfo {
+                added: 3,
+                removed: 1,
+                base_ref: "main".to_string(),
+            }),
+        };
+        print_brief(&result, &Format::Text, None);
+    }
+
+    #[test]
+    fn text_print_brief_no_urgent_no_trend() {
+        let result = BriefResult {
+            total_items: 5,
+            total_files: 2,
+            priority_counts: PriorityCounts {
+                normal: 5,
+                high: 0,
+                urgent: 0,
+            },
+            top_urgent: None,
+            trend: None,
+        };
+        print_brief(&result, &Format::Text, None);
+    }
+
+    #[test]
+    fn text_print_brief_with_budget() {
+        let result = BriefResult {
+            total_items: 15,
+            total_files: 5,
+            priority_counts: PriorityCounts {
+                normal: 10,
+                high: 3,
+                urgent: 2,
+            },
+            top_urgent: Some(make_item("a.rs", 1, Tag::Bug, "crash", Priority::Urgent)),
+            trend: Some(TrendInfo {
+                added: 3,
+                removed: 1,
+                base_ref: "main".to_string(),
+            }),
+        };
+        // Budget of 1 means only the summary line is printed
+        print_brief(&result, &Format::Text, Some(1));
+    }
+
+    #[test]
+    fn text_print_brief_high_only() {
+        let result = BriefResult {
+            total_items: 10,
+            total_files: 3,
+            priority_counts: PriorityCounts {
+                normal: 7,
+                high: 3,
+                urgent: 0,
+            },
+            top_urgent: Some(make_item("a.rs", 1, Tag::Todo, "high prio", Priority::High)),
+            trend: None,
+        };
+        print_brief(&result, &Format::Text, None);
+    }
+
+    // --- print_stats: Text format ---
+
+    #[test]
+    fn text_print_stats_full() {
+        let result = StatsResult {
+            total_items: 20,
+            total_files: 5,
+            tag_counts: vec![
+                (Tag::Todo, 10),
+                (Tag::Fixme, 5),
+                (Tag::Bug, 3),
+                (Tag::Note, 2),
+            ],
+            priority_counts: PriorityCounts {
+                normal: 15,
+                high: 3,
+                urgent: 2,
+            },
+            author_counts: vec![
+                ("alice".to_string(), 8),
+                ("bob".to_string(), 5),
+                ("charlie".to_string(), 2),
+            ],
+            hotspot_files: vec![
+                ("src/main.rs".to_string(), 8),
+                ("src/lib.rs".to_string(), 5),
+            ],
+            trend: Some(TrendInfo {
+                added: 5,
+                removed: 2,
+                base_ref: "main".to_string(),
+            }),
+        };
+        print_stats(&result, &Format::Text);
+    }
+
+    #[test]
+    fn text_print_stats_empty() {
+        let result = StatsResult {
+            total_items: 0,
+            total_files: 0,
+            tag_counts: vec![],
+            priority_counts: PriorityCounts {
+                normal: 0,
+                high: 0,
+                urgent: 0,
+            },
+            author_counts: vec![],
+            hotspot_files: vec![],
+            trend: None,
+        };
+        print_stats(&result, &Format::Text);
+    }
+
+    #[test]
+    fn text_print_stats_negative_trend() {
+        let result = StatsResult {
+            total_items: 5,
+            total_files: 2,
+            tag_counts: vec![(Tag::Todo, 5)],
+            priority_counts: PriorityCounts {
+                normal: 5,
+                high: 0,
+                urgent: 0,
+            },
+            author_counts: vec![],
+            hotspot_files: vec![],
+            trend: Some(TrendInfo {
+                added: 1,
+                removed: 3,
+                base_ref: "develop".to_string(),
+            }),
+        };
+        print_stats(&result, &Format::Text);
+    }
+
+    // --- print_lint: Text format ---
+
+    #[test]
+    fn text_print_lint_passed() {
+        let result = LintResult {
+            passed: true,
+            total_items: 10,
+            violation_count: 0,
+            violations: vec![],
+        };
+        print_lint(&result, &Format::Text);
+    }
+
+    #[test]
+    fn text_print_lint_failed_with_suggestions() {
+        let result = LintResult {
+            passed: false,
+            total_items: 10,
+            violation_count: 3,
+            violations: vec![
+                LintViolation {
+                    rule: "missing-author".to_string(),
+                    message: "TODO has no author".to_string(),
+                    file: "src/main.rs".to_string(),
+                    line: 10,
+                    suggestion: Some("Add author: TODO(alice):".to_string()),
+                },
+                LintViolation {
+                    rule: "vague-message".to_string(),
+                    message: "Message is too vague".to_string(),
+                    file: "src/main.rs".to_string(),
+                    line: 20,
+                    suggestion: None,
+                },
+                LintViolation {
+                    rule: "missing-issue".to_string(),
+                    message: "TODO lacks issue reference".to_string(),
+                    file: "src/lib.rs".to_string(),
+                    line: 5,
+                    suggestion: Some("Add issue ref: TODO: ... #123".to_string()),
+                },
+            ],
+        };
+        print_lint(&result, &Format::Text);
+    }
+
+    // --- print_clean: Text format ---
+
+    #[test]
+    fn text_print_clean_passed() {
+        let result = CleanResult {
+            passed: true,
+            total_items: 10,
+            stale_count: 0,
+            duplicate_count: 0,
+            violations: vec![],
+        };
+        print_clean(&result, &Format::Text);
+    }
+
+    #[test]
+    fn text_print_clean_failed_with_stale_and_duplicates() {
+        let result = CleanResult {
+            passed: false,
+            total_items: 10,
+            stale_count: 2,
+            duplicate_count: 1,
+            violations: vec![
+                CleanViolation {
+                    rule: "stale".to_string(),
+                    message: "TODO is older than 90 days".to_string(),
+                    file: "src/main.rs".to_string(),
+                    line: 10,
+                    issue_ref: Some("#42".to_string()),
+                    duplicate_of: None,
+                },
+                CleanViolation {
+                    rule: "stale".to_string(),
+                    message: "TODO is older than 90 days".to_string(),
+                    file: "src/main.rs".to_string(),
+                    line: 20,
+                    issue_ref: None,
+                    duplicate_of: None,
+                },
+                CleanViolation {
+                    rule: "duplicate".to_string(),
+                    message: "Duplicate TODO detected".to_string(),
+                    file: "src/lib.rs".to_string(),
+                    line: 5,
+                    issue_ref: None,
+                    duplicate_of: Some("src/main.rs:10".to_string()),
+                },
+            ],
+        };
+        print_clean(&result, &Format::Text);
+    }
+
+    // --- print_check: Text format ---
+
+    #[test]
+    fn text_print_check_passed() {
+        let result = CheckResult {
+            passed: true,
+            total: 10,
+            violations: vec![],
+        };
+        print_check(&result, &Format::Text);
+    }
+
+    #[test]
+    fn text_print_check_failed() {
+        let result = CheckResult {
+            passed: false,
+            total: 150,
+            violations: vec![
+                CheckViolation {
+                    rule: "max-count".to_string(),
+                    message: "Total 150 exceeds max 100".to_string(),
+                },
+                CheckViolation {
+                    rule: "block-tags".to_string(),
+                    message: "Blocked tag BUG found".to_string(),
+                },
+            ],
+        };
+        print_check(&result, &Format::Text);
+    }
+
+    // --- print_blame: Text format ---
+
+    #[test]
+    fn text_print_blame_with_stale_and_fresh() {
+        let result = BlameResult {
+            entries: vec![
+                BlameEntry {
+                    item: make_item("src/main.rs", 10, Tag::Todo, "old task", Priority::Normal),
+                    blame: BlameInfo {
+                        author: "alice".to_string(),
+                        email: "alice@example.com".to_string(),
+                        date: "2023-01-15".to_string(),
+                        age_days: 400,
+                        commit: "abc1234".to_string(),
+                    },
+                    stale: true,
+                },
+                BlameEntry {
+                    item: make_item("src/main.rs", 20, Tag::Fixme, "recent fix", Priority::High),
+                    blame: BlameInfo {
+                        author: "bob".to_string(),
+                        email: "bob@example.com".to_string(),
+                        date: "2025-12-01".to_string(),
+                        age_days: 10,
+                        commit: "def5678".to_string(),
+                    },
+                    stale: false,
+                },
+                BlameEntry {
+                    item: make_item("src/lib.rs", 5, Tag::Bug, "crash", Priority::Urgent),
+                    blame: BlameInfo {
+                        author: "charlie".to_string(),
+                        email: "charlie@example.com".to_string(),
+                        date: "2024-06-01".to_string(),
+                        age_days: 200,
+                        commit: "789abcd".to_string(),
+                    },
+                    stale: true,
+                },
+            ],
+            total: 3,
+            avg_age_days: 203,
+            stale_count: 2,
+            stale_threshold_days: 90,
+        };
+        print_blame(&result, &Format::Text);
+    }
+
+    // --- print_context: Text format ---
+
+    #[test]
+    fn text_print_context_with_related() {
+        let rich = RichContext {
+            file: "src/main.rs".to_string(),
+            line: 10,
+            before: vec![ctx_line(8, "fn main() {"), ctx_line(9, "    let x = 1;")],
+            todo_line: "    // TODO: fix this".to_string(),
+            after: vec![ctx_line(11, "    let y = 2;"), ctx_line(12, "}")],
+            related_todos: vec![
+                RelatedTodo {
+                    line: 25,
+                    tag: "FIXME".to_string(),
+                    message: "related fix".to_string(),
+                },
+                RelatedTodo {
+                    line: 30,
+                    tag: "TODO".to_string(),
+                    message: "another related task".to_string(),
+                },
+            ],
+        };
+        print_context(&rich, &Format::Text);
+    }
+
+    #[test]
+    fn text_print_context_no_related() {
+        let rich = RichContext {
+            file: "src/lib.rs".to_string(),
+            line: 5,
+            before: vec![],
+            todo_line: "// NOTE: important".to_string(),
+            after: vec![ctx_line(6, "fn foo() {}")],
+            related_todos: vec![],
+        };
+        print_context(&rich, &Format::Text);
+    }
+
+    // --- print_initial_summary ---
+
+    #[test]
+    fn text_print_initial_summary() {
+        let tag_counts = vec![
+            (Tag::Todo, 10),
+            (Tag::Fixme, 5),
+            (Tag::Bug, 2),
+        ];
+        print_initial_summary(&tag_counts, 17, &Format::Text);
+    }
+
+    #[test]
+    fn text_print_initial_summary_json_format() {
+        let tag_counts = vec![(Tag::Todo, 3)];
+        print_initial_summary(&tag_counts, 3, &Format::Json);
+    }
+
+    // --- print_watch_event ---
+
+    #[test]
+    fn text_print_watch_event_added_positive_delta() {
+        let event = WatchEvent {
+            timestamp: "2025-01-15T10:30:00Z".to_string(),
+            file: "src/main.rs".to_string(),
+            added: vec![
+                make_item("src/main.rs", 10, Tag::Todo, "new task", Priority::Normal),
+                make_item("src/main.rs", 15, Tag::Bug, "new bug", Priority::Urgent),
+            ],
+            removed: vec![],
+            tag_summary: vec![("TODO".to_string(), 5), ("BUG".to_string(), 1)],
+            total: 20,
+            total_delta: 2,
+        };
+        print_watch_event(&event, &Format::Text, None);
+    }
+
+    #[test]
+    fn text_print_watch_event_removed_negative_delta() {
+        let event = WatchEvent {
+            timestamp: "2025-01-15T10:30:00Z".to_string(),
+            file: "src/main.rs".to_string(),
+            added: vec![],
+            removed: vec![make_item(
+                "src/main.rs",
+                10,
+                Tag::Todo,
+                "resolved task",
+                Priority::Normal,
+            )],
+            tag_summary: vec![("TODO".to_string(), 4)],
+            total: 18,
+            total_delta: -1,
+        };
+        print_watch_event(&event, &Format::Text, None);
+    }
+
+    #[test]
+    fn text_print_watch_event_zero_delta() {
+        let event = WatchEvent {
+            timestamp: "2025-01-15T10:30:00Z".to_string(),
+            file: "src/main.rs".to_string(),
+            added: vec![make_item("src/main.rs", 10, Tag::Todo, "new", Priority::Normal)],
+            removed: vec![make_item("src/main.rs", 5, Tag::Todo, "old", Priority::Normal)],
+            tag_summary: vec![("TODO".to_string(), 5)],
+            total: 20,
+            total_delta: 0,
+        };
+        print_watch_event(&event, &Format::Text, None);
+    }
+
+    #[test]
+    fn text_print_watch_event_with_max_threshold_warning() {
+        let event = WatchEvent {
+            timestamp: "2025-01-15T10:30:00Z".to_string(),
+            file: "src/main.rs".to_string(),
+            added: vec![make_item("src/main.rs", 10, Tag::Todo, "new task", Priority::Normal)],
+            removed: vec![],
+            tag_summary: vec![("TODO".to_string(), 5)],
+            total: 100,
+            total_delta: 1,
+        };
+        // total (100) >= max (100), should print warning
+        print_watch_event(&event, &Format::Text, Some(100));
+    }
+
+    #[test]
+    fn text_print_watch_event_below_max_threshold() {
+        let event = WatchEvent {
+            timestamp: "2025-01-15T10:30:00Z".to_string(),
+            file: "src/main.rs".to_string(),
+            added: vec![],
+            removed: vec![],
+            tag_summary: vec![],
+            total: 50,
+            total_delta: 0,
+        };
+        // total (50) < max (100), no warning
+        print_watch_event(&event, &Format::Text, Some(100));
+    }
+
+    // --- print_tasks ---
+
+    #[test]
+    fn text_print_tasks_with_items() {
+        let result = TasksResult {
+            tasks: vec![
+                ClaudeTask {
+                    subject: "Fix crash on startup".to_string(),
+                    description: "There is a crash when starting the application.".to_string(),
+                    active_form: "todo".to_string(),
+                    metadata: ClaudeTaskMetadata {
+                        todo_scan_file: "src/main.rs".to_string(),
+                        todo_scan_line: 10,
+                        todo_scan_tag: "BUG".to_string(),
+                        todo_scan_priority: "urgent".to_string(),
+                        todo_scan_author: Some("alice".to_string()),
+                        todo_scan_issue_ref: Some("#42".to_string()),
+                        todo_scan_match_key: "src/main.rs:BUG:fix crash on startup".to_string(),
+                    },
+                },
+                ClaudeTask {
+                    subject: "Refactor auth module".to_string(),
+                    description: "The auth module needs refactoring.".to_string(),
+                    active_form: "todo".to_string(),
+                    metadata: ClaudeTaskMetadata {
+                        todo_scan_file: "src/auth.rs".to_string(),
+                        todo_scan_line: 25,
+                        todo_scan_tag: "TODO".to_string(),
+                        todo_scan_priority: "high".to_string(),
+                        todo_scan_author: None,
+                        todo_scan_issue_ref: None,
+                        todo_scan_match_key: "src/auth.rs:TODO:refactor auth module".to_string(),
+                    },
+                },
+                ClaudeTask {
+                    subject: "Add logging".to_string(),
+                    description: "We need more logging.".to_string(),
+                    active_form: "todo".to_string(),
+                    metadata: ClaudeTaskMetadata {
+                        todo_scan_file: "src/lib.rs".to_string(),
+                        todo_scan_line: 5,
+                        todo_scan_tag: "NOTE".to_string(),
+                        todo_scan_priority: "normal".to_string(),
+                        todo_scan_author: None,
+                        todo_scan_issue_ref: None,
+                        todo_scan_match_key: "src/lib.rs:NOTE:add logging".to_string(),
+                    },
+                },
+            ],
+            total: 3,
+            output_dir: Some("/tmp/tasks".to_string()),
+        };
+        print_tasks(&result, &Format::Text);
+    }
+
+    #[test]
+    fn text_print_tasks_empty() {
+        let result = TasksResult {
+            tasks: vec![],
+            total: 0,
+            output_dir: None,
+        };
+        print_tasks(&result, &Format::Text);
+    }
+
+    #[test]
+    fn text_print_tasks_no_output_dir() {
+        let result = TasksResult {
+            tasks: vec![ClaudeTask {
+                subject: "Single task".to_string(),
+                description: "Description".to_string(),
+                active_form: "todo".to_string(),
+                metadata: ClaudeTaskMetadata {
+                    todo_scan_file: "a.rs".to_string(),
+                    todo_scan_line: 1,
+                    todo_scan_tag: "TODO".to_string(),
+                    todo_scan_priority: "normal".to_string(),
+                    todo_scan_author: None,
+                    todo_scan_issue_ref: None,
+                    todo_scan_match_key: "a.rs:TODO:single task".to_string(),
+                },
+            }],
+            total: 1,
+            output_dir: None,
+        };
+        print_tasks(&result, &Format::Text);
+    }
+
+    // --- print_relate ---
+
+    #[test]
+    fn text_print_relate_with_relationships_no_clusters() {
+        let result = RelateResult {
+            relationships: vec![
+                Relationship {
+                    from: "src/main.rs:10".to_string(),
+                    to: "src/main.rs:20".to_string(),
+                    score: 0.85,
+                    reason: "same file, similar message".to_string(),
+                },
+                Relationship {
+                    from: "src/lib.rs:5".to_string(),
+                    to: "src/auth.rs:15".to_string(),
+                    score: 0.65,
+                    reason: "related keywords".to_string(),
+                },
+            ],
+            clusters: None,
+            total_relationships: 2,
+            total_items: 4,
+            min_score: 0.5,
+            target: None,
+        };
+        print_relate(&result, &Format::Text);
+    }
+
+    #[test]
+    fn text_print_relate_with_target() {
+        let result = RelateResult {
+            relationships: vec![Relationship {
+                from: "src/main.rs:10".to_string(),
+                to: "src/main.rs:20".to_string(),
+                score: 0.9,
+                reason: "proximity".to_string(),
+            }],
+            clusters: None,
+            total_relationships: 1,
+            total_items: 2,
+            min_score: 0.3,
+            target: Some("src/main.rs:10".to_string()),
+        };
+        print_relate(&result, &Format::Text);
+    }
+
+    #[test]
+    fn text_print_relate_with_clusters() {
+        let result = RelateResult {
+            relationships: vec![Relationship {
+                from: "src/auth.rs:10".to_string(),
+                to: "src/auth.rs:20".to_string(),
+                score: 0.8,
+                reason: "same module".to_string(),
+            }],
+            clusters: Some(vec![
+                Cluster {
+                    id: 1,
+                    theme: "authentication".to_string(),
+                    items: vec![
+                        "src/auth.rs:10".to_string(),
+                        "src/auth.rs:20".to_string(),
+                    ],
+                    suggested_order: vec![
+                        "src/auth.rs:10".to_string(),
+                        "src/auth.rs:20".to_string(),
+                    ],
+                    relationships: vec![Relationship {
+                        from: "src/auth.rs:10".to_string(),
+                        to: "src/auth.rs:20".to_string(),
+                        score: 0.8,
+                        reason: "same module".to_string(),
+                    }],
+                },
+                Cluster {
+                    id: 2,
+                    theme: "logging".to_string(),
+                    items: vec!["src/log.rs:5".to_string()],
+                    suggested_order: vec!["src/log.rs:5".to_string()],
+                    relationships: vec![],
+                },
+            ]),
+            total_relationships: 1,
+            total_items: 3,
+            min_score: 0.5,
+            target: None,
+        };
+        print_relate(&result, &Format::Text);
+    }
+
+    #[test]
+    fn text_print_relate_empty() {
+        let result = RelateResult {
+            relationships: vec![],
+            clusters: None,
+            total_relationships: 0,
+            total_items: 0,
+            min_score: 0.5,
+            target: None,
+        };
+        print_relate(&result, &Format::Text);
+    }
+
+    // --- print_workspace_list ---
+
+    #[test]
+    fn text_print_workspace_list_mixed_statuses() {
+        let result = WorkspaceResult {
+            packages: vec![
+                PackageScanSummary {
+                    name: "core".to_string(),
+                    path: "packages/core".to_string(),
+                    todo_count: 5,
+                    max: Some(10),
+                    status: PackageStatus::Ok,
+                },
+                PackageScanSummary {
+                    name: "api".to_string(),
+                    path: "packages/api".to_string(),
+                    todo_count: 15,
+                    max: Some(10),
+                    status: PackageStatus::Over,
+                },
+                PackageScanSummary {
+                    name: "utils".to_string(),
+                    path: "packages/utils".to_string(),
+                    todo_count: 3,
+                    max: None,
+                    status: PackageStatus::Uncapped,
+                },
+            ],
+            total_todos: 23,
+            total_packages: 3,
+        };
+        print_workspace_list(&result, &Format::Text, &WorkspaceKind::Cargo);
+    }
+
+    #[test]
+    fn text_print_workspace_list_npm_kind() {
+        let result = WorkspaceResult {
+            packages: vec![PackageScanSummary {
+                name: "frontend".to_string(),
+                path: "packages/frontend".to_string(),
+                todo_count: 2,
+                max: Some(5),
+                status: PackageStatus::Ok,
+            }],
+            total_todos: 2,
+            total_packages: 1,
+        };
+        print_workspace_list(&result, &Format::Text, &WorkspaceKind::Npm);
+    }
+
+    // --- print_report ---
+
+    #[test]
+    fn text_print_report_to_file() {
+        let report = ReportResult {
+            generated_at: "2025-01-15T10:30:00Z".to_string(),
+            summary: ReportSummary {
+                total_items: 10,
+                total_files: 3,
+                files_scanned: 5,
+                urgent_count: 1,
+                high_count: 2,
+                stale_count: 1,
+                avg_age_days: 45,
+            },
+            tag_counts: vec![(Tag::Todo, 7), (Tag::Fixme, 2), (Tag::Bug, 1)],
+            priority_counts: PriorityCounts {
+                normal: 7,
+                high: 2,
+                urgent: 1,
+            },
+            author_counts: vec![("alice".to_string(), 5), ("bob".to_string(), 3)],
+            hotspot_files: vec![("src/main.rs".to_string(), 5)],
+            history: vec![
+                HistoryPoint {
+                    commit: "abc123".to_string(),
+                    date: "2025-01-10".to_string(),
+                    count: 8,
+                },
+                HistoryPoint {
+                    commit: "def456".to_string(),
+                    date: "2025-01-15".to_string(),
+                    count: 10,
+                },
+            ],
+            age_histogram: vec![
+                AgeBucket {
+                    label: "0-7 days".to_string(),
+                    count: 3,
+                },
+                AgeBucket {
+                    label: "8-30 days".to_string(),
+                    count: 5,
+                },
+                AgeBucket {
+                    label: "31-90 days".to_string(),
+                    count: 2,
+                },
+            ],
+            items: vec![
+                make_item("src/main.rs", 10, Tag::Todo, "fix this", Priority::Normal),
+                make_item("src/main.rs", 20, Tag::Bug, "crash", Priority::Urgent),
+            ],
+        };
+        let tmp = tempfile::TempDir::new().unwrap();
+        let path = tmp.path().join("report.html");
+        let path_str = path.to_str().unwrap();
+        print_report(&report, path_str).unwrap();
+        assert!(path.exists());
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("html"));
+    }
+
+    // --- bar() helper ---
+
+    #[test]
+    fn test_bar_function() {
+        // max=0 returns empty
+        assert_eq!(bar(5, 0, 20), "");
+        // count=0, max>0 returns 0 blocks (div_ceil(0)=0)
+        assert_eq!(bar(0, 10, 20), "");
+        // full bar
+        assert_eq!(bar(10, 10, 20).chars().count(), 20);
+        // partial bar
+        let b = bar(5, 10, 20);
+        assert_eq!(b.chars().count(), 10);
+    }
+
+    // --- group_items / group_key helpers ---
+
+    #[test]
+    fn test_group_by_author() {
+        let items = vec![
+            make_item_with_author("a.rs", 1, Tag::Todo, "task", Priority::Normal, Some("alice")),
+            make_item_with_author("b.rs", 2, Tag::Todo, "task2", Priority::Normal, None),
+            make_item_with_author("c.rs", 3, Tag::Todo, "task3", Priority::Normal, Some("alice")),
+        ];
+        let groups = group_items(&items, &GroupBy::Author);
+        // alice has 2 items, unassigned has 1
+        assert_eq!(groups.len(), 2);
+    }
+
+    #[test]
+    fn test_group_by_dir() {
+        let items = vec![
+            make_item("src/main.rs", 1, Tag::Todo, "task", Priority::Normal),
+            make_item("src/lib.rs", 2, Tag::Todo, "task2", Priority::Normal),
+            make_item("tests/test.rs", 3, Tag::Todo, "task3", Priority::Normal),
+            make_item("root_file.rs", 4, Tag::Todo, "task4", Priority::Normal),
+        ];
+        let groups = group_items(&items, &GroupBy::Dir);
+        // src, tests, . (root)
+        assert_eq!(groups.len(), 3);
+    }
+
+    // --- colorize_tag ---
+
+    #[test]
+    fn test_colorize_tag_all_variants() {
+        // Just ensure no panic for every tag variant
+        colorize_tag(&Tag::Todo);
+        colorize_tag(&Tag::Fixme);
+        colorize_tag(&Tag::Hack);
+        colorize_tag(&Tag::Bug);
+        colorize_tag(&Tag::Note);
+        colorize_tag(&Tag::Xxx);
+    }
 }
