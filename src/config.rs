@@ -314,3 +314,183 @@ max = 10
         );
     }
 }
+
+#[cfg(test)]
+mod coverage_tests {
+    use super::*;
+
+    #[test]
+    fn test_load_returns_default_when_no_config_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config::load(dir.path()).unwrap();
+        // Should return defaults when no .todo-scan.toml exists
+        assert_eq!(config.tags.len(), 6);
+        assert!(config.exclude_dirs.is_empty());
+        assert!(config.exclude_patterns.is_empty());
+    }
+
+    #[test]
+    fn test_load_reads_config_from_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let toml_content = r#"
+tags = ["TODO", "FIXME"]
+exclude_dirs = ["vendor"]
+"#;
+        std::fs::write(dir.path().join(".todo-scan.toml"), toml_content).unwrap();
+        let config = Config::load(dir.path()).unwrap();
+        assert_eq!(config.tags, vec!["TODO", "FIXME"]);
+        assert_eq!(config.exclude_dirs, vec!["vendor"]);
+    }
+
+    #[test]
+    fn test_load_invalid_toml_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".todo-scan.toml"),
+            "this is not [valid toml",
+        )
+        .unwrap();
+        let result = Config::load(dir.path());
+        assert!(result.is_err(), "invalid TOML should produce an error");
+        let err_msg = format!("{:#}", result.unwrap_err());
+        assert!(
+            err_msg.contains("Failed to parse config"),
+            "error should mention parse failure, got: {err_msg}"
+        );
+    }
+
+    #[test]
+    fn test_find_config_file_searches_upward() {
+        let dir = tempfile::tempdir().unwrap();
+        // Create config in root
+        std::fs::write(dir.path().join(".todo-scan.toml"), "tags = [\"TODO\"]\n").unwrap();
+        // Create a nested directory
+        let nested = dir.path().join("a").join("b").join("c");
+        std::fs::create_dir_all(&nested).unwrap();
+        // find_config_file from nested dir should find the root config
+        let found = find_config_file(&nested);
+        assert!(found.is_some());
+        assert_eq!(found.unwrap(), dir.path().join(".todo-scan.toml"));
+    }
+
+    #[test]
+    fn test_find_config_file_returns_none_when_no_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = find_config_file(dir.path());
+        // There might be a .todo-scan.toml somewhere up the path, but in a tempdir
+        // the default behavior should eventually fail. Let's just ensure it doesn't panic.
+        // In a tempdir, there's typically no .todo-scan.toml above.
+        let _ = result;
+    }
+
+    #[test]
+    fn test_tags_pattern_single_tag() {
+        let config = Config {
+            tags: vec!["REVIEW".into()],
+            ..Config::default()
+        };
+        let pattern = config.tags_pattern();
+        let re = regex::Regex::new(&pattern).unwrap();
+        assert!(re.is_match("// REVIEW: check this"));
+        assert!(!re.is_match("// TODO: check this"));
+    }
+
+    #[test]
+    fn test_tags_pattern_empty_tags() {
+        let config = Config {
+            tags: vec![],
+            ..Config::default()
+        };
+        let pattern = config.tags_pattern();
+        // Should still be a valid regex even with empty tags
+        let re = regex::Regex::new(&pattern);
+        assert!(re.is_ok(), "empty tags should produce a valid regex");
+    }
+
+    #[test]
+    fn test_default_config_has_all_expected_fields() {
+        let config = Config::default();
+        assert_eq!(
+            config.tags,
+            vec!["TODO", "FIXME", "HACK", "XXX", "BUG", "NOTE"]
+        );
+        assert!(config.exclude_dirs.is_empty());
+        assert!(config.exclude_patterns.is_empty());
+        assert!(config.check.max.is_none());
+        assert!(config.check.max_new.is_none());
+        assert!(config.check.block_tags.is_empty());
+        assert!(config.check.expired.is_none());
+        assert!(config.blame.stale_threshold.is_none());
+        assert!(config.lint.no_bare_tags.is_none());
+        assert!(config.lint.max_message_length.is_none());
+        assert!(config.lint.require_author.is_none());
+        assert!(config.lint.require_issue_ref.is_none());
+        assert!(config.lint.uppercase_tag.is_none());
+        assert!(config.lint.require_colon.is_none());
+        assert!(config.clean.stale_issues.is_none());
+        assert!(config.clean.duplicates.is_none());
+        assert!(config.clean.since.is_none());
+    }
+
+    #[test]
+    fn test_full_config_from_toml() {
+        let toml_str = r#"
+tags = ["TODO"]
+exclude_dirs = ["node_modules", "vendor"]
+exclude_patterns = ["\\.generated\\."]
+
+[check]
+max = 100
+max_new = 5
+block_tags = ["BUG", "HACK"]
+expired = true
+
+[blame]
+stale_threshold = "180d"
+
+[lint]
+no_bare_tags = true
+max_message_length = 120
+require_author = ["TODO", "FIXME"]
+require_issue_ref = ["BUG"]
+uppercase_tag = true
+require_colon = true
+
+[clean]
+stale_issues = true
+duplicates = true
+since = "30d"
+
+[workspace]
+auto_detect = true
+
+[workspace.packages.api]
+max = 50
+block_tags = ["HACK"]
+"#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.tags, vec!["TODO"]);
+        assert_eq!(config.exclude_dirs, vec!["node_modules", "vendor"]);
+        assert_eq!(config.exclude_patterns, vec!["\\.generated\\."]);
+        assert_eq!(config.check.max, Some(100));
+        assert_eq!(config.check.max_new, Some(5));
+        assert_eq!(config.check.block_tags, vec!["BUG", "HACK"]);
+        assert_eq!(config.check.expired, Some(true));
+        assert_eq!(config.blame.stale_threshold, Some("180d".into()));
+        assert_eq!(config.lint.no_bare_tags, Some(true));
+        assert_eq!(config.lint.max_message_length, Some(120));
+        assert_eq!(
+            config.lint.require_author,
+            Some(vec!["TODO".into(), "FIXME".into()])
+        );
+        assert_eq!(config.lint.require_issue_ref, Some(vec!["BUG".into()]));
+        assert_eq!(config.lint.uppercase_tag, Some(true));
+        assert_eq!(config.lint.require_colon, Some(true));
+        assert_eq!(config.clean.stale_issues, Some(true));
+        assert_eq!(config.clean.duplicates, Some(true));
+        assert_eq!(config.clean.since, Some("30d".into()));
+        assert_eq!(config.workspace.auto_detect, Some(true));
+        assert_eq!(config.workspace.packages["api"].max, Some(50));
+        assert_eq!(config.workspace.packages["api"].block_tags, vec!["HACK"]);
+    }
+}

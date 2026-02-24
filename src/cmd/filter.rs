@@ -199,4 +199,108 @@ mod tests {
         };
         assert!(apply_filters(&mut items, &filters).is_err());
     }
+
+    #[test]
+    fn filter_by_multiple_priorities() {
+        let mut items = vec![
+            make_filter_item("a.rs", Tag::Todo, Priority::Normal, None),
+            make_filter_item("b.rs", Tag::Todo, Priority::High, None),
+            make_filter_item("c.rs", Tag::Todo, Priority::Urgent, None),
+        ];
+        let filters = FilterOptions {
+            tags: vec![],
+            author: None,
+            path: None,
+            priority: vec![PriorityFilter::High, PriorityFilter::Urgent],
+        };
+        apply_filters(&mut items, &filters).unwrap();
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().all(|i| i.priority != Priority::Normal));
+    }
+
+    #[test]
+    fn filter_by_path_no_matches() {
+        let mut items = vec![
+            make_filter_item("src/main.rs", Tag::Todo, Priority::Normal, None),
+            make_filter_item("src/lib.rs", Tag::Todo, Priority::Normal, None),
+        ];
+        let filters = FilterOptions {
+            tags: vec![],
+            author: None,
+            path: Some("tests/**".to_string()),
+            priority: vec![],
+        };
+        apply_filters(&mut items, &filters).unwrap();
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn filter_by_invalid_tag_string_retains_none() {
+        let mut items = vec![
+            make_filter_item("a.rs", Tag::Todo, Priority::Normal, None),
+            make_filter_item("b.rs", Tag::Fixme, Priority::Normal, None),
+        ];
+        let filters = FilterOptions {
+            tags: vec!["INVALID".to_string()],
+            author: None,
+            path: None,
+            priority: vec![],
+        };
+        apply_filters(&mut items, &filters).unwrap();
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn filter_by_author_no_match() {
+        let mut items = vec![
+            make_filter_item("a.rs", Tag::Todo, Priority::Normal, Some("alice")),
+            make_filter_item("b.rs", Tag::Todo, Priority::Normal, Some("bob")),
+        ];
+        let filters = FilterOptions {
+            tags: vec![],
+            author: Some("charlie".to_string()),
+            path: None,
+            priority: vec![],
+        };
+        apply_filters(&mut items, &filters).unwrap();
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn filter_preserves_order() {
+        let mut items = vec![
+            make_filter_item("c.rs", Tag::Todo, Priority::Normal, None),
+            make_filter_item("a.rs", Tag::Todo, Priority::Normal, None),
+            make_filter_item("b.rs", Tag::Todo, Priority::Normal, None),
+        ];
+        let filters = FilterOptions {
+            tags: vec!["TODO".to_string()],
+            author: None,
+            path: None,
+            priority: vec![],
+        };
+        apply_filters(&mut items, &filters).unwrap();
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0].file, "c.rs");
+        assert_eq!(items[1].file, "a.rs");
+        assert_eq!(items[2].file, "b.rs");
+    }
+
+    #[test]
+    fn filter_single_item_matches() {
+        let mut items = vec![make_filter_item(
+            "src/main.rs",
+            Tag::Bug,
+            Priority::Urgent,
+            Some("alice"),
+        )];
+        let filters = FilterOptions {
+            tags: vec!["BUG".to_string()],
+            author: Some("alice".to_string()),
+            path: Some("src/**".to_string()),
+            priority: vec![PriorityFilter::Urgent],
+        };
+        apply_filters(&mut items, &filters).unwrap();
+        assert_eq!(items.len(), 1);
+    }
 }

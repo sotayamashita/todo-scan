@@ -611,6 +611,83 @@ mod tests {
     }
 
     #[test]
+    fn tag_from_str_valid_cases() {
+        assert_eq!("TODO".parse::<Tag>(), Ok(Tag::Todo));
+        assert_eq!("fixme".parse::<Tag>(), Ok(Tag::Fixme));
+        assert_eq!("Hack".parse::<Tag>(), Ok(Tag::Hack));
+        assert_eq!("xxx".parse::<Tag>(), Ok(Tag::Xxx));
+        assert_eq!("BUG".parse::<Tag>(), Ok(Tag::Bug));
+        assert_eq!("Note".parse::<Tag>(), Ok(Tag::Note));
+    }
+
+    #[test]
+    fn tag_from_str_invalid() {
+        assert_eq!("INVALID".parse::<Tag>(), Err(()));
+        assert_eq!("".parse::<Tag>(), Err(()));
+        assert_eq!("TODOS".parse::<Tag>(), Err(()));
+    }
+
+    #[test]
+    fn tag_display() {
+        assert_eq!(Tag::Todo.to_string(), "TODO");
+        assert_eq!(Tag::Fixme.to_string(), "FIXME");
+        assert_eq!(Tag::Bug.to_string(), "BUG");
+    }
+
+    #[test]
+    fn severity_from_item_urgent_always_error() {
+        let mut item = TodoItem {
+            file: "a.rs".to_string(),
+            line: 1,
+            tag: Tag::Note, // Note normally => Notice
+            message: "test".to_string(),
+            author: None,
+            issue_ref: None,
+            priority: Priority::Urgent,
+            deadline: None,
+        };
+        // Urgent overrides to Error regardless of tag
+        assert_eq!(Severity::from_item(&item), Severity::Error);
+
+        item.tag = Tag::Todo;
+        assert_eq!(Severity::from_item(&item), Severity::Error);
+    }
+
+    #[test]
+    fn severity_from_item_by_tag() {
+        let make = |tag: Tag| TodoItem {
+            file: "a.rs".to_string(),
+            line: 1,
+            tag,
+            message: "test".to_string(),
+            author: None,
+            issue_ref: None,
+            priority: Priority::Normal,
+            deadline: None,
+        };
+        assert_eq!(Severity::from_item(&make(Tag::Bug)), Severity::Error);
+        assert_eq!(Severity::from_item(&make(Tag::Fixme)), Severity::Error);
+        assert_eq!(Severity::from_item(&make(Tag::Todo)), Severity::Warning);
+        assert_eq!(Severity::from_item(&make(Tag::Hack)), Severity::Warning);
+        assert_eq!(Severity::from_item(&make(Tag::Xxx)), Severity::Warning);
+        assert_eq!(Severity::from_item(&make(Tag::Note)), Severity::Notice);
+    }
+
+    #[test]
+    fn severity_github_actions_str() {
+        assert_eq!(Severity::Error.as_github_actions_str(), "error");
+        assert_eq!(Severity::Warning.as_github_actions_str(), "warning");
+        assert_eq!(Severity::Notice.as_github_actions_str(), "notice");
+    }
+
+    #[test]
+    fn severity_sarif_level() {
+        assert_eq!(Severity::Error.as_sarif_level(), "error");
+        assert_eq!(Severity::Warning.as_sarif_level(), "warning");
+        assert_eq!(Severity::Notice.as_sarif_level(), "note");
+    }
+
+    #[test]
     fn workspace_result_serializes() {
         let result = WorkspaceResult {
             packages: vec![PackageScanSummary {

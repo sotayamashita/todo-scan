@@ -143,6 +143,90 @@ mod tests {
     }
 
     #[test]
+    fn test_top_urgent_tiebreak_by_tag_severity() {
+        // Two high-priority items: Bug (severity 5) should win over Todo (severity 1)
+        let mut items = vec![
+            make_item("a.rs", 1, Tag::Todo, "high todo"),
+            make_item("b.rs", 2, Tag::Bug, "high bug"),
+        ];
+        items[0].priority = Priority::High;
+        items[1].priority = Priority::High;
+
+        let scan = ScanResult {
+            items,
+            files_scanned: 2,
+            ignored_items: vec![],
+        };
+
+        let result = compute_brief(&scan, None);
+        let top = result.top_urgent.expect("should have top urgent");
+        assert_eq!(top.tag, Tag::Bug);
+    }
+
+    #[test]
+    fn test_top_urgent_prefers_urgent_over_high() {
+        let mut items = vec![
+            make_item("a.rs", 1, Tag::Bug, "high bug"),
+            make_item("b.rs", 2, Tag::Todo, "urgent todo"),
+        ];
+        items[0].priority = Priority::High;
+        items[1].priority = Priority::Urgent;
+
+        let scan = ScanResult {
+            items,
+            files_scanned: 2,
+            ignored_items: vec![],
+        };
+
+        let result = compute_brief(&scan, None);
+        let top = result.top_urgent.expect("should have top urgent");
+        assert_eq!(top.priority, Priority::Urgent);
+    }
+
+    #[test]
+    fn test_single_file_counts_as_one() {
+        let items = vec![
+            make_item("a.rs", 1, Tag::Todo, "first"),
+            make_item("a.rs", 2, Tag::Fixme, "second"),
+            make_item("a.rs", 3, Tag::Bug, "third"),
+        ];
+
+        let scan = ScanResult {
+            items,
+            files_scanned: 1,
+            ignored_items: vec![],
+        };
+
+        let result = compute_brief(&scan, None);
+        assert_eq!(result.total_items, 3);
+        assert_eq!(result.total_files, 1);
+    }
+
+    #[test]
+    fn test_all_priorities_with_no_diff() {
+        let mut items = vec![
+            make_item("a.rs", 1, Tag::Todo, "n1"),
+            make_item("a.rs", 2, Tag::Todo, "n2"),
+            make_item("b.rs", 1, Tag::Fixme, "h1"),
+            make_item("c.rs", 1, Tag::Bug, "u1"),
+        ];
+        items[2].priority = Priority::High;
+        items[3].priority = Priority::Urgent;
+
+        let scan = ScanResult {
+            items,
+            files_scanned: 3,
+            ignored_items: vec![],
+        };
+
+        let result = compute_brief(&scan, None);
+        assert_eq!(result.priority_counts.normal, 2);
+        assert_eq!(result.priority_counts.high, 1);
+        assert_eq!(result.priority_counts.urgent, 1);
+        assert!(result.trend.is_none());
+    }
+
+    #[test]
     fn test_empty_scan() {
         let scan = ScanResult {
             items: vec![],
