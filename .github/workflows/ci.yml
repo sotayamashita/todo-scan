@@ -44,12 +44,15 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
       - name: Run tests with coverage
-        run: cargo llvm-cov --ignore-run-fail --summary-only --fail-under-lines 88
+        run: cargo llvm-cov nextest --ignore-run-fail --summary-only --fail-under-lines 88 --profile ci
 
       - name: Generate coverage report (lcov)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: cargo llvm-cov --ignore-run-fail --lcov --output-path lcov.info
+        run: cargo llvm-cov nextest --ignore-run-fail --lcov --output-path lcov.info --profile ci
 
       - name: Upload coverage to Codecov
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
