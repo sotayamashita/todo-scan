@@ -1226,52 +1226,52 @@ cargo run -- list --root /path/to/project
 
 This project served as an experiment for exploring coding agent (Claude Code) collaboration workflows. The patterns below are reusable in any project where you work with a coding agent.
 
-### 1. CLAUDE.md によるプロジェクトコンテキスト提供
+### 1. Project Context via CLAUDE.md
 
-ビルド・テストコマンド一覧、アーキテクチャ概要、モジュール責務、データフローを `CLAUDE.md` に記述することで、Agent がコードベースを自律的に理解・操作できるようになる。Agent は毎セッション開始時にこのファイルを読み込むため、口頭での説明を繰り返す必要がない。
+Document build/test commands, architecture overview, module responsibilities, and data flow in `CLAUDE.md`. The agent reads this file at the start of every session, enabling it to autonomously understand and operate on the codebase without repeated verbal explanations.
 
 - File: [`CLAUDE.md`](CLAUDE.md)
 
 ### 2. Issue-Driven Development Workflow
 
-Issue 選定 → ブランチ作成 → Plan 投稿 → TDD → Commit → PR → Merge の 8 ステップを定義。Agent が `gh` CLI で GitHub 操作を完結できるフロー設計にし、mermaid シーケンス図でフロー全体を可視化している。
+Define an 8-step workflow: Issue selection → Branch → Plan posting → TDD → Commit → PR → Merge. The flow is designed so the agent can complete all GitHub operations via `gh` CLI, with a mermaid sequence diagram visualizing the entire process.
 
 - File: [`docs/DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md)
 
 ### 3. Custom Slash Commands
 
-Agent に繰り返し実行させるワークフローをスラッシュコマンドとして定義:
+Define repeatable agent workflows as slash commands:
 
-- `/implement <issue-number>` — Issue → ブランチ → Plan → TDD → PR まで一気通貫
-- `/pick-issue` — Open issues を依存関係・複雑度・優先度でティア分けして推薦
-- `/workflow-retro` — git 履歴・PR・Issue をワークフロー定義と照合しコンプライアンスレポート出力
+- `/implement <issue-number>` — End-to-end from Issue → Branch → Plan → TDD → PR
+- `/pick-issue` — Rank open issues by dependency, complexity, and priority into tiers
+- `/workflow-retro` — Audit git history, PRs, and issues against the workflow definition and output a compliance report
 
 - Directory: [`.claude/commands/`](.claude/commands/)
 
-### 4. Claude Code Hooks による自動品質保証
+### 4. Automated Quality Assurance via Claude Code Hooks
 
-`PostToolUse` フックで Edit/Write 後に自動で `rustfmt` + `cargo check` を実行。Agent のコード出力品質をリアルタイムに保証し、フォーマットエラーやコンパイルエラーを即座にフィードバックする。
+`PostToolUse` hooks automatically run `rustfmt` + `cargo check` after every Edit/Write operation. This provides real-time quality guarantees on agent code output, giving immediate feedback on formatting and compilation errors.
 
 - File: [`.claude/settings.json`](.claude/settings.json)
 
-### 5. Claude Code Skill (プラグイン)
+### 5. Claude Code Skill (Plugin)
 
-Agent がプロジェクト固有のコマンドを自動的に使えるようにするプラグイン定義。frontmatter でトリガー条件・スコープを宣言的に記述し、Agent が適切なタイミングで todo-scan を使えるようにしている。
+A plugin definition that enables the agent to automatically use project-specific commands. Trigger conditions and scope are declared in frontmatter, allowing the agent to invoke todo-scan at the right time.
 
 - File: [`skills/todo-scan/SKILL.md`](skills/todo-scan/SKILL.md)
 
-### 6. CI パイプライン設計
+### 6. CI Pipeline Design
 
-3 つのワークフローで品質保証からリリースまでを自動化:
+Three workflows automate quality assurance through release:
 
 - `ci.yml`: fmt → clippy → nextest + llvm-cov (coverage gate) → self-dogfood
-- `release-please.yml`: Conventional Commits → 自動 Release PR → crates.io publish
-- `release.yml` (cargo-dist): タグ push → マルチプラットフォームビルド → GitHub Release
+- `release-please.yml`: Conventional Commits → automatic Release PR → crates.io publish
+- `release.yml` (cargo-dist): tag push → multi-platform build → GitHub Release
 
 - Directory: [`.github/workflows/`](.github/workflows/)
 
-### 7. TDD ワークフロー統合
+### 7. TDD Workflow Integration
 
-`/tdd-workflow` スキルで Red-Green-Refactor サイクルを Agent に強制。`assert_cmd` + `tempfile` による integration test パターンで、CLI の E2E テストを再現可能な形で実装している。
+The `/tdd-workflow` skill enforces Red-Green-Refactor cycles on the agent. Integration tests use `assert_cmd` + `tempfile` to create reproducible CLI E2E tests with temporary fixture directories.
 
 - Directory: [`tests/`](tests/)
