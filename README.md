@@ -1,5 +1,7 @@
 # todo-scan
 
+> **Note**: This repository has been archived. It was an experimental project for exploring coding agent (Claude Code) collaboration workflows. The reusable patterns discovered are documented in the [Reusable Patterns](#reusable-patterns-for-coding-agent-development) section below.
+
 [![Crates.io](https://img.shields.io/crates/v/todo-scan.svg)](https://crates.io/crates/todo-scan)
 [![CI](https://github.com/sotayamashita/todo-scan/actions/workflows/ci.yml/badge.svg)](https://github.com/sotayamashita/todo-scan/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/sotayamashita/todo-scan/graph/badge.svg)](https://codecov.io/gh/sotayamashita/todo-scan)
@@ -1219,3 +1221,57 @@ cargo test
 # Run against a project
 cargo run -- list --root /path/to/project
 ```
+
+## Reusable Patterns for Coding Agent Development
+
+This project served as an experiment for exploring coding agent (Claude Code) collaboration workflows. The patterns below are reusable in any project where you work with a coding agent.
+
+### 1. CLAUDE.md によるプロジェクトコンテキスト提供
+
+ビルド・テストコマンド一覧、アーキテクチャ概要、モジュール責務、データフローを `CLAUDE.md` に記述することで、Agent がコードベースを自律的に理解・操作できるようになる。Agent は毎セッション開始時にこのファイルを読み込むため、口頭での説明を繰り返す必要がない。
+
+- File: [`CLAUDE.md`](CLAUDE.md)
+
+### 2. Issue-Driven Development Workflow
+
+Issue 選定 → ブランチ作成 → Plan 投稿 → TDD → Commit → PR → Merge の 8 ステップを定義。Agent が `gh` CLI で GitHub 操作を完結できるフロー設計にし、mermaid シーケンス図でフロー全体を可視化している。
+
+- File: [`docs/DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md)
+
+### 3. Custom Slash Commands
+
+Agent に繰り返し実行させるワークフローをスラッシュコマンドとして定義:
+
+- `/implement <issue-number>` — Issue → ブランチ → Plan → TDD → PR まで一気通貫
+- `/pick-issue` — Open issues を依存関係・複雑度・優先度でティア分けして推薦
+- `/workflow-retro` — git 履歴・PR・Issue をワークフロー定義と照合しコンプライアンスレポート出力
+
+- Directory: [`.claude/commands/`](.claude/commands/)
+
+### 4. Claude Code Hooks による自動品質保証
+
+`PostToolUse` フックで Edit/Write 後に自動で `rustfmt` + `cargo check` を実行。Agent のコード出力品質をリアルタイムに保証し、フォーマットエラーやコンパイルエラーを即座にフィードバックする。
+
+- File: [`.claude/settings.json`](.claude/settings.json)
+
+### 5. Claude Code Skill (プラグイン)
+
+Agent がプロジェクト固有のコマンドを自動的に使えるようにするプラグイン定義。frontmatter でトリガー条件・スコープを宣言的に記述し、Agent が適切なタイミングで todo-scan を使えるようにしている。
+
+- File: [`skills/todo-scan/SKILL.md`](skills/todo-scan/SKILL.md)
+
+### 6. CI パイプライン設計
+
+3 つのワークフローで品質保証からリリースまでを自動化:
+
+- `ci.yml`: fmt → clippy → nextest + llvm-cov (coverage gate) → self-dogfood
+- `release-please.yml`: Conventional Commits → 自動 Release PR → crates.io publish
+- `release.yml` (cargo-dist): タグ push → マルチプラットフォームビルド → GitHub Release
+
+- Directory: [`.github/workflows/`](.github/workflows/)
+
+### 7. TDD ワークフロー統合
+
+`/tdd-workflow` スキルで Red-Green-Refactor サイクルを Agent に強制。`assert_cmd` + `tempfile` による integration test パターンで、CLI の E2E テストを再現可能な形で実装している。
+
+- Directory: [`tests/`](tests/)
